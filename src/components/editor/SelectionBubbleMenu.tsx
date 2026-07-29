@@ -3,6 +3,7 @@ import type { BubbleMenuPluginProps } from '@tiptap/extension-bubble-menu'
 import { PluginKey } from '@tiptap/pm/state'
 import { BubbleMenu } from '@tiptap/react/menus'
 import { useCallback } from 'react'
+import { formatShortcut } from '../../lib/shortcuts'
 import { CommentIcon, LinkIcon } from '../icons'
 import { shouldShowSelectionBar } from './bubbleVisibility'
 import { useRepositionOnScroll } from './useRepositionOnScroll'
@@ -50,12 +51,20 @@ export function SelectionBubbleMenu({
       shouldShow={shouldShow}
     >
       {/* Shortcuts mirror the handlers in AppShell. */}
-      <button type="button" title="Comment (⌘⌥M)" onClick={onAddComment}>
+      <button
+        type="button"
+        title={`Comment (${formatShortcut('mod+alt+m')})`}
+        onClick={onAddComment}
+      >
         <CommentIcon width={14} height={14} />
         Comment
       </button>
 
-      <button type="button" title="Link (⌘⇧K)" onClick={onAddLink}>
+      <button
+        type="button"
+        title={`Link (${formatShortcut('mod+shift+k')})`}
+        onClick={onAddLink}
+      >
         <LinkIcon width={14} height={14} />
         Link
       </button>

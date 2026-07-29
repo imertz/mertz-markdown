@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { formatShortcut } from '../../lib/shortcuts'
 
 interface CommentComposerProps {
   placeholder?: string
@@ -76,7 +77,7 @@ export function CommentComposer({
           type="button"
           className="btn--primary"
           disabled={!body.trim()}
-          title={`${submitLabel} (⌘⏎)`}
+          title={`${submitLabel} (${formatShortcut('mod+enter')})`}
           onClick={submit}
         >
           {submitLabel}

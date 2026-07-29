@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 import type { ImageUrlInsertRequest } from '../../images/url'
+import { formatShortcut } from '../../lib/shortcuts'
 import {
   BulletListIcon,
   CodeBlockIcon,
@@ -64,7 +65,7 @@ export function Toolbar({
       <div className="toolbar__group">
         <button
           type="button"
-          title="Bold (⌘B)"
+          title={`Bold (${formatShortcut('mod+b')})`}
           aria-label="Bold"
           aria-pressed={state.bold}
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -73,7 +74,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title="Italic (⌘I)"
+          title={`Italic (${formatShortcut('mod+i')})`}
           aria-label="Italic"
           aria-pressed={state.italic}
           onClick={() => editor.chain().focus().toggleItalic().run()}
@@ -227,7 +228,7 @@ export function Toolbar({
       <div className="toolbar__group">
         <button
           type="button"
-          title="Undo (⌘Z)"
+          title={`Undo (${formatShortcut('mod+z')})`}
           aria-label="Undo"
           disabled={!state.canUndo}
           onClick={() => editor.chain().focus().undo().run()}
@@ -236,7 +237,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title="Redo (⇧⌘Z)"
+          title={`Redo (${formatShortcut('mod+shift+z')})`}
           aria-label="Redo"
           disabled={!state.canRedo}
           onClick={() => editor.chain().focus().redo().run()}

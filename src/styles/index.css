@@ -480,6 +480,15 @@ body {
   }
 }
 
+/* The comment arrows and count are one control, so they sit tighter than the
+   12px the readout puts between its separate items. */
+.status-bar__threads {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
 /* Equal specificity to the rule above, so it must stay after it. */
 .status-bar__chip--warn {
   color: var(--warn);

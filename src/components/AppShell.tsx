@@ -12,6 +12,7 @@ import {
 import {
   COMMENT_MARK_NAME,
   nextThreadAfter,
+  previousThreadBefore,
 } from '../editor/extensions/comment'
 import { setActiveThread } from '../editor/extensions/commentActive'
 import { clearSearch } from '../editor/extensions/search'
@@ -43,6 +44,7 @@ import {
 } from '../images/transform'
 import type { ImageUrlInsertRequest } from '../images/url'
 import { fetchImageFile, insertImageUrl } from '../images/url'
+import { formatShortcut } from '../lib/shortcuts'
 import { relative } from '../lib/time'
 import { buildDocumentExport, downloadFile } from '../markdown/bundle'
 import { toMarkdown } from '../markdown/export'
@@ -451,38 +453,43 @@ export function AppShell() {
       })
   }, [editor, documents.activeTitle, resolveImageAsset, threads.threads])
 
-  const jumpToNextThread = useCallback(() => {
-    if (!editor || editor.isDestroyed) return
+  const stepThread = useCallback(
+    (delta: -1 | 1) => {
+      if (!editor || editor.isDestroyed) return
 
-    const type = editor.schema.marks[COMMENT_MARK_NAME]
-    if (!type) return
+      const type = editor.schema.marks[COMMENT_MARK_NAME]
+      if (!type) return
 
-    // Resolved anchors are still in the document, but the chip counts open
-    // threads — cycling through cards the sidebar hides by default would not
-    // match what the user clicked.
-    const open = new Set(
-      threads.threads
-        .filter(thread => thread.status === 'open')
-        .map(thread => thread.id),
-    )
+      // Resolved anchors are still in the document, but the chip counts open
+      // threads — cycling through cards the sidebar hides by default would not
+      // match what the user clicked.
+      const open = new Set(
+        threads.threads
+          .filter(thread => thread.status === 'open')
+          .map(thread => thread.id),
+      )
 
-    const next = nextThreadAfter(
-      editor.state.doc,
-      type,
-      open,
-      editor.state.selection.to,
-    )
-    if (!next) return
+      // Searching from `to` forwards and `from` backwards is what keeps the pair
+      // symmetric: a jump leaves the caret collapsed at the thread's start, so
+      // stepping back and forward again returns to the thread you left.
+      const { from, to } = editor.state.selection
+      const target =
+        delta === 1
+          ? nextThreadAfter(editor.state.doc, type, open, to)
+          : previousThreadBefore(editor.state.doc, type, open, from)
+      if (!target) return
 
-    // Jumping to a comment the rail is hiding is not a jump.
-    showRail()
-    editor.chain().focus().setTextSelection(next.from).scrollIntoView().run()
+      // Jumping to a comment the rail is hiding is not a jump.
+      showRail()
+      editor.chain().focus().setTextSelection(target.from).scrollIntoView().run()
 
-    // Two threads may overlap the same text, so the caret alone cannot say
-    // which was meant. Set it explicitly, after the selection handler has run.
-    setActiveId(next.threadId)
-    setActiveThread(editor, next.threadId)
-  }, [editor, threads.threads, setActiveId, showRail])
+      // Two threads may overlap the same text, so the caret alone cannot say
+      // which was meant. Set it explicitly, after the selection handler has run.
+      setActiveId(target.threadId)
+      setActiveThread(editor, target.threadId)
+    },
+    [editor, threads.threads, setActiveId, showRail],
+  )
 
   const showOrphans = useCallback(() => {
     showRail()
@@ -647,17 +654,22 @@ export function AppShell() {
         label: 'New document',
         run: () => void documents.create(),
       },
-      { id: 'cmd:find', label: 'Find in document', hint: '⌘F', run: openFind },
+      {
+        id: 'cmd:find',
+        label: 'Find in document',
+        hint: formatShortcut('mod+f'),
+        run: openFind,
+      },
       {
         id: 'cmd:link',
         label: 'Add or edit link',
-        hint: '⌘⇧K',
+        hint: formatShortcut('mod+shift+k'),
         run: startLink,
       },
       {
         id: 'cmd:comment',
         label: 'Comment on selection',
-        hint: '⌘⌥M',
+        hint: formatShortcut('mod+alt+m'),
         run: startDraft,
       },
       { id: 'cmd:export', label: 'Export as Markdown', run: exportMarkdown },
@@ -700,7 +712,14 @@ export function AppShell() {
       {
         id: 'cmd:next-comment',
         label: 'Go to next comment',
-        run: jumpToNextThread,
+        hint: formatShortcut('mod+alt+shift+down'),
+        run: () => stepThread(1),
+      },
+      {
+        id: 'cmd:prev-comment',
+        label: 'Go to previous comment',
+        hint: formatShortcut('mod+alt+shift+up'),
+        run: () => stepThread(-1),
       },
     ]
 
@@ -798,11 +817,11 @@ export function AppShell() {
     exportAnnotated,
     exportMarkdown,
     jumpToHeading,
-    jumpToNextThread,
     openFind,
     rail.hidden,
     startDraft,
     startLink,
+    stepThread,
     takeSnapshot,
     theme,
     threads,
@@ -816,6 +835,22 @@ export function AppShell() {
     { key: 'm', mod: true, alt: true, run: startDraft },
     { key: 'arrowup', mod: true, alt: true, run: () => stepSection(-1) },
     { key: 'arrowdown', mod: true, alt: true, run: () => stepSection(1) },
+    // Same gesture as section stepping with Shift added: modifiers are matched
+    // exactly, so these never fire the shift-less pair above.
+    {
+      key: 'arrowup',
+      mod: true,
+      alt: true,
+      shift: true,
+      run: () => stepThread(-1),
+    },
+    {
+      key: 'arrowdown',
+      mod: true,
+      alt: true,
+      shift: true,
+      run: () => stepThread(1),
+    },
   ])
 
   const submitDraft = useCallback(
@@ -952,7 +987,7 @@ export function AppShell() {
         savedAt={savedAt}
         usage={storage.usage}
         railHidden={rail.hidden}
-        onNextThread={jumpToNextThread}
+        onStepThread={stepThread}
         onShowOrphans={showOrphans}
         onJumpToHeading={jumpToHeading}
         onStepSection={stepSection}

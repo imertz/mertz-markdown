@@ -108,6 +108,26 @@ export function nextThreadAfter(
   return starts.find(start => start.from > after) ?? starts[0]
 }
 
+/**
+ * The last thread anchored before `before`, wrapping to the last in the document.
+ *
+ * The mirror of `nextThreadAfter`, wrapping for the same reason: stepping back
+ * past the first thread has to land on the last one, so neither direction ever
+ * goes dead with a single thread in the document.
+ */
+export function previousThreadBefore(
+  doc: PMNode,
+  type: MarkType,
+  threadIds: ReadonlySet<string>,
+  before: number,
+): ThreadStart | null {
+  const starts = collectThreadStarts(doc, type, threadIds)
+  if (starts.length === 0) return null
+  return (
+    starts.findLast(start => start.from < before) ?? starts[starts.length - 1]
+  )
+}
+
 export const CommentMark = Mark.create<CommentMarkOptions>({
   name: COMMENT_MARK_NAME,
 

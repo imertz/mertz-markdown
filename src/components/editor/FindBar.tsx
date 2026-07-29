@@ -2,6 +2,7 @@ import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 import { getSearchState } from '../../editor/extensions/search'
+import { formatShortcut } from '../../lib/shortcuts'
 import { ChevronDownIcon, ChevronUpIcon, CloseIcon, SearchIcon } from '../icons'
 
 interface FindBarProps {
@@ -108,7 +109,7 @@ export function FindBar({ editor, focusRequest, onClose }: FindBarProps) {
           <button
             type="button"
             aria-label="Previous match"
-            title="Previous match (⇧⏎)"
+            title={`Previous match (${formatShortcut('shift+enter')})`}
             disabled={total === 0}
             onClick={() => step(-1)}
           >
@@ -117,7 +118,7 @@ export function FindBar({ editor, focusRequest, onClose }: FindBarProps) {
           <button
             type="button"
             aria-label="Next match"
-            title="Next match (⏎)"
+            title={`Next match (${formatShortcut('enter')})`}
             disabled={total === 0}
             onClick={() => step(1)}
           >

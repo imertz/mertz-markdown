@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { SaveStatus } from '../hooks/useDocuments'
 import type { PersistenceState } from '../hooks/usePersistentStorage'
 import type { DocumentStats } from '../hooks/useDocumentStats'
+import { formatShortcut } from '../lib/shortcuts'
 import { ChevronDownIcon, ChevronUpIcon, PanelRightIcon } from './icons'
 import { OutlineMenu } from './OutlineMenu'
 import { SaveIndicator } from './SaveIndicator'
@@ -18,7 +19,7 @@ interface StatusBarProps {
   savedAt: number | null
   usage: number | null
   railHidden: boolean
-  onNextThread: () => void
+  onStepThread: (delta: -1 | 1) => void
   onShowOrphans: () => void
   onJumpToHeading: (index: number) => void
   onStepSection: (delta: -1 | 1) => void
@@ -51,7 +52,7 @@ export function StatusBar({
   savedAt,
   usage,
   railHidden,
-  onNextThread,
+  onStepThread,
   onShowOrphans,
   onJumpToHeading,
   onStepSection,
@@ -86,7 +87,7 @@ export function StatusBar({
           type="button"
           className="status-bar__step"
           aria-label="Previous section"
-          title="Previous section"
+          title={`Previous section (${formatShortcut('mod+alt+up')})`}
           disabled={stats.activeIndex < 0}
           onClick={() => onStepSection(-1)}
         >
@@ -103,7 +104,7 @@ export function StatusBar({
           type="button"
           className="status-bar__step"
           aria-label="Next section"
-          title="Next section"
+          title={`Next section (${formatShortcut('mod+alt+down')})`}
           disabled={stats.activeIndex >= stats.outline.length - 1}
           onClick={() => onStepSection(1)}
         >
@@ -117,19 +118,49 @@ export function StatusBar({
           {stats.minutes > 0 ? ` · ${stats.minutes} min` : ''}
         </span>
 
+        {/*
+          Arrows either side of the count, the same shape as the section
+          steppers. Neither is ever disabled: stepping wraps, so with the group
+          on screen at all there is always somewhere to go. The count itself
+          stays clickable — it was the app's only comment navigation before the
+          arrows existed, and it is the only one left on a phone, where
+          .status-bar__step hides.
+        */}
         {openCount > 0 ? (
-          <button
-            type="button"
-            className="status-bar__chip"
-            onClick={onNextThread}
-            title={
-              resolvedCount > 0
-                ? `${openCount} open, ${resolvedCount} resolved. Go to the next comment.`
-                : 'Go to the next comment.'
-            }
-          >
-            {plural(openCount, 'comment')}
-          </button>
+          <span className="status-bar__threads">
+            <button
+              type="button"
+              className="status-bar__step"
+              aria-label="Previous comment"
+              title={`Previous comment (${formatShortcut('mod+alt+shift+up')})`}
+              onClick={() => onStepThread(-1)}
+            >
+              <ChevronUpIcon />
+            </button>
+
+            <button
+              type="button"
+              className="status-bar__chip"
+              onClick={() => onStepThread(1)}
+              title={
+                resolvedCount > 0
+                  ? `${openCount} open, ${resolvedCount} resolved. Go to the next comment.`
+                  : 'Go to the next comment.'
+              }
+            >
+              {plural(openCount, 'comment')}
+            </button>
+
+            <button
+              type="button"
+              className="status-bar__step"
+              aria-label="Next comment"
+              title={`Next comment (${formatShortcut('mod+alt+shift+down')})`}
+              onClick={() => onStepThread(1)}
+            >
+              <ChevronDownIcon />
+            </button>
+          </span>
         ) : null}
 
         {orphanCount > 0 ? (

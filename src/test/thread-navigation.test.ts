@@ -4,6 +4,7 @@ import {
   collectThreadStarts,
   findMarkRanges,
   nextThreadAfter,
+  previousThreadBefore,
 } from '../editor/extensions/comment'
 import { createTestEditor, rangeOfText } from './editorHarness'
 
@@ -141,6 +142,110 @@ describe('nextThreadAfter', () => {
 
     expect(
       nextThreadAfter(editor.state.doc, markType(editor), new Set(['t1']), 0),
+    ).toBeNull()
+
+    editor.destroy()
+  })
+})
+
+describe('previousThreadBefore', () => {
+  it('walks backward and wraps round to the last', () => {
+    const editor = createTestEditor('Alpha one. Bravo two. Charlie three.\n')
+    annotate(editor, 'Alpha', 't1')
+    annotate(editor, 'Bravo', 't2')
+    annotate(editor, 'Charlie', 't3')
+
+    const type = markType(editor)
+    const ids = new Set(['t1', 't2', 't3'])
+    const step = (from: number) =>
+      previousThreadBefore(editor.state.doc, type, ids, from)
+
+    const third = step(editor.state.doc.content.size)
+    expect(third?.threadId).toBe('t3')
+
+    const second = step(third?.from ?? 0)
+    expect(second?.threadId).toBe('t2')
+
+    const first = step(second?.from ?? 0)
+    expect(first?.threadId).toBe('t1')
+
+    const wrapped = step(first?.from ?? 0)
+    expect(wrapped?.threadId).toBe('t3')
+
+    editor.destroy()
+  })
+
+  it('returns to the thread just left when the caret reverses', () => {
+    // The caret lands collapsed at a thread's start, so forward-then-back has to
+    // be a round trip rather than skipping a thread each way.
+    const editor = createTestEditor('Alpha one. Bravo two. Charlie three.\n')
+    annotate(editor, 'Alpha', 't1')
+    annotate(editor, 'Bravo', 't2')
+    annotate(editor, 'Charlie', 't3')
+
+    const type = markType(editor)
+    const ids = new Set(['t1', 't2', 't3'])
+
+    const forward = nextThreadAfter(editor.state.doc, type, ids, 0)
+    expect(forward?.threadId).toBe('t1')
+
+    const onward = nextThreadAfter(editor.state.doc, type, ids, forward?.from ?? 0)
+    expect(onward?.threadId).toBe('t2')
+
+    expect(
+      previousThreadBefore(editor.state.doc, type, ids, onward?.from ?? 0)
+        ?.threadId,
+    ).toBe('t1')
+
+    editor.destroy()
+  })
+
+  it('ignores threads outside the requested set', () => {
+    // Resolved anchors stay in the document; both directions have to agree with
+    // the count the chip shows.
+    const editor = createTestEditor('Alpha one. Bravo two.\n')
+    annotate(editor, 'Alpha', 'open-thread')
+    annotate(editor, 'Bravo', 'resolved-thread')
+
+    expect(
+      previousThreadBefore(
+        editor.state.doc,
+        markType(editor),
+        new Set(['open-thread']),
+        editor.state.doc.content.size,
+      )?.threadId,
+    ).toBe('open-thread')
+
+    editor.destroy()
+  })
+
+  it('keeps returning the only thread rather than going dead', () => {
+    const editor = createTestEditor('Alpha one. Bravo two.\n')
+    annotate(editor, 'Alpha', 'only')
+
+    const type = markType(editor)
+    const ids = new Set(['only'])
+
+    const landed = previousThreadBefore(editor.state.doc, type, ids, 0)
+    expect(landed?.threadId).toBe('only')
+    expect(
+      previousThreadBefore(editor.state.doc, type, ids, landed?.from ?? 0)
+        ?.threadId,
+    ).toBe('only')
+
+    editor.destroy()
+  })
+
+  it('is null when the document has no matching thread', () => {
+    const editor = createTestEditor('Alpha one.\n')
+
+    expect(
+      previousThreadBefore(
+        editor.state.doc,
+        markType(editor),
+        new Set(['t1']),
+        10,
+      ),
     ).toBeNull()
 
     editor.destroy()

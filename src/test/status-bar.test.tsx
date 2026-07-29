@@ -31,7 +31,7 @@ type Props = Parameters<typeof StatusBar>[0]
 
 const setup = (overrides: Partial<Props> = {}) => {
   const handlers = {
-    onNextThread: vi.fn(),
+    onStepThread: vi.fn(),
     onShowOrphans: vi.fn(),
     onJumpToHeading: vi.fn(),
     onStepSection: vi.fn(),
@@ -175,7 +175,7 @@ describe('status bar section navigation', () => {
         savedAt={null}
         usage={null}
         railHidden={false}
-        onNextThread={vi.fn()}
+        onStepThread={vi.fn()}
         onShowOrphans={vi.fn()}
         onJumpToHeading={vi.fn()}
         onStepSection={vi.fn()}
@@ -204,11 +204,31 @@ describe('status bar comment chips', () => {
 
   it('jumps to the next thread when the comment chip is clicked', async () => {
     const user = userEvent.setup()
-    const { onNextThread } = setup({ openCount: 3 })
+    const { onStepThread } = setup({ openCount: 3 })
 
     await user.click(screen.getByRole('button', { name: '3 comments' }))
 
-    expect(onNextThread).toHaveBeenCalledTimes(1)
+    expect(onStepThread).toHaveBeenCalledWith(1)
+  })
+
+  it('steps either way from the arrows flanking the count', async () => {
+    const user = userEvent.setup()
+    const { onStepThread } = setup({ openCount: 3 })
+
+    await user.click(screen.getByRole('button', { name: 'Previous comment' }))
+    expect(onStepThread).toHaveBeenLastCalledWith(-1)
+
+    await user.click(screen.getByRole('button', { name: 'Next comment' }))
+    expect(onStepThread).toHaveBeenLastCalledWith(1)
+  })
+
+  it('hides the arrows along with the count', () => {
+    // They wrap rather than dead-end, so there is no disabled state to show —
+    // with nothing to navigate the whole group goes away.
+    setup({ openCount: 0 })
+
+    expect(screen.queryByRole('button', { name: 'Previous comment' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Next comment' })).toBeNull()
   })
 
   it('hides the orphan chip until a thread is actually orphaned', () => {
