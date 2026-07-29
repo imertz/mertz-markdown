@@ -1,0 +1,50 @@
+import type { DBSchema } from 'idb'
+import type {
+  AssetRecord,
+  CommentRecord,
+  DocumentRecord,
+  SnapshotRecord,
+  ThreadRecord,
+  ThreadStatus,
+} from '../types'
+
+export const DB_NAME = 'mertz-markdown'
+export const DB_VERSION = 3
+
+export interface MertzDB extends DBSchema {
+  assets: {
+    key: string
+    value: AssetRecord
+    indexes: { 'by-docId': string }
+  }
+  documents: {
+    key: string
+    value: DocumentRecord
+    indexes: { 'by-updatedAt': number }
+  }
+  threads: {
+    key: string
+    value: ThreadRecord
+    indexes: {
+      'by-docId': string
+      'by-doc-status': [string, ThreadStatus]
+    }
+  }
+  comments: {
+    key: string
+    value: CommentRecord
+    indexes: {
+      'by-threadId': string
+      'by-docId': string
+    }
+  }
+  snapshots: {
+    key: string
+    value: SnapshotRecord
+    indexes: {
+      'by-docId': string
+      /** Compound, so one document's history is a single ordered range scan. */
+      'by-doc-createdAt': [string, number]
+    }
+  }
+}

@@ -1,0 +1,1195 @@
+/*
+ * Warm paper. Every hue in the light palette is pulled off-neutral toward
+ * yellow/red, so nothing reads as clinical grey next to the terracotta accent.
+ * The page is off-white and raised surfaces (menus, popovers, cards) are pure
+ * white — that difference is the only thing lifting them, since the borders are
+ * deliberately faint.
+ */
+:root {
+  --text: #6d675f;
+  --text-h: #1c1a17;
+  --bg: #faf9f7;
+  --bg-raised: #fff;
+  --border: #e6e2da;
+  --code-bg: #f2efe9;
+  --accent: #b3512f;
+  --accent-bg: rgba(179, 81, 47, 0.1);
+  --accent-border: rgba(179, 81, 47, 0.45);
+
+  /* Text/icons sitting ON an accent fill. Not always white: the dark theme's
+     accent is light enough that white on it fails contrast. */
+  --on-accent: #fff;
+
+  /* Containers (cards, menus, popovers) and the controls inside them. Radius
+     does not vary by theme, so these are not repeated in the dark block. */
+  --radius: 8px;
+  --radius-sm: 5px;
+
+  /* Save-state signalling. */
+  --ok: #16a34a;
+  --warn: #b45309;
+  --danger: #e5484d;
+
+  /* Find highlights. Yellow rather than the accent: comment anchors already own
+     the terracotta, and the two are routinely on screen together. Yellow also
+     stays clear of the browser's blue ::selection, which find matches sit under
+     while you type in the find bar. */
+  --find: #fde68a;
+  --find-active: #fbbf24;
+
+  /* Syntax highlighting. Five roles rather than one per highlight.js class:
+     a code block in a notes app is there to be read, not to look like an IDE.
+     Keywords take the accent hue on purpose — they are the most frequent token,
+     so tying them to it keeps code looking like part of the page. */
+  --code-keyword: #a23b26;
+  --code-string: #3f6e3f;
+  --code-literal: #7f6115;
+  --code-name: #2f5d9e;
+  --code-muted: #8b857a;
+
+  /* Warm-tinted rather than neutral black — a grey shadow on warm paper reads
+     as a smudge. */
+  --shadow:
+    rgba(58, 45, 34, 0.1) 0 10px 15px -3px, rgba(58, 45, 34, 0.06) 0 4px 6px -2px;
+
+  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: ui-monospace, Consolas, monospace;
+
+  --sidebar-w: 340px;
+  --measure: 72ch;
+
+  /* The only layout height that needs to be a token: the mobile comment sheet
+     and the PWA toast are both position: fixed and have to clear the status
+     bar exactly. The header's height stays a literal — nothing offsets it. */
+  --statusbar-h: 30px;
+
+  font: 18px/145% var(--sans);
+  letter-spacing: 0.18px;
+  color-scheme: light dark;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  @media (max-width: 1024px) {
+    font-size: 16px;
+  }
+}
+
+/*
+ * Dark tokens are attribute-driven, not media-driven, so an explicit choice in
+ * the header toggle can override the OS. `data-theme` is set before first
+ * paint by the boot script in index.html and maintained by src/hooks/useTheme.
+ */
+:root[data-theme='dark'] {
+  --text: #a8a29a;
+  --text-h: #f5f2ec;
+  --bg: #1a1917;
+  --bg-raised: #24221f;
+  --border: #35322d;
+  --code-bg: #24221f;
+  --accent: #e08159;
+  --accent-bg: rgba(224, 129, 89, 0.16);
+  --accent-border: rgba(224, 129, 89, 0.5);
+
+  /* The accent has to lighten to stay legible on a dark page, which puts white
+     text on an accent fill at ~2.8:1. Ink goes dark instead. */
+  --on-accent: #2a1509;
+
+  --ok: #4ade80;
+  --warn: #fbbf24;
+  --danger: #ff6369;
+
+  /* Translucent, so the text under a highlight keeps its own colour instead of
+     being read as a swatch of black on amber. */
+  --find: rgba(251, 191, 36, 0.25);
+  --find-active: rgba(251, 191, 36, 0.55);
+
+  --code-keyword: #eb9070;
+  --code-string: #a3c48a;
+  --code-literal: #dfb872;
+  --code-name: #8ab4e0;
+  --code-muted: #78716a;
+
+  --shadow:
+    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+}
+
+body {
+  margin: 0;
+}
+
+/*
+ * Full-viewport app shell. Header spans both columns; the workspace between it
+ * and the status bar is a SINGLE scroll container holding both the editor and
+ * the comment rail, so comment cards scroll with the text they annotate
+ * instead of needing per-frame repositioning on scroll.
+ *
+ * Three rows, with only the middle one flexible: `overflow: hidden` here plus
+ * `auto` on both chrome rows is what pins the header and the status bar while
+ * the workspace scrolls between them.
+ */
+#root {
+  width: 100%;
+  height: 100svh;
+  margin: 0;
+  text-align: start;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  /*
+   * The single column has to be clamped, not left implicit. An `auto` track
+   * sizes to its widest item's max-content — the header's toolbar — so the
+   * column grew past the viewport, and `width: 100%` inside it then resolved
+   * against that inflated width instead of the screen. Every row rode along.
+   */
+  grid-template-columns: minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  min-height: 52px;
+  box-sizing: border-box;
+}
+
+/*
+ * The brand mark. Square art, so the rounding comes from the container clipping
+ * it — that way it shares --radius-sm with the controls beside it instead of
+ * baking a second corner radius into the SVG.
+ */
+.app-header__brand {
+  flex: none;
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.app-header__title {
+  font-family: var(--heading);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-h);
+  margin: 0;
+  letter-spacing: -0.1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.app-header__spacer {
+  flex: 1;
+}
+
+/*
+ * Narrow screens: the header becomes two rows — controls on top, formatting
+ * below on its own horizontally-scrollable strip. Letting the toolbar wrap
+ * instead (the default) stacked it into four rows and pushed the status text
+ * off the edge.
+ */
+@media (max-width: 900px) {
+  .app-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 8px 12px;
+    min-height: 0;
+  }
+
+  /* The row already wraps and the doc picker is capped at 42vw — the mark must
+     not take width back off it. */
+  .app-header__brand {
+    width: 20px;
+    height: 20px;
+  }
+
+  .app-header__spacer {
+    display: none;
+  }
+
+  .app-header__tools {
+    margin-inline-start: auto;
+    gap: 8px;
+  }
+
+  .save-indicator {
+    font-size: 11px;
+  }
+
+  /* The toolbar's own mobile rules live in editor.css, next to its base
+     styles — that file loads after this one, so putting them here would lose
+     the cascade at equal specificity. */
+
+  .doc-picker__trigger {
+    max-width: 42vw;
+  }
+
+  .doc-picker__menu {
+    width: min(320px, calc(100vw - 24px));
+  }
+
+  /* The status bar's own narrow-screen rules are NOT here. Every one of its
+     base rules is declared below this block, so at equal specificity the base
+     would win and the override would silently do nothing. They live in nested
+     @media blocks inside each rule instead, the way .workspace does. */
+}
+
+/* File actions, then the app-level theme control. */
+.app-header__tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+/* --- Status bar --- */
+/*
+ * Quiet by design: the same 12px scale and muted colour as the save indicator
+ * it hosts, so the row reads as a margin note rather than a second toolbar.
+ * Its height is a token because two fixed-position elements offset by it.
+ */
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--statusbar-h);
+  padding: 0 16px;
+  box-sizing: border-box;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 12px;
+  color: var(--text);
+
+  @media (max-width: 900px) {
+    gap: 8px;
+    padding: 0 12px;
+  }
+}
+
+/* A heading is arbitrarily long, so it yields the row to the readout. */
+.status-bar__context {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Section arrows. Square and quiet — they sit either side of the breadcrumb
+   and must not out-weigh the name between them. */
+.status-bar__step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  flex: 0 0 auto;
+  color: var(--text);
+
+  & > svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+
+  &:hover:not(:disabled) {
+    color: var(--text-h);
+  }
+
+  /* Space is tight on a phone and the outline covers the same ground. */
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
+/* --- Outline popover --- */
+.outline {
+  /* Containing block for the menu, which aligns to the trigger rather than to
+     the whole context region. */
+  position: relative;
+  min-width: 0;
+}
+
+.outline__trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  font-size: 12px;
+  padding: 2px 6px;
+  color: var(--text);
+  opacity: 0.75;
+
+  &:hover:not(:disabled) {
+    color: var(--text-h);
+    opacity: 1;
+  }
+}
+
+/* Marks the name as a section rather than the document title, which the picker
+   at the other end of the window already carries. */
+.outline__marker,
+.outline__caret {
+  flex: 0 0 auto;
+  opacity: 0.7;
+}
+
+.outline__label {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+
+  /* The trigger shrinks to its marker and caret; the list still names
+     everything once opened. */
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
+/*
+ * Opens UPWARD. The bar is the last row of the viewport, so a menu dropped
+ * below it renders off-screen. Nothing between here and #root sets `overflow`,
+ * so growing past the bar's own box is not clipped.
+ */
+.outline__menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(60svh, 420px);
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 4px;
+}
+
+.outline__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.outline__item {
+  display: block;
+  width: 100%;
+  text-align: start;
+  font-size: 13px;
+  /* padding-inline-start comes from the heading level, set inline. These
+     longhands out-specify the `button` shorthand without disturbing it. */
+  padding-block: 5px;
+  padding-inline-end: 8px;
+  color: var(--text-h);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  &[aria-current='true'] {
+    color: var(--accent);
+    background: var(--accent-bg);
+  }
+}
+
+/*
+ * Shrinkable, so that on a narrow phone the readout gives way from the left
+ * instead of pushing the save state off the edge of a row that cannot scroll.
+ */
+.status-bar__readout {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 0 1 auto;
+  min-width: 0;
+
+  @media (max-width: 900px) {
+    gap: 8px;
+  }
+}
+
+.status-bar__stat {
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  /* Counts change while the eye is on them; even digits keep the row still. */
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Chips ride the shared button base, so they only have to shed its 14px text
+ * and roomier padding to fit a 30px row.
+ */
+.status-bar__chip {
+  font-size: 12px;
+  padding: 2px 7px;
+  color: var(--text);
+  white-space: nowrap;
+  flex: 0 0 auto;
+
+  &:hover:not(:disabled) {
+    color: var(--text-h);
+  }
+}
+
+.status-bar__chip--icon {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 5px;
+
+  & > svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+
+  /* The rail being shown is the resting state, so highlighting it would be
+     permanent noise. The hidden state dims instead — "off", not "active". */
+  &[aria-pressed='false'] {
+    opacity: 0.5;
+  }
+}
+
+/* Equal specificity to the rule above, so it must stay after it. */
+.status-bar__chip--warn {
+  color: var(--warn);
+
+  &:hover:not(:disabled) {
+    color: var(--warn);
+  }
+}
+
+/*
+ * Export and Import share one border with a hairline between them, so they read
+ * as a single file-transfer control instead of two buttons competing for
+ * attention in an otherwise borderless header.
+ */
+.export-menu {
+  display: flex;
+  flex: 0 0 auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.export-menu button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  padding: 5px 10px;
+  border: none;
+  border-radius: 0;
+  color: var(--text);
+
+  & > svg {
+    opacity: 0.75;
+  }
+
+  & + button {
+    box-shadow: -1px 0 0 var(--border);
+  }
+
+  &:hover:not(:disabled) {
+    color: var(--text-h);
+
+    & > svg {
+      opacity: 1;
+    }
+  }
+
+  /* The group clips to var(--radius), so the default ring is cropped on the
+     outer corners; inset it instead. */
+  &:focus-visible {
+    outline-offset: -2px;
+  }
+}
+
+/* Icon only, so it does not need a label's worth of horizontal padding.
+   Outranks the rule above, which is why the element selector is repeated. */
+.export-menu button.export-menu__annotated {
+  padding-inline: 7px;
+}
+
+/* Square icon buttons in the header: the theme toggle and version history. */
+.theme-toggle,
+.app-header__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  flex: 0 0 auto;
+  color: var(--text);
+
+  & > svg {
+    display: block;
+  }
+
+  &:hover:not(:disabled) {
+    color: var(--text-h);
+  }
+}
+
+/* --- Save indicator --- */
+.save-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.75;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+.save-indicator__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--dot, var(--text));
+
+  /*
+   * Best-effort storage draws the dot as a ring rather than a disc. It's a
+   * standing property of the browser, not an error, so it should register
+   * without ever demanding attention.
+   */
+  .save-indicator[data-durability='best-effort'] & {
+    background: transparent;
+    box-shadow: inset 0 0 0 2px var(--dot, var(--text));
+  }
+}
+
+.save-indicator[data-status='saved'] {
+  --dot: var(--ok);
+}
+
+.save-indicator[data-status='saving'],
+.save-indicator[data-status='loading'] {
+  --dot: var(--warn);
+  opacity: 1;
+}
+
+.save-indicator[data-status='saving'] .save-indicator__dot,
+.save-indicator[data-status='loading'] .save-indicator__dot {
+  animation: save-pulse 1.2s ease-in-out infinite;
+}
+
+.save-indicator[data-status='error'] {
+  --dot: var(--danger);
+  color: var(--danger);
+  opacity: 1;
+  font-weight: 500;
+}
+
+@keyframes save-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .save-indicator__dot {
+    animation: none !important;
+  }
+}
+
+/* Available to assistive tech, absent from the visual design. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Document picker --- */
+.doc-picker {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.doc-picker__trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  max-width: 260px;
+}
+
+.doc-picker__title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-picker__menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  width: 320px;
+  max-height: 60svh;
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 4px;
+}
+
+.doc-picker__new {
+  width: 100%;
+  text-align: start;
+  font-size: 13px;
+  color: var(--accent);
+  padding: 7px 8px;
+}
+
+.doc-picker__list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+}
+
+.doc-picker__item {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.doc-picker__select {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  text-align: start;
+  font-size: 13px;
+  padding: 7px 8px;
+
+  &[aria-current='true'] {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+}
+
+.doc-picker__item-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.doc-picker__item-time {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.doc-picker__delete {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.6;
+  padding: 5px 7px;
+
+  & > svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+
+  &:hover {
+    opacity: 1;
+    color: var(--danger);
+  }
+}
+
+/* --- Trash --- */
+/*
+ * Below the live list and inside the same menu rather than behind a view of
+ * its own: it is a holding area, and it earns its space only while something
+ * is in it — the whole section is absent when the trash is empty.
+ */
+.doc-picker__trash {
+  margin-top: 8px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
+.doc-picker__trash-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 2px 8px;
+  font-family: var(--heading);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text);
+  opacity: 0.7;
+}
+
+.doc-picker__trash-note {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.doc-picker__trashed {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  padding: 7px 8px;
+  opacity: 0.7;
+}
+
+.doc-picker__trash-action {
+  flex: 0 0 auto;
+  font-size: 11px;
+  padding: 4px 6px;
+  color: var(--text);
+
+  &:hover:not(:disabled) {
+    color: var(--text-h);
+  }
+}
+
+/* Equal specificity to the rule above, so it has to stay after it. */
+.doc-picker__trash-action--danger {
+  color: var(--danger);
+
+  &:hover:not(:disabled) {
+    color: var(--danger);
+  }
+}
+
+.workspace {
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-w);
+  align-items: start;
+
+  @media (max-width: 900px) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Equal specificity to .workspace, so it has to stay after it. The rail is
+   unmounted, not hidden — this just reclaims the column it occupied. */
+.workspace--no-rail {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.editor-pane {
+  min-width: 0;
+  padding: 32px 24px 45svh;
+  box-sizing: border-box;
+}
+
+.editor-pane__inner {
+  max-width: var(--measure);
+  margin-inline: auto;
+}
+
+/* Generic controls shared by the toolbar, sidebar and dialogs. */
+button {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text-h);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 5px 9px;
+  cursor: pointer;
+  line-height: 1.2;
+
+  &:hover:not(:disabled) {
+    background: var(--code-bg);
+  }
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+
+  &:hover:not(:disabled) {
+    background: var(--accent);
+    filter: brightness(1.08);
+  }
+
+  /*
+   * A faded accent fill reads as "broken", not "not yet". Drop to a neutral
+   * fill instead so an empty composer looks deliberately inactive.
+   */
+  &:disabled {
+    background: var(--border);
+    border-color: var(--border);
+    color: var(--text);
+    opacity: 1;
+  }
+}
+
+.btn--outline {
+  border-color: var(--border);
+}
+
+/* --- Command palette --- */
+
+.palette-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  /*
+   * Pinned near the top rather than centred: the list grows downward as the
+   * query narrows, and a box centred vertically would slide its own first row
+   * out from under the cursor on every keystroke.
+   */
+  align-items: flex-start;
+  padding: 12vh 16px 16px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.palette {
+  width: min(560px, 100%);
+  max-height: 62vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.palette__input {
+  font: inherit;
+  font-size: 15px;
+  color: var(--text-h);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  padding: 12px 14px;
+
+  /* The palette is the focus ring — a second one inside it is noise. */
+  &:focus {
+    outline: none;
+  }
+
+  &::placeholder {
+    color: var(--text);
+    opacity: 0.7;
+  }
+}
+
+.palette__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.palette__item {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--text-h);
+  cursor: pointer;
+
+  &[aria-selected='true'] {
+    background: var(--accent-bg);
+  }
+}
+
+.palette__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+
+  /* Shows *why* a row matched. The default yellow block would fight the
+     selected row's accent tint, so only the colour carries it. */
+  & > mark {
+    background: transparent;
+    color: var(--accent);
+    font-weight: 600;
+  }
+}
+
+.palette__hint {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.8;
+  white-space: nowrap;
+}
+
+.palette__empty {
+  list-style: none;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text);
+  text-align: center;
+}
+
+/* --- Version history --- */
+
+/* Shares the palette's backdrop; both are transient full-screen surfaces. */
+.history {
+  width: min(860px, 100%);
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.history__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.history__title {
+  font-family: var(--heading);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+  margin: 0;
+}
+
+.history__close {
+  color: var(--text);
+  padding: 4px;
+
+  & > svg {
+    display: block;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.history__empty {
+  margin: 0;
+  padding: 28px 16px;
+  font-size: 13px;
+  color: var(--text);
+  text-align: center;
+}
+
+.history__body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 0;
+
+  @media (max-width: 900px) {
+    /* The list becomes a short scrolling strip above the diff rather than a
+       column: 220px of a phone's width is most of it. */
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 120px minmax(0, 1fr);
+  }
+}
+
+.history__list {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  overflow-y: auto;
+  border-inline-end: 1px solid var(--border);
+
+  @media (max-width: 900px) {
+    border-inline-end: 0;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.history__entry {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: start;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+
+  &[aria-current='true'] {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+}
+
+.history__when {
+  font-size: 13px;
+}
+
+.history__cause {
+  font-size: 11px;
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.history__detail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.history__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.history__added {
+  color: var(--ok);
+  font-variant-numeric: tabular-nums;
+}
+
+.history__removed {
+  color: var(--danger);
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * The diff is markdown, so it is set in the mono stack and scrolls sideways
+ * rather than wrapping — a wrapped diff line stops lining up with its marker
+ * and the +/− column becomes unreadable.
+ */
+.history__diff {
+  margin: 0;
+  padding: 10px 0;
+  min-height: 0;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  tab-size: 2;
+}
+
+.history__diff > span {
+  display: block;
+  padding-inline: 14px;
+  white-space: pre;
+}
+
+.history__line--added {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  color: var(--text-h);
+}
+
+.history__line--removed {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--text-h);
+}
+
+.history__line--same {
+  color: var(--text);
+  opacity: 0.8;
+}
+
+.history__gap {
+  color: var(--text);
+  opacity: 0.55;
+  font-style: italic;
+}
+
+/* --- File drop --- */
+
+/*
+ * Pointer-events off, or the overlay would swallow the very dragover events
+ * that keep it on screen and it would flicker itself out of existence.
+ */
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: var(--accent-bg);
+  outline: 2px dashed var(--accent-border);
+  outline-offset: -10px;
+}
+
+.drop-overlay__card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  font-size: 14px;
+  color: var(--text-h);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+
+  & > svg {
+    display: block;
+    color: var(--accent);
+  }
+}

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" role="img" aria-label="Yiannis Mertzanis' Markdown">
+  <!-- pwa-source.svg with rounded corners instead of the bleed. Keep the two
+       in step: this is the icon the tab shows, that one is the icon everything
+       else is generated from. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#b3512f"/>
+      <stop offset="0.5" stop-color="#b3512f"/>
+      <stop offset="1" stop-color="#a5482a"/>
+    </linearGradient>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#faf9f7"/>
+      <stop offset="0.52" stop-color="#f7f4ee"/>
+      <stop offset="1" stop-color="#f2efe9"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1254" height="1254" rx="235" fill="url(#tile)"/>
+
+  <g fill="url(#mark)" transform="translate(627 627) scale(0.9) translate(-627 -627)">
+    <path d="M 320 235 H 458 L 627.5 419 L 797 235 H 935 L 679 503 V 889 H 763 L 627.5 1045 L 492 889 H 576 V 503 Z"/>
+    <path d="M 248 350 L 479 595 L 548 524 V 645 L 479 719 L 331 562 V 905 H 248 Z"/>
+    <path d="M 1007 350 L 776 595 L 707 524 V 645 L 776 719 L 924 562 V 905 H 1007 Z"/>
+    <path d="M 375 669 L 458 755 V 990 L 375 905 Z"/>
+    <path d="M 880 669 L 797 755 V 990 L 880 905 Z"/>
+  </g>
+</svg>

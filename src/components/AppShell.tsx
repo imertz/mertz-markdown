@@ -1,0 +1,1061 @@
+import type { Editor } from '@tiptap/core'
+import { getMarkRange } from '@tiptap/core'
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import {
+  COMMENT_MARK_NAME,
+  nextThreadAfter,
+} from '../editor/extensions/comment'
+import { setActiveThread } from '../editor/extensions/commentActive'
+import { clearSearch } from '../editor/extensions/search'
+import { readTableInfo } from '../editor/extensions/tableColumn'
+import type { OutlineEntry } from '../editor/outline'
+import { caretFor, collectOutline, stepHeading } from '../editor/outline'
+import { useMarkdownEditor } from '../editor/useMarkdownEditor'
+import { getDocumentAsset } from '../db/assets'
+import { DB_OUTDATED_EVENT } from '../db/client'
+import { useDebouncedCallback } from '../hooks/useDebouncedCallback'
+import { useDocuments } from '../hooks/useDocuments'
+import { useDocumentStats } from '../hooks/useDocumentStats'
+import { useFileDrop } from '../hooks/useFileDrop'
+import { useFileLaunch } from '../hooks/useFileLaunch'
+import { useGlobalShortcuts } from '../hooks/useGlobalShortcuts'
+import { useOnline } from '../hooks/useOnline'
+import { usePersistentStorage } from '../hooks/usePersistentStorage'
+import { usePwaUpdate } from '../hooks/usePwaUpdate'
+import { useRailHidden } from '../hooks/useRailHidden'
+import { useStorageEstimate } from '../hooks/useStorageEstimate'
+import { useTheme } from '../hooks/useTheme'
+import { useThreads } from '../hooks/useThreads'
+import { insertImageFiles } from '../images/insert'
+import {
+  localizeRemoteImage,
+  type ImageReplacementTarget,
+  replaceImageWithCrop,
+} from '../images/transform'
+import type { ImageUrlInsertRequest } from '../images/url'
+import { fetchImageFile, insertImageUrl } from '../images/url'
+import { relative } from '../lib/time'
+import { buildDocumentExport, downloadFile } from '../markdown/bundle'
+import { toMarkdown } from '../markdown/export'
+import { downloadHtml, toAnnotatedHtml } from '../markdown/exportHtml'
+import type { SnapshotRecord } from '../types'
+import type { PaletteAction } from './CommandPalette'
+import { CommandPalette } from './CommandPalette'
+import { DropOverlay } from './DropOverlay'
+import { PwaPrompt } from './PwaPrompt'
+import { StatusBar } from './StatusBar'
+import { ThemeToggle } from './ThemeToggle'
+import { UndoToast } from './UndoToast'
+import { CommentSidebar } from './comments/CommentSidebar'
+import { HistoryPanel } from './history/HistoryPanel'
+import { BrandMark, HistoryIcon } from './icons'
+import { DocumentList } from './documents/DocumentList'
+import { ExportMenu } from './documents/ExportMenu'
+import { EditorSurface } from './editor/EditorSurface'
+import { FindBar } from './editor/FindBar'
+import { ImageBubbleMenu } from './editor/ImageBubbleMenu'
+import type { LinkTarget } from './editor/LinkPopover'
+import { LinkPopover } from './editor/LinkPopover'
+import { SelectionBubbleMenu } from './editor/SelectionBubbleMenu'
+import { TableBubbleMenu } from './editor/TableBubbleMenu'
+import { Toolbar } from './editor/Toolbar'
+
+const AUTOSAVE_DELAY_MS = 800
+
+const ImageCropDialog = lazy(() =>
+  import('./editor/ImageCropDialog').then(module => ({
+    default: module.ImageCropDialog,
+  })),
+)
+
+interface CropSession {
+  docId: string
+  source: Blob
+  alt: string
+  target: ImageReplacementTarget
+  displayWidth: number
+}
+
+function imageTargetAt(
+  editor: Editor,
+  position: number,
+): ImageReplacementTarget | null {
+  const node = editor.state.doc.nodeAt(position)
+  if (node?.type.name !== 'image' || typeof node.attrs.src !== 'string') {
+    return null
+  }
+  return {
+    position,
+    expectedSrc: node.attrs.src,
+    expectedAssetId:
+      typeof node.attrs.assetId === 'string' ? node.attrs.assetId : null,
+  }
+}
+
+function imageDisplayWidth(editor: Editor, position: number): number {
+  const dom = editor.view.nodeDOM(position)
+  const image =
+    dom instanceof HTMLImageElement
+      ? dom
+      : dom instanceof Element
+        ? dom.querySelector('img')
+        : null
+  const rendered = image?.getBoundingClientRect().width ?? 0
+  const nodeWidth = editor.state.doc.nodeAt(position)?.attrs.width
+  return rendered || (typeof nodeWidth === 'number' ? nodeWidth : 0)
+}
+
+export function AppShell() {
+  const documents = useDocuments()
+  const persistence = usePersistentStorage()
+  const storage = useStorageEstimate()
+  const threads = useThreads(documents.activeId)
+  const pwa = usePwaUpdate()
+  const theme = useTheme()
+  const online = useOnline()
+  const rail = useRailHidden()
+
+  const [draftRange, setDraftRange] = useState<{
+    from: number
+    to: number
+  } | null>(null)
+  const [showResolved, setShowResolved] = useState(false)
+  const [findOpen, setFindOpen] = useState(false)
+  const [findRequest, setFindRequest] = useState(0)
+  const [linkTarget, setLinkTarget] = useState<LinkTarget | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [undo, setUndo] = useState<{ id: string; message: string } | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [cropSession, setCropSession] = useState<CropSession | null>(null)
+  // Another tab upgraded the schema and took our connection with it. Nothing
+  // this tab writes from here on will land.
+  const [dbOutdated, setDbOutdated] = useState(false)
+
+  // Owned here rather than inside the sidebar so the status bar's orphan chip,
+  // its sibling, can scroll the section into view.
+  const orphanSection = useRef<HTMLElement>(null)
+  // The chip can be clicked while the rail is hidden, and the section it wants
+  // does not exist until the rail has mounted — so the scroll is deferred to an
+  // effect rather than run in the handler.
+  const [pendingOrphanScroll, setPendingOrphanScroll] = useState(false)
+
+  const { activeId, save } = documents
+  const activeDocument = useRef(activeId)
+  activeDocument.current = activeId
+  const { getKnownIds, onAnchorsChanged, setActiveId } = threads
+  // Destructured because the hook returns a fresh object each render; the
+  // callbacks inside it are stable, the wrapper is not.
+  const { show: showRail, toggle: toggleRail } = rail
+
+  const resolveImageAsset = useCallback(
+    async (assetId: string) => {
+      if (!activeId) return undefined
+      return (await getDocumentAsset(activeId, assetId))?.blob
+    },
+    [activeId],
+  )
+
+  const addImageFiles = useCallback(
+    (instance: Editor, files: File[], position?: number) => {
+      if (!activeId) return
+      void insertImageFiles({
+        editor: instance,
+        docId: activeId,
+        files,
+        isCurrent: () => activeDocument.current === activeId,
+        position,
+      }).catch(error => {
+        console.error('[images] insertion failed', error)
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : 'The image could not be added',
+        )
+      })
+    },
+    [activeId],
+  )
+
+  const autosave = useDebouncedCallback(
+    async (docId: string, editor: Editor) => {
+      // Canonical PM JSON plus derived markdown, written together so the two
+      // never disagree about what the document says.
+      await save(docId, editor.getJSON(), toMarkdown(editor))
+    },
+    AUTOSAVE_DELAY_MS,
+  )
+  const { schedule, flush } = autosave
+
+  const onDocChanged = useCallback(
+    (editor: Editor) => {
+      if (activeId) schedule(activeId, editor)
+    },
+    [activeId, schedule],
+  )
+
+  const editor = useMarkdownEditor({
+    activeId: documents.activeId,
+    initialDoc: documents.initialDoc,
+    onDocChanged,
+    onAnchorsChanged,
+    getKnownThreadIds: getKnownIds,
+    resolveImageAsset,
+    onImageFiles: addImageFiles,
+  })
+
+  const addImageUrl = useCallback(
+    async (request: ImageUrlInsertRequest) => {
+      if (!activeId || !editor || editor.isDestroyed) return
+      await insertImageUrl({
+        ...request,
+        editor,
+        docId: activeId,
+        isCurrent: () => activeDocument.current === activeId,
+      })
+    },
+    [activeId, editor],
+  )
+
+  const localizeImage = useCallback(
+    (position: number) => {
+      if (!activeId || !editor || editor.isDestroyed) return
+      const target = imageTargetAt(editor, position)
+      if (!target || target.expectedAssetId) return
+      void localizeRemoteImage(
+        editor,
+        activeId,
+        target,
+        () => activeDocument.current === activeId,
+      )
+        .then(() => setNotice('Image saved locally'))
+        .catch(error => {
+          console.error('[images] localization failed', error)
+          setNotice(
+            error instanceof Error
+              ? error.message
+              : 'The image could not be saved locally',
+          )
+        })
+    },
+    [activeId, editor],
+  )
+
+  const startImageCrop = useCallback(
+    (position: number) => {
+      if (!activeId || !editor || editor.isDestroyed) return
+      const target = imageTargetAt(editor, position)
+      const node = editor.state.doc.nodeAt(position)
+      if (!target || node?.type.name !== 'image') return
+
+      void (async () => {
+        let source: Blob
+        let mimeType: string
+        if (target.expectedAssetId) {
+          const asset = await getDocumentAsset(activeId, target.expectedAssetId)
+          if (!asset) throw new Error('The image is missing from browser storage')
+          source = asset.blob
+          mimeType = asset.mimeType
+        } else {
+          const confirmed = window.confirm(
+            'Cropping a remote image requires saving a local copy first. Continue?',
+          )
+          if (!confirmed) return
+          setNotice('Downloading image for cropping…')
+          const file = await fetchImageFile(target.expectedSrc)
+          source = file
+          mimeType = file.type
+        }
+
+        if (mimeType === 'image/gif') {
+          throw new Error('GIF cropping is disabled to preserve animation')
+        }
+        if (activeDocument.current !== activeId) return
+
+        setNotice(null)
+        setCropSession({
+          docId: activeId,
+          source,
+          alt: typeof node.attrs.alt === 'string' ? node.attrs.alt : '',
+          target,
+          displayWidth: imageDisplayWidth(editor, position),
+        })
+      })().catch(error => {
+        console.error('[images] crop setup failed', error)
+        setNotice(
+          error instanceof Error ? error.message : 'The image could not be cropped',
+        )
+      })
+    },
+    [activeId, editor],
+  )
+
+  useEffect(() => {
+    setCropSession(session =>
+      session && session.docId !== activeId ? null : session,
+    )
+  }, [activeId])
+
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), 6000)
+    return () => clearTimeout(timer)
+  }, [notice])
+
+  // Declared after the editor so its immediate measurement runs after the
+  // setContent effect that opens a document — that call passes
+  // `emitUpdate: false`, so nothing else would trigger a first reading.
+  const stats = useDocumentStats(editor, documents.activeId)
+
+  const counts = useMemo(() => {
+    let open = 0
+    let resolved = 0
+    let orphaned = 0
+    for (const thread of threads.threads) {
+      if (thread.status === 'open') open += 1
+      else if (thread.status === 'resolved') resolved += 1
+      else orphaned += 1
+    }
+    return { open, resolved, orphaned }
+  }, [threads.threads])
+
+  // `save` writes the fresh record back into list state, so this tracks the
+  // last successful write rather than when the document was opened.
+  const savedAt =
+    documents.documents.find(record => record.id === documents.activeId)
+      ?.updatedAt ?? null
+
+  // A hidden tab may be frozen or discarded without further events, so commit
+  // whatever is queued at that point rather than betting on the timer.
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') void flush()
+    }
+    document.addEventListener('visibilitychange', onHidden)
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden)
+    }
+  }, [flush])
+
+  // Editor -> sidebar: moving the caret into a commented range selects it.
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+
+    const syncFromCaret = () => {
+      const type = editor.schema.marks[COMMENT_MARK_NAME]
+      if (!type) return
+      const range = getMarkRange(editor.state.selection.$from, type)
+      if (!range) return
+
+      const mark = editor.state.doc
+        .resolve(range.from)
+        .marks()
+        .find(candidate => candidate.type === type)
+      const threadId = mark?.attrs.threadId as string | undefined
+      if (!threadId) return
+
+      setActiveId(threadId)
+      setActiveThread(editor, threadId)
+    }
+
+    editor.on('selectionUpdate', syncFromCaret)
+    return () => {
+      editor.off('selectionUpdate', syncFromCaret)
+    }
+  }, [editor, setActiveId])
+
+  const startDraft = useCallback(() => {
+    if (!editor || editor.isDestroyed) return
+    const { from, to } = editor.state.selection
+    if (from === to) return
+    setDraftRange({ from, to })
+  }, [editor])
+
+  /**
+   * Open the link popover on whatever the caret is touching.
+   *
+   * With a selection that is the selection; with a bare caret it is the link
+   * under it, if any — which is the only way to edit an existing link without
+   * having to select exactly its text first.
+   */
+  const startLink = useCallback(() => {
+    if (!editor || editor.isDestroyed) return
+    const { state } = editor
+    const type = state.schema.marks.link
+    if (!type) return
+
+    const hrefOf = (pos: number): string => {
+      const mark = state.doc
+        .resolve(pos)
+        .marks()
+        .find(candidate => candidate.type === type)
+      return typeof mark?.attrs.href === 'string' ? mark.attrs.href : ''
+    }
+
+    const { from, to, empty } = state.selection
+    if (!empty) {
+      setLinkTarget({ from, to, href: hrefOf(from) })
+      return
+    }
+
+    const range = getMarkRange(state.selection.$from, type)
+    if (!range) return
+    setLinkTarget({ ...range, href: hrefOf(range.from) })
+  }, [editor])
+
+  const exportMarkdown = useCallback(() => {
+    if (!editor || editor.isDestroyed || !documents.activeId) return
+    // Serialize live rather than reading the saved copy, so an export never
+    // trails the last keystroke by up to the autosave delay.
+    void buildDocumentExport(
+      editor,
+      documents.activeId,
+      documents.activeTitle,
+    )
+      .then(file => downloadFile(file.filename, file.blob))
+      .catch(error => {
+        console.error('[export] failed', error)
+        setNotice(
+          error instanceof Error
+            ? error.message
+            : 'The document could not export',
+        )
+      })
+  }, [editor, documents.activeId, documents.activeTitle])
+
+  /** The document plus its comments, as a standalone `.html` file. */
+  const exportAnnotated = useCallback(() => {
+    if (!editor || editor.isDestroyed) return
+    void toAnnotatedHtml(editor, {
+      title: documents.activeTitle,
+      threads: threads.threads,
+      resolveAsset: resolveImageAsset,
+    })
+      .then(html => downloadHtml(documents.activeTitle, html))
+      .catch(error => {
+        console.error('[html export] failed', error)
+        setNotice(
+          error instanceof Error ? error.message : 'The HTML could not export',
+        )
+      })
+  }, [editor, documents.activeTitle, resolveImageAsset, threads.threads])
+
+  const jumpToNextThread = useCallback(() => {
+    if (!editor || editor.isDestroyed) return
+
+    const type = editor.schema.marks[COMMENT_MARK_NAME]
+    if (!type) return
+
+    // Resolved anchors are still in the document, but the chip counts open
+    // threads — cycling through cards the sidebar hides by default would not
+    // match what the user clicked.
+    const open = new Set(
+      threads.threads
+        .filter(thread => thread.status === 'open')
+        .map(thread => thread.id),
+    )
+
+    const next = nextThreadAfter(
+      editor.state.doc,
+      type,
+      open,
+      editor.state.selection.to,
+    )
+    if (!next) return
+
+    // Jumping to a comment the rail is hiding is not a jump.
+    showRail()
+    editor.chain().focus().setTextSelection(next.from).scrollIntoView().run()
+
+    // Two threads may overlap the same text, so the caret alone cannot say
+    // which was meant. Set it explicitly, after the selection handler has run.
+    setActiveId(next.threadId)
+    setActiveThread(editor, next.threadId)
+  }, [editor, threads.threads, setActiveId, showRail])
+
+  const showOrphans = useCallback(() => {
+    showRail()
+    setPendingOrphanScroll(true)
+  }, [showRail])
+
+  useEffect(() => {
+    if (!pendingOrphanScroll || rail.hidden) return
+    // Runs after the commit that mounted the rail, so the ref is attached. If
+    // the orphans went away in the meantime there is nothing to scroll to and
+    // clearing the flag is the whole job.
+    orphanSection.current?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'nearest',
+    })
+    setPendingOrphanScroll(false)
+  }, [pendingOrphanScroll, rail.hidden])
+
+  const goTo = useCallback(
+    (entry: OutlineEntry | null) => {
+      if (!entry || !editor || editor.isDestroyed) return
+      editor
+        .chain()
+        .focus()
+        .setTextSelection(caretFor(entry))
+        .scrollIntoView()
+        .run()
+    },
+    [editor],
+  )
+
+  /**
+   * Both navigators re-read the outline from live editor state rather than
+   * reusing the one in `stats`, which trails by the measure debounce —
+   * navigating from a stale position would land off by whatever was typed
+   * since. The cost is one walk of the document's top-level children.
+   */
+  const jumpToHeading = useCallback(
+    (index: number) => {
+      if (!editor || editor.isDestroyed) return
+      goTo(collectOutline(editor.state.doc)[index] ?? null)
+    },
+    [editor, goTo],
+  )
+
+  const stepSection = useCallback(
+    (delta: -1 | 1) => {
+      if (!editor || editor.isDestroyed) return
+      const { doc, selection } = editor.state
+      goTo(stepHeading(collectOutline(doc), selection.from, delta))
+    },
+    [editor, goTo],
+  )
+
+  const openFind = useCallback(() => {
+    setFindOpen(true)
+    // A second ⌘F over an open bar re-selects the query rather than doing
+    // nothing, which is what every other find box does.
+    setFindRequest(value => value + 1)
+  }, [])
+
+  const closeFind = useCallback(() => {
+    setFindOpen(false)
+    if (!editor || editor.isDestroyed) return
+    // Highlights would otherwise outlive the bar that explains them.
+    clearSearch(editor)
+    editor.commands.focus()
+  }, [editor])
+
+  // Import creates a new document; a failed bundle never leaves a partial one.
+  const importFile = useCallback(
+    (file: File) => {
+      void documents.importFile(file).catch(error => {
+        console.error('[import] failed', error)
+        setNotice(
+          error instanceof Error ? error.message : 'The document could not open',
+        )
+      })
+    },
+    [documents],
+  )
+
+  // "Open with" from the OS file manager, and dropping a file on the window.
+  useFileLaunch(importFile)
+  const dropping = useFileDrop(importFile)
+
+  // Dispatched by the db client when another tab upgraded the schema out from
+  // under this one. Nothing listened for it before there was a migration to
+  // trigger it.
+  useEffect(() => {
+    const onOutdated = () => setDbOutdated(true)
+    window.addEventListener(DB_OUTDATED_EVENT, onOutdated)
+    return () => {
+      window.removeEventListener(DB_OUTDATED_EVENT, onOutdated)
+    }
+  }, [])
+
+  const deleteDocument = useCallback(
+    async (id: string) => {
+      // Commit anything queued first, so the copy going to the trash is the
+      // one the user last saw rather than the one before their last keystroke.
+      await flush()
+      const record = await documents.remove(id)
+      if (record) setUndo({ id: record.id, message: `Deleted “${record.title}”` })
+    },
+    [documents, flush],
+  )
+
+  const takeSnapshot = useCallback(
+    async (cause: 'manual' | 'restore') => {
+      if (!editor || editor.isDestroyed || !documents.activeId) return
+      await documents.snapshot(
+        documents.activeId,
+        editor.getJSON(),
+        toMarkdown(editor),
+        cause,
+      )
+    },
+    [documents, editor],
+  )
+
+  /**
+   * Replace the document with an older version of itself.
+   *
+   * Never destructive: the state being replaced is snapshotted first, and the
+   * replacement itself is an ordinary undoable transaction. `emitUpdate` lets
+   * the normal autosave persist it, so canonical JSON and derived markdown are
+   * still written together by the one sanctioned path.
+   *
+   * Anchors whose thread has since been deleted are stripped on arrival by
+   * CommentSanitizer — that is the sanitizer doing its job, not a loss.
+   */
+  const restoreSnapshot = useCallback(
+    async (snapshot: SnapshotRecord) => {
+      if (!editor || editor.isDestroyed) return
+      await takeSnapshot('restore')
+      editor.commands.setContent(snapshot.doc, { emitUpdate: true })
+      setHistoryOpen(false)
+      editor.commands.focus()
+    },
+    [editor, takeSnapshot],
+  )
+
+  const closePalette = useCallback(() => {
+    setPaletteOpen(false)
+    if (editor && !editor.isDestroyed) editor.commands.focus()
+  }, [editor])
+
+  /**
+   * Everything the palette can reach, assembled fresh each time it opens.
+   *
+   * The early return matters: this rebuilds on every render while the palette
+   * is open, and collecting the outline is only cheap enough to do that
+   * because it walks the document's top-level children rather than descending.
+   */
+  const paletteActions = useMemo<PaletteAction[]>(() => {
+    if (!paletteOpen) return []
+
+    const commands: PaletteAction[] = [
+      {
+        id: 'cmd:new',
+        label: 'New document',
+        run: () => void documents.create(),
+      },
+      { id: 'cmd:find', label: 'Find in document', hint: '⌘F', run: openFind },
+      {
+        id: 'cmd:link',
+        label: 'Add or edit link',
+        hint: '⌘⇧K',
+        run: startLink,
+      },
+      {
+        id: 'cmd:comment',
+        label: 'Comment on selection',
+        hint: '⌘⌥M',
+        run: startDraft,
+      },
+      { id: 'cmd:export', label: 'Export as Markdown', run: exportMarkdown },
+      {
+        id: 'cmd:export-html',
+        label: 'Export with comments',
+        hint: 'HTML',
+        run: exportAnnotated,
+      },
+      {
+        id: 'cmd:resolve-all',
+        label: 'Resolve all comments',
+        run: () => {
+          if (editor) void threads.resolveAll(editor)
+        },
+      },
+      {
+        id: 'cmd:history',
+        label: 'Version history',
+        run: () => setHistoryOpen(true),
+      },
+      {
+        id: 'cmd:snapshot',
+        label: 'Save a version now',
+        run: () => void takeSnapshot('manual'),
+      },
+      {
+        id: 'cmd:theme',
+        label:
+          theme.theme === 'dark'
+            ? 'Switch to light theme'
+            : 'Switch to dark theme',
+        run: theme.toggle,
+      },
+      {
+        id: 'cmd:rail',
+        label: rail.hidden ? 'Show comments' : 'Hide comments',
+        run: toggleRail,
+      },
+      {
+        id: 'cmd:next-comment',
+        label: 'Go to next comment',
+        run: jumpToNextThread,
+      },
+    ]
+
+    const openDocuments: PaletteAction[] = documents.documents
+      .filter(record => record.id !== documents.activeId)
+      .map(record => ({
+        id: `doc:${record.id}`,
+        label: record.title,
+        hint: `Document · ${relative(record.updatedAt)}`,
+        run: () => documents.select(record.id),
+      }))
+
+    // Live editor state, not the debounced copy in `stats`: a heading typed a
+    // second ago has to be reachable, and its position has to be current.
+    const headings: PaletteAction[] =
+      editor && !editor.isDestroyed
+        ? collectOutline(editor.state.doc).map((entry, index) => ({
+            id: `heading:${index}`,
+            label: entry.text || 'Untitled section',
+            hint: `Heading ${entry.level}`,
+            run: () => jumpToHeading(index),
+          }))
+        : []
+
+    /*
+     * Not optional polish: the table extension binds Tab and Shift-Tab to cell
+     * navigation, so a keyboard user with the caret in a table cannot tab out
+     * to reach the floating bar at all. This is the only route to these
+     * commands that does not need a pointer.
+     */
+    const table: PaletteAction[] =
+      editor && !editor.isDestroyed && readTableInfo(editor.state)
+        ? [
+            {
+              id: 'cmd:table-row-after',
+              label: 'Table: add row below',
+              run: () => editor.chain().focus().addRowAfter().run(),
+            },
+            {
+              id: 'cmd:table-row-delete',
+              label: 'Table: delete row',
+              run: () => editor.chain().focus().deleteRow().run(),
+            },
+            {
+              id: 'cmd:table-column-after',
+              label: 'Table: add column right',
+              run: () => editor.chain().focus().addColumnAfter().run(),
+            },
+            {
+              id: 'cmd:table-column-delete',
+              label: 'Table: delete column',
+              run: () => editor.chain().focus().deleteColumn().run(),
+            },
+            {
+              id: 'cmd:table-align-left',
+              label: 'Table: align column left',
+              run: () =>
+                editor.chain().focus().setColumnAlignment('left').run(),
+            },
+            {
+              id: 'cmd:table-align-center',
+              label: 'Table: align column centre',
+              run: () =>
+                editor.chain().focus().setColumnAlignment('center').run(),
+            },
+            {
+              id: 'cmd:table-align-right',
+              label: 'Table: align column right',
+              run: () =>
+                editor.chain().focus().setColumnAlignment('right').run(),
+            },
+            {
+              id: 'cmd:table-align-clear',
+              label: 'Table: clear column alignment',
+              run: () => editor.chain().focus().setColumnAlignment(null).run(),
+            },
+            {
+              id: 'cmd:table-header-row',
+              label: 'Table: toggle header row',
+              run: () => editor.chain().focus().toggleHeaderRow().run(),
+            },
+            {
+              id: 'cmd:table-delete',
+              label: 'Table: delete table',
+              run: () => editor.chain().focus().deleteTable().run(),
+            },
+          ]
+        : []
+
+    return [...commands, ...table, ...openDocuments, ...headings]
+  }, [
+    paletteOpen,
+    documents,
+    editor,
+    exportAnnotated,
+    exportMarkdown,
+    jumpToHeading,
+    jumpToNextThread,
+    openFind,
+    rail.hidden,
+    startDraft,
+    startLink,
+    takeSnapshot,
+    theme,
+    threads,
+    toggleRail,
+  ])
+
+  useGlobalShortcuts([
+    { key: 'f', mod: true, run: openFind },
+    { key: 'k', mod: true, run: () => setPaletteOpen(true) },
+    { key: 'k', mod: true, shift: true, run: startLink },
+    { key: 'm', mod: true, alt: true, run: startDraft },
+    { key: 'arrowup', mod: true, alt: true, run: () => stepSection(-1) },
+    { key: 'arrowdown', mod: true, alt: true, run: () => stepSection(1) },
+  ])
+
+  const submitDraft = useCallback(
+    (body: string) => {
+      if (!editor || editor.isDestroyed || !draftRange) return
+      // The composer stole focus, so restore the range the user highlighted
+      // before applying the mark.
+      editor.commands.setTextSelection(draftRange)
+      void threads.addThread(editor, body)
+      setDraftRange(null)
+    },
+    [editor, draftRange, threads],
+  )
+
+  return (
+    <>
+      <header className="app-header">
+        <BrandMark className="app-header__brand" />
+
+        <DocumentList
+          documents={documents.documents}
+          trashed={documents.trashed}
+          activeId={documents.activeId}
+          activeTitle={documents.activeTitle}
+          onSelect={documents.select}
+          onCreate={() => void documents.create()}
+          onDelete={id => void deleteDocument(id)}
+          onRestore={id => void documents.restore(id)}
+          onDestroy={id => void documents.destroy(id)}
+        />
+
+        {editor ? (
+          <Toolbar
+            editor={editor}
+            documentId={activeId}
+            onInsertImages={(files, position) =>
+              addImageFiles(editor, files, position)
+            }
+            onInsertImageUrl={addImageUrl}
+          />
+        ) : null}
+
+        <div className="app-header__spacer" />
+
+        <div className="app-header__tools">
+          {/* Save state lives in the status bar; this row is actions only. */}
+          <ExportMenu
+            disabled={!editor}
+            onExport={exportMarkdown}
+            onExportAnnotated={exportAnnotated}
+            onImport={importFile}
+          />
+
+          <button
+            type="button"
+            className="app-header__icon"
+            disabled={!editor}
+            aria-label="Version history"
+            title="Version history"
+            onClick={() => setHistoryOpen(true)}
+          >
+            <HistoryIcon />
+          </button>
+
+          <ThemeToggle theme={theme.theme} onToggle={theme.toggle} />
+        </div>
+      </header>
+
+      <div
+        className={rail.hidden ? 'workspace workspace--no-rail' : 'workspace'}
+      >
+        <EditorSurface editor={editor}>
+          {editor && findOpen ? (
+            <FindBar
+              editor={editor}
+              focusRequest={findRequest}
+              onClose={closeFind}
+            />
+          ) : null}
+        </EditorSurface>
+
+        {/*
+          Unmounted, not merely hidden. The anchors live in the document, so
+          nothing about the comments is lost — this is only the view of them.
+        */}
+        {rail.hidden ? null : (
+          <CommentSidebar
+            editor={editor}
+            threads={threads.threads}
+            activeId={threads.activeId}
+            orphanSectionRef={orphanSection}
+            draftRange={draftRange}
+            showResolved={showResolved}
+            onToggleResolved={() => setShowResolved(value => !value)}
+            onActivate={id => {
+              setActiveId(id)
+              if (editor && !editor.isDestroyed) setActiveThread(editor, id)
+            }}
+            onSubmitDraft={submitDraft}
+            onCancelDraft={() => setDraftRange(null)}
+            onReply={(threadId, body) => void threads.reply(threadId, body)}
+            onEdit={(commentId, body) =>
+              void threads.editComment(commentId, body)
+            }
+            onResolve={(threadId, resolved) => {
+              if (editor) void threads.resolve(editor, threadId, resolved)
+            }}
+            onResolveAll={() => {
+              if (editor) void threads.resolveAll(editor)
+            }}
+            onDelete={threadId => {
+              if (editor) void threads.remove(editor, threadId)
+            }}
+            onReanchor={threadId => {
+              if (editor) void threads.reanchor(editor, threadId)
+            }}
+          />
+        )}
+      </div>
+
+      <StatusBar
+        stats={stats}
+        openCount={counts.open}
+        resolvedCount={counts.resolved}
+        orphanCount={counts.orphaned}
+        online={online}
+        status={documents.status}
+        persistence={persistence}
+        savedAt={savedAt}
+        usage={storage.usage}
+        railHidden={rail.hidden}
+        onNextThread={jumpToNextThread}
+        onShowOrphans={showOrphans}
+        onJumpToHeading={jumpToHeading}
+        onStepSection={stepSection}
+        onToggleRail={toggleRail}
+      />
+
+      {editor ? (
+        <SelectionBubbleMenu
+          editor={editor}
+          onAddComment={startDraft}
+          onAddLink={startLink}
+        />
+      ) : null}
+
+      {editor ? <TableBubbleMenu editor={editor} /> : null}
+
+      {editor ? (
+        <ImageBubbleMenu
+          editor={editor}
+          onCrop={startImageCrop}
+          onLocalize={localizeImage}
+        />
+      ) : null}
+
+      {editor && activeId === cropSession?.docId ? (
+        <Suspense
+          fallback={
+            <div className="crop-dialog-backdrop" role="status">
+              Loading image editor…
+            </div>
+          }
+        >
+          <ImageCropDialog
+            source={cropSession.source}
+            alt={cropSession.alt}
+            onClose={() => setCropSession(null)}
+            onApply={canvas =>
+              replaceImageWithCrop(
+                editor,
+                cropSession.docId,
+                cropSession.target,
+                canvas,
+                cropSession.displayWidth,
+                () => activeDocument.current === cropSession.docId,
+              )
+            }
+          />
+        </Suspense>
+      ) : null}
+
+      {paletteOpen ? (
+        <CommandPalette actions={paletteActions} onClose={closePalette} />
+      ) : null}
+
+      {historyOpen && editor && documents.activeId ? (
+        <HistoryPanel
+          docId={documents.activeId}
+          current={toMarkdown(editor)}
+          onRestore={snapshot => void restoreSnapshot(snapshot)}
+          onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
+
+      {editor && linkTarget ? (
+        <LinkPopover
+          editor={editor}
+          target={linkTarget}
+          onClose={() => setLinkTarget(null)}
+        />
+      ) : null}
+
+      {dropping ? <DropOverlay /> : null}
+
+      {undo ? (
+        <UndoToast
+          message={undo.message}
+          onUndo={() => {
+            void documents.restore(undo.id)
+            setUndo(null)
+          }}
+          onDismiss={() => setUndo(null)}
+        />
+      ) : null}
+
+      {dbOutdated ? (
+        <div className="toast" role="alert">
+          <span>
+            Another tab updated the app. Reload this one before editing further.
+          </span>
+          <button type="button" onClick={() => window.location.reload()}>
+            Reload
+          </button>
+        </div>
+      ) : null}
+
+      {notice && !dbOutdated ? (
+        <div className="toast" role="alert">
+          <span>{notice}</span>
+          <button type="button" onClick={() => setNotice(null)}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+
+      <PwaPrompt
+        needRefresh={pwa.needRefresh}
+        offlineReady={pwa.offlineReady}
+        onUpdate={() => void pwa.update(flush)}
+        onDismissUpdate={pwa.dismissUpdate}
+        onDismissOfflineReady={pwa.dismissOfflineReady}
+      />
+    </>
+  )
+}

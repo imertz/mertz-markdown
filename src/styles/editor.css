@@ -1,0 +1,984 @@
+/*
+ * Rendered-document typography. Every rule is scoped under .ProseMirror on
+ * purpose: the old global h1/h2/code rules from the Vite scaffold applied to the
+ * app chrome too, which made editor headings 56px.
+ */
+.ProseMirror {
+  outline: none;
+  color: var(--text-h);
+  font-size: 1rem;
+  line-height: 1.6;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+
+  & > * + * {
+    margin-top: 0.85em;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--heading);
+    font-weight: 600;
+    color: var(--text-h);
+    line-height: 1.25;
+    letter-spacing: -0.02em;
+    margin: 1.6em 0 0;
+  }
+
+  h1 {
+    font-size: 1.9em;
+  }
+  h2 {
+    font-size: 1.5em;
+  }
+  h3 {
+    font-size: 1.25em;
+  }
+  h4 {
+    font-size: 1.1em;
+  }
+  h5,
+  h6 {
+    font-size: 1em;
+  }
+
+  p {
+    margin: 0;
+  }
+
+  /* Empty top-level paragraphs must still occupy a line so the caret is visible. */
+  p:empty::before {
+    content: '';
+    display: inline-block;
+  }
+
+  a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  strong {
+    font-weight: 650;
+    color: var(--text-h);
+  }
+
+  s {
+    text-decoration: line-through;
+    opacity: 0.7;
+  }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.875em;
+    background: var(--code-bg);
+    border-radius: var(--radius-sm);
+    padding: 0.15em 0.35em;
+  }
+
+  pre {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    line-height: 1.5;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    overflow-x: auto;
+
+    code {
+      background: none;
+      padding: 0;
+      font-size: inherit;
+    }
+  }
+
+  blockquote {
+    margin: 0;
+    padding-left: 1em;
+    border-left: 3px solid var(--border);
+    color: var(--text);
+  }
+
+  ul,
+  ol {
+    margin: 0;
+    padding-left: 1.5em;
+  }
+
+  li > * + * {
+    margin-top: 0.4em;
+  }
+
+  li p {
+    margin: 0;
+  }
+
+  /* Nested lists hug their parent item rather than inheriting the block gap. */
+  li > ul,
+  li > ol {
+    margin-top: 0.25em;
+  }
+
+  hr {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 1.8em 0;
+  }
+
+  .editor-image {
+    display: inline-flex;
+    position: relative;
+    max-width: 100%;
+    vertical-align: middle;
+    border-radius: var(--radius);
+
+    img {
+      display: block;
+      max-width: 100%;
+      max-height: min(70vh, 900px);
+      border-radius: inherit;
+    }
+
+    &[data-state='loading'] img,
+    &[data-state='missing'] img {
+      display: none;
+    }
+
+  }
+
+  .editor-image-resize {
+    max-width: 100%;
+    vertical-align: middle;
+
+    &.ProseMirror-selectednode .editor-image {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+  }
+
+  .editor-image-resize__wrapper {
+    max-width: 100%;
+  }
+
+  .editor-image-resize__handle {
+    z-index: 2;
+    display: none;
+    width: 10px;
+    height: 10px;
+    box-sizing: border-box;
+    border: 2px solid var(--bg-raised);
+    border-radius: 50%;
+    background: var(--accent);
+    transform: translate(50%, 50%);
+    touch-action: none;
+  }
+
+  .editor-image-resize.ProseMirror-selectednode
+    .editor-image-resize__handle {
+    display: block;
+  }
+
+  .editor-image-resize__handle[data-resize-handle*='top'] {
+    transform: translate(50%, -50%);
+  }
+
+  .editor-image-resize__handle[data-resize-handle*='left'] {
+    transform: translate(-50%, 50%);
+  }
+
+  .editor-image-resize__handle[data-resize-handle='top-left'] {
+    transform: translate(-50%, -50%);
+  }
+
+  .editor-image__status {
+    display: none;
+    min-width: 150px;
+    min-height: 72px;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    box-sizing: border-box;
+    border: 1px dashed var(--border);
+    border-radius: inherit;
+    color: var(--text);
+    background: var(--code-bg);
+    font-size: 13px;
+  }
+
+  .editor-image[data-state='loading'] .editor-image__status,
+  .editor-image[data-state='missing'] .editor-image__status {
+    display: inline-flex;
+  }
+
+  /* --- GFM task lists --- */
+  ul[data-type='taskList'] {
+    list-style: none;
+    padding-left: 0.2em;
+
+    li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5em;
+    }
+
+    li > label {
+      flex: 0 0 auto;
+      margin-top: 0.28em;
+      user-select: none;
+    }
+
+    li > div {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    input[type='checkbox'] {
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+  }
+
+  /* --- GFM tables --- */
+
+  /*
+   * Inserted by TableView on every table, because `resizable: true` swaps the
+   * node view for it. It has never carried a rule, which is why a table
+   * resized past the measure was simply clipped: TableView writes an inline
+   * `min-width` that beats `table { width: 100% }`, and .workspace is
+   * `overflow-x: hidden`, so there was no way to reach the rest of it.
+   */
+  .tableWrapper {
+    overflow-x: auto;
+    /* The last column's resize handle sits at `right: -2px`; without this it
+       puts every table into a two-pixel horizontal scroll of its own. */
+    padding-inline-end: 2px;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    table-layout: fixed;
+    overflow: hidden;
+
+    td,
+    th {
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      vertical-align: top;
+      position: relative;
+      box-sizing: border-box;
+      min-width: 4em;
+    }
+
+    th {
+      background: var(--code-bg);
+      font-weight: 600;
+      text-align: start;
+      color: var(--text-h);
+    }
+
+    p {
+      margin: 0;
+    }
+  }
+
+  .selectedCell::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--accent-bg);
+    pointer-events: none;
+  }
+
+  .column-resize-handle {
+    position: absolute;
+    right: -2px;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+
+  /* Empty-document placeholder, driven by the Placeholder extension. */
+  p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+    color: var(--text);
+    opacity: 0.5;
+  }
+}
+
+/* --- Image selection bar --- */
+.image-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: calc(100vw - 24px);
+  padding: 4px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.image-bar__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 5px;
+  color: var(--text);
+  font-size: 12px;
+
+  input {
+    width: min(260px, 48vw);
+    height: 28px;
+    box-sizing: border-box;
+  }
+}
+
+.image-bar__size {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 4px;
+  color: var(--text);
+  font-size: 12px;
+
+  input {
+    width: 66px;
+    height: 28px;
+    box-sizing: border-box;
+  }
+}
+
+.image-bar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  color: var(--text);
+}
+
+.image-bar button.image-bar__text-button {
+  width: auto;
+  padding-inline: 7px;
+  font-size: 12px;
+}
+
+.image-bar button.image-bar__delete {
+  width: 30px;
+  color: var(--danger);
+}
+
+/* --- Toolbar --- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+}
+
+.toolbar__group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.image-insert-trigger {
+  display: inline-flex;
+}
+
+.image-insert-popover {
+  position: fixed;
+  top: 64px;
+  left: 24px;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 24px));
+  padding: 12px;
+  box-sizing: border-box;
+  color: var(--text);
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.image-insert-popover > label:not(.image-insert-popover__check) {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+
+  input {
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    font: inherit;
+    font-size: 13px;
+    color: var(--text-h);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 7px 8px;
+  }
+}
+
+.image-insert-popover button.image-insert-popover__upload {
+  justify-content: center;
+  width: 100%;
+  height: 34px;
+  gap: 7px;
+  border-color: var(--border);
+  color: var(--text-h);
+}
+
+.image-insert-popover__divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+}
+
+.image-insert-popover__check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+}
+
+.image-insert-popover__error,
+.crop-dialog__error {
+  margin: 0;
+  color: var(--danger);
+  font-size: 12px;
+}
+
+.image-insert-popover__actions,
+.crop-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* --- Pixel crop dialog (Cropper.js is lazy-loaded with this UI) --- */
+.crop-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+  color: var(--text-h);
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.crop-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(820px, 100%);
+  max-height: calc(100svh - 32px);
+  padding: 14px;
+  box-sizing: border-box;
+  overflow-y: auto;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.crop-dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  h2 {
+    margin: 0;
+    font-size: 16px;
+  }
+
+  button {
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    font-size: 22px;
+  }
+}
+
+.crop-dialog__canvas {
+  position: relative;
+  height: min(62vh, 560px);
+  min-height: 280px;
+  overflow: hidden;
+  background: #111;
+
+  cropper-canvas {
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.crop-dialog__controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.crop-dialog__aspects {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+
+  button[aria-pressed='true'] {
+    color: var(--accent);
+    background: var(--accent-bg);
+    border-color: var(--accent-border);
+  }
+}
+
+.crop-dialog__zoom {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: min(260px, 100%);
+  color: var(--text);
+  font-size: 12px;
+
+  input {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+}
+
+@media (max-width: 600px) {
+  .crop-dialog-backdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .crop-dialog {
+    width: 100%;
+    max-height: 100svh;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .crop-dialog__canvas {
+    min-height: 220px;
+    height: 52svh;
+  }
+
+  .image-bar__label input {
+    width: min(220px, 62vw);
+  }
+}
+
+.toolbar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
+.toolbar button {
+  min-width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--text);
+
+  /* `display: block` drops the inline baseline gap, which would otherwise sit
+   * the icons ~1px below the B / H1 text buttons next to them. */
+  & > svg {
+    flex: 0 0 auto;
+    display: block;
+  }
+
+  &[aria-pressed='true'] {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+}
+
+/*
+ * On a phone the toolbar gets its own full-width row and scrolls sideways.
+ * Wrapping (the default above) stacked it into four rows and ate the viewport.
+ */
+@media (max-width: 900px) {
+  .toolbar {
+    order: 3;
+    width: 100%;
+    /*
+     * Without this the sideways scroll never engages. A flex item's automatic
+     * minimum size is its min-content width, which for a nowrap row of
+     * non-shrinking buttons is the full ~660px of them — so the toolbar refused
+     * to honour `width: 100%`, widened the header past the viewport, and took
+     * the whole #root grid column with it. Everything then sat on a surface
+     * wider than the screen and drifted sideways as the caret moved.
+     */
+    min-width: 0;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .toolbar button,
+  .toolbar__sep {
+    flex: 0 0 auto;
+  }
+}
+
+/* --- Find and replace --- */
+
+/*
+ * Docked over the text rather than placed above it. The bar is zero-height in
+ * flow on purpose: comment cards are positioned from live anchor coordinates
+ * measured against the rail, so anything that occupies height in the editor
+ * column — but not in the rail — slides every card out of alignment until the
+ * next relayout. Sticky rather than fixed because the header's height changes
+ * between breakpoints, and there is no honest number to offset from.
+ */
+.find-bar-dock {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  height: 0;
+  display: flex;
+  justify-content: flex-end;
+  /* Required, not cosmetic: the default `stretch` sizes the bar to this box's
+     own height, which is zero — the panel collapses to a hairline and its
+     controls spill out from under it. */
+  align-items: flex-start;
+}
+
+.find-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  box-sizing: border-box;
+  max-width: 100%;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.find-bar__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.find-bar__glyph {
+  flex: 0 0 auto;
+  width: 20px;
+  display: inline-flex;
+  justify-content: center;
+  color: var(--text);
+  opacity: 0.7;
+
+  & > svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+}
+
+.find-bar__input {
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-h);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 7px;
+  width: 16ch;
+  min-width: 0;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+}
+
+/* The replace row has no count or steppers, so its field takes the slack. */
+.find-bar__input--grow {
+  flex: 1 1 auto;
+}
+
+.find-bar__count {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--text);
+  min-width: 8ch;
+  text-align: right;
+  white-space: nowrap;
+  /* Even digits, so stepping through matches does not jiggle the buttons. */
+  font-variant-numeric: tabular-nums;
+}
+
+.find-bar button {
+  flex: 0 0 auto;
+  min-width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  color: var(--text);
+
+  & > svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+}
+
+.find-bar__action {
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .find-bar__input {
+    width: 10ch;
+  }
+}
+
+/*
+ * Matches are decorations, never marks — nothing here touches the document, so
+ * searching cannot land on the undo stack or reach the exported markdown.
+ */
+.search-match {
+  background: var(--find);
+  border-radius: var(--radius-sm);
+}
+
+/* Equal specificity to the rule above, so it has to stay after it. */
+.search-match--active {
+  background: var(--find-active);
+  box-shadow: 0 0 0 1px var(--accent-border);
+}
+
+/* --- Link popover --- */
+
+/*
+ * Positioned against the viewport from coordsAtPos rather than docked to the
+ * editor: the range it belongs to can be anywhere on screen, and the workspace
+ * is a scroll container that would clip an absolutely positioned child of it.
+ * The top/left here are the fallback for a range that could not be measured.
+ */
+.link-popover {
+  position: fixed;
+  top: 96px;
+  left: 24px;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px;
+  box-sizing: border-box;
+  max-width: min(360px, calc(100vw - 24px));
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.link-popover__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-h);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 7px;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: -1px;
+  }
+}
+
+/* No colour here: `.link-popover button` would outrank .btn--primary and put
+   grey text on the Apply button's accent fill. */
+.link-popover button {
+  flex: 0 0 auto;
+  font-size: 12px;
+  padding: 4px 8px;
+}
+
+.link-popover__open {
+  color: var(--text);
+
+  & > svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* --- Syntax highlighting --- */
+
+/*
+ * highlight.js emits several dozen token classes; these group them into the
+ * five roles that actually help someone read a snippet. Anything unmapped
+ * inherits the block's own colour, which is the right default — an unstyled
+ * token should look like code, not like a mistake.
+ */
+.ProseMirror pre code {
+  & .hljs-keyword,
+  & .hljs-selector-tag,
+  & .hljs-built_in,
+  & .hljs-type,
+  & .hljs-doctag {
+    color: var(--code-keyword);
+  }
+
+  & .hljs-string,
+  & .hljs-regexp,
+  & .hljs-addition,
+  & .hljs-meta .hljs-string {
+    color: var(--code-string);
+  }
+
+  & .hljs-number,
+  & .hljs-literal,
+  & .hljs-symbol,
+  & .hljs-bullet,
+  & .hljs-quote {
+    color: var(--code-literal);
+  }
+
+  & .hljs-title,
+  & .hljs-section,
+  & .hljs-name,
+  & .hljs-attr,
+  & .hljs-attribute,
+  & .hljs-variable,
+  & .hljs-template-variable,
+  & .hljs-selector-id,
+  & .hljs-selector-class {
+    color: var(--code-name);
+  }
+
+  & .hljs-comment,
+  & .hljs-meta,
+  & .hljs-deletion {
+    color: var(--code-muted);
+  }
+
+  & .hljs-emphasis {
+    font-style: italic;
+  }
+
+  & .hljs-strong {
+    font-weight: 600;
+  }
+}
+
+/* --- Table bar --- */
+
+/*
+ * The chrome here duplicates .bubble-menu rather than sharing it: that class
+ * lives in comments.css, which loads AFTER this file, so a modifier declared
+ * here would lose to `.bubble-menu button` at equal specificity. .link-popover
+ * makes the same trade for the same reason.
+ *
+ * position / top / left / width / visibility / opacity are written inline by
+ * the BubbleMenu plugin — nothing here may declare them.
+ */
+.table-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* Over the find bar (4), under the link popover (6). */
+  z-index: 5;
+  padding: 3px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.table-bar button {
+  min-width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  font-size: 12px;
+  color: var(--text);
+
+  & > svg {
+    display: block;
+    width: 15px;
+    height: 15px;
+  }
+
+  &[aria-pressed='true'] {
+    background: var(--accent-bg);
+    color: var(--accent);
+  }
+}
+
+.table-bar__sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 3px 4px;
+  background: var(--border);
+}
+
+/* Equal specificity to `.table-bar button`, so it has to stay after it. */
+.table-bar__danger {
+  color: var(--danger);
+
+  &:hover:not(:disabled) {
+    color: var(--danger);
+  }
+}
+
+@media (max-width: 900px) {
+  .table-bar {
+    flex-wrap: wrap;
+    max-width: min(320px, calc(100vw - 24px));
+  }
+}

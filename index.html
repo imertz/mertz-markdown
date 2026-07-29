@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#faf9f7" />
+
+    <!--
+      Resolve the theme before first paint, otherwise a dark-mode user gets a
+      white flash while the bundle loads. useTheme takes over from here; the
+      two must agree on the storage key and the data-theme attribute.
+    -->
+    <script>
+      ;(function () {
+        try {
+          var stored = localStorage.getItem('mertz-md:theme')
+          var theme =
+            stored === 'light' || stored === 'dark'
+              ? stored
+              : matchMedia('(prefers-color-scheme: dark)').matches
+                ? 'dark'
+                : 'light'
+          document.documentElement.dataset.theme = theme
+          document.documentElement.style.colorScheme = theme
+          if (theme === 'dark') {
+            document
+              .querySelector('meta[name="theme-color"]')
+              .setAttribute('content', '#1a1917')
+          }
+        } catch (e) {}
+      })()
+    </script>
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="YMM" />
+    <meta
+      name="description"
+      content="Offline markdown editor with inline comments. Exports clean GFM."
+    />
+    <title>Yiannis Mertzanis' Markdown</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

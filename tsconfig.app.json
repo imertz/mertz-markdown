@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "useDefineForClassFields": true,
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noUncheckedSideEffectImports": true,
+    /* db/client.ts upgrade() deliberately falls through so v1 -> v3 runs 1->2->3 */
+    "noFallthroughCasesInSwitch": false,
+    /* TipTap's option types fight this one */
+    "exactOptionalPropertyTypes": false,
+    "verbatimModuleSyntax": true,
+
+    "noEmit": true,
+    "composite": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+
+    /* "node" is here for the test files under src/test, which read fixtures
+       off disk. Application code must not use Node APIs — Vite would fail the
+       browser build if it did. */
+    "types": ["vite/client", "node"]
+  },
+  "include": ["src"]
+}
