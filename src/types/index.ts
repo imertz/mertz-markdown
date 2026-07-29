@@ -34,7 +34,15 @@ export interface TextQuoteSelector {
 
 export interface DocumentRecord {
   id: string
+  /** What the UI shows: `titleOverride` when there is one, else derived. */
   title: string
+  /**
+   * A name the user typed, which pins `title` against re-derivation on save.
+   *
+   * Optional rather than required so records written before renaming existed
+   * read back as untouched — absent and `null` both mean "follow the content".
+   */
+  titleOverride?: string | null
   /**
    * CANONICAL. Comment marks live here and nowhere else. Markdown cannot
    * represent them, so this is what makes anchors survive a save/load cycle.

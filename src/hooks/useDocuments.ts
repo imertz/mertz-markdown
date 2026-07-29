@@ -51,6 +51,11 @@ export interface DocumentsApi {
   restore: (id: string) => Promise<void>
   /** Permanent, cascading delete. There is no undo past this. */
   destroy: (id: string) => Promise<void>
+  /**
+   * Give a document a name of its own. An empty name clears it, which is the
+   * only route back to a title derived from the content.
+   */
+  rename: (id: string, name: string) => Promise<void>
   save: (docId: string, doc: JSONContent, markdown: string) => Promise<void>
   snapshot: (
     docId: string,
@@ -208,6 +213,30 @@ export function useDocuments(): DocumentsApi {
     setTrashed(previous => previous.filter(candidate => candidate.id !== id))
   }, [])
 
+  const rename = useCallback(async (id: string, name: string) => {
+    const existing = await getDocument(id)
+    if (!existing) return
+
+    const trimmed = name.trim()
+    const titleOverride = trimmed === '' ? null : trimmed
+
+    const record: DocumentRecord = {
+      ...existing,
+      titleOverride,
+      // Clearing the name has to recompute here and not wait for the next
+      // autosave, or the document would keep wearing the name just dropped.
+      title: titleOverride ?? deriveTitle(existing.doc),
+      // `updatedAt` is deliberately untouched: the list is ordered by it, and
+      // renaming from inside that list would otherwise make the row jump out
+      // from under the pointer that just renamed it.
+    }
+
+    await putDocument(record)
+    setDocuments(previous =>
+      previous.map(candidate => (candidate.id === id ? record : candidate)),
+    )
+  }, [])
+
   /**
    * Write a restore point.
    *
@@ -260,7 +289,8 @@ export function useDocuments(): DocumentsApi {
           id: docId,
           doc,
           markdown,
-          title: deriveTitle(doc),
+          // A name the user typed outranks the content it was typed over.
+          title: existing.titleOverride ?? deriveTitle(doc),
           updatedAt: Date.now(),
         }
 
@@ -352,6 +382,7 @@ export function useDocuments(): DocumentsApi {
     remove,
     restore,
     destroy,
+    rename,
     save,
     snapshot,
     importFile,

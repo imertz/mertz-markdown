@@ -880,6 +880,7 @@ export function AppShell() {
           onDelete={id => void deleteDocument(id)}
           onRestore={id => void documents.restore(id)}
           onDestroy={id => void documents.destroy(id)}
+          onRename={(id, name) => void documents.rename(id, name)}
         />
 
         {editor ? (

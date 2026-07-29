@@ -1,8 +1,8 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useDismissable } from '../../hooks/useDismissable'
 import { relative } from '../../lib/time'
 import type { DocumentRecord } from '../../types'
-import { TrashIcon } from '../icons'
+import { PencilIcon, TrashIcon } from '../icons'
 
 interface DocumentListProps {
   documents: DocumentRecord[]
@@ -14,6 +14,8 @@ interface DocumentListProps {
   onDelete: (id: string) => void
   onRestore: (id: string) => void
   onDestroy: (id: string) => void
+  /** An empty name hands the title back to the content. */
+  onRename: (id: string, name: string) => void
 }
 
 export function DocumentList({
@@ -26,16 +28,40 @@ export function DocumentList({
   onDelete,
   onRestore,
   onDestroy,
+  onRename,
 }: DocumentListProps) {
   const [open, setOpen] = useState(false)
   // Which trashed document is one more click away from being gone for good.
   const [confirming, setConfirming] = useState<string | null>(null)
+  // Which document is being renamed, and the name so far.
+  const [renaming, setRenaming] = useState<string | null>(null)
+  const [draft, setDraft] = useState('')
+
+  // Escape unmounts the field, and an unmounting field must not also save what
+  // the user just abandoned.
+  const abandoned = useRef(false)
+
+  const stopRenaming = useCallback(() => {
+    setRenaming(null)
+    setDraft('')
+  }, [])
 
   const close = useCallback(() => {
     setOpen(false)
     setConfirming(null)
+    setRenaming(null)
+    setDraft('')
   }, [])
   const container = useDismissable<HTMLDivElement>(open, close)
+
+  const commitRename = useCallback(
+    (id: string) => {
+      if (abandoned.current) return
+      onRename(id, draft)
+      stopRenaming()
+    },
+    [draft, onRename, stopRenaming],
+  )
 
   return (
     <div className="doc-picker" ref={container}>
@@ -64,35 +90,87 @@ export function DocumentList({
           </button>
 
           <ul className="doc-picker__list">
-            {documents.map(document_ => (
-              <li key={document_.id} className="doc-picker__item">
-                <button
-                  type="button"
-                  className="doc-picker__select"
-                  aria-current={document_.id === activeId}
-                  onClick={() => {
-                    onSelect(document_.id)
-                    close()
-                  }}
-                >
-                  <span className="doc-picker__item-title">
-                    {document_.title}
-                  </span>
-                  <span className="doc-picker__item-time">
-                    {relative(document_.updatedAt)}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className="doc-picker__delete"
-                  aria-label={`Move ${document_.title} to trash`}
-                  title="Move to trash"
-                  onClick={() => onDelete(document_.id)}
-                >
-                  <TrashIcon />
-                </button>
-              </li>
-            ))}
+            {documents.map(document_ =>
+              renaming === document_.id ? (
+                <li key={document_.id} className="doc-picker__item">
+                  <form
+                    className="doc-picker__rename-form"
+                    onSubmit={event => {
+                      event.preventDefault()
+                      commitRename(document_.id)
+                    }}
+                  >
+                    {/* Focused on mount: the field only exists because the
+                        user just clicked Rename to type in it. */}
+                    <input
+                      autoFocus
+                      className="doc-picker__rename-input"
+                      aria-label={`Name for ${document_.title}`}
+                      placeholder="Name from the first heading"
+                      value={draft}
+                      onChange={event => setDraft(event.target.value)}
+                      onKeyDown={event => {
+                        if (event.key !== 'Escape') return
+                        // The menu's own Escape handler sits on the document
+                        // and would close the whole picker; cancelling the
+                        // rename is the smaller thing the user meant.
+                        event.stopPropagation()
+                        abandoned.current = true
+                        stopRenaming()
+                      }}
+                      onBlur={() => commitRename(document_.id)}
+                    />
+                  </form>
+                </li>
+              ) : (
+                <li key={document_.id} className="doc-picker__item">
+                  <button
+                    type="button"
+                    className="doc-picker__select"
+                    aria-current={document_.id === activeId}
+                    onClick={() => {
+                      onSelect(document_.id)
+                      close()
+                    }}
+                  >
+                    <span className="doc-picker__item-title">
+                      {document_.title}
+                    </span>
+                    <span className="doc-picker__item-time">
+                      {relative(document_.updatedAt)}
+                    </span>
+                  </button>
+                  {/*
+                    Seeded with the override rather than the shown title, so
+                    opening the field on a document that never had a name of
+                    its own offers an empty box instead of the derived text —
+                    submitting that text unchanged would silently pin it.
+                  */}
+                  <button
+                    type="button"
+                    className="doc-picker__rename"
+                    aria-label={`Rename ${document_.title}`}
+                    title="Rename"
+                    onClick={() => {
+                      abandoned.current = false
+                      setDraft(document_.titleOverride ?? '')
+                      setRenaming(document_.id)
+                    }}
+                  >
+                    <PencilIcon />
+                  </button>
+                  <button
+                    type="button"
+                    className="doc-picker__delete"
+                    aria-label={`Move ${document_.title} to trash`}
+                    title="Move to trash"
+                    onClick={() => onDelete(document_.id)}
+                  >
+                    <TrashIcon />
+                  </button>
+                </li>
+              ),
+            )}
           </ul>
 
           {trashed.length ? (
