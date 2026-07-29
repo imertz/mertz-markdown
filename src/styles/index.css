@@ -54,6 +54,7 @@
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
+  --document-font: var(--sans);
   --mono: ui-monospace, Consolas, monospace;
 
   --sidebar-w: 340px;
@@ -77,6 +78,22 @@
   @media (max-width: 1024px) {
     font-size: 16px;
   }
+}
+
+:root[data-document-font='inter'] {
+  --document-font: 'Inter Variable', system-ui, sans-serif;
+}
+
+:root[data-document-font='fira-sans'] {
+  --document-font: 'Fira Sans', system-ui, sans-serif;
+}
+
+:root[data-document-font='literata'] {
+  --document-font: 'Literata Variable', Georgia, serif;
+}
+
+:root[data-document-font='gfs-neohellenic'] {
+  --document-font: 'GFS Neohellenic', Georgia, serif;
 }
 
 /*
@@ -543,6 +560,89 @@ body {
   &:hover:not(:disabled) {
     color: var(--text-h);
   }
+}
+
+/* The document type selector earns a dedicated glyph rather than borrowing a
+   generic settings icon: it changes how the text reads, not how the app runs. */
+.font-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.font-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--text);
+}
+
+.font-menu__trigger:hover:not(:disabled) {
+  color: var(--text-h);
+}
+
+.font-menu__glyph {
+  font-family: Georgia, serif;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -1px;
+  line-height: 1;
+}
+
+.font-menu__panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(264px, calc(100vw - 24px));
+  padding: 4px;
+  box-sizing: border-box;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.font-menu__option {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 7px 8px;
+  text-align: start;
+}
+
+.font-menu__option[aria-checked='true'] {
+  color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.font-menu__option-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.font-menu__option-name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.font-menu__option-preview {
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.font-menu__check {
+  width: 16px;
+  height: 16px;
+  margin-inline-start: auto;
+  flex: 0 0 auto;
 }
 
 /* --- Save indicator --- */

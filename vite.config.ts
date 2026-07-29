@@ -49,7 +49,7 @@ export default defineConfig({
       },
 
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2,txt}'],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         // Single-page app: any navigation falls back to the precached shell,

@@ -1,0 +1,28 @@
+The locally bundled web fonts are redistributed under the SIL Open Font
+License, Version 1.1. The full license is in OFL-1.1.txt in this directory.
+
+Inter
+Copyright 2016 The Inter Project Authors (https://github.com/rsms/inter)
+Inter-Italic[opsz,wght].ttf: Copyright 2016 The Inter Project Authors
+(https://github.com/rsms/inter)
+
+Literata
+Copyright 2017 The Literata Project Authors
+(https://github.com/googlefonts/literata)
+Literata-Italic[opsz,wght].ttf: Copyright 2017 The Literata Project Authors
+(https://github.com/googlefonts/literata)
+
+Fira Sans
+Google Inc.
+
+GFS Neohellenic
+Copyright (c) Takis Katsoulidis and George D. Matthiopoulos
+(gfs@greekfontsociety.gr), 1993-2001. All rights reserved.
+GFSNeohellenicItalic.ttf: Copyright (c) Takis Katsoulidis and George D.
+Matthiopoulos (gfs@greekfontsociety.gr) , 2001. All rights reserved.
+GFSNeohellenicBold.ttf: Copyright (c) Designed by Takis Katsoulidis and
+George D. Matthiopoulos (gfs@greekfontsociety.gr)., 2001. All rights
+reserved.
+GFSNeohellenicBoldItalic.ttf: Copyright (c) Designed by Takis Katsoulidis
+and George D. Matthiopoulos (gfs@greekfontsociety.gr)., 2001. All rights
+reserved.

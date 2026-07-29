@@ -23,6 +23,9 @@
                 : 'light'
           document.documentElement.dataset.theme = theme
           document.documentElement.style.colorScheme = theme
+          var storedFont = localStorage.getItem('mertz-md:document-font')
+          document.documentElement.dataset.documentFont =
+            storedFont || 'system'
           if (theme === 'dark') {
             document
               .querySelector('meta[name="theme-color"]')

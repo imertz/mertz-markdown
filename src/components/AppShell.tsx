@@ -24,6 +24,7 @@ import { DB_OUTDATED_EVENT } from '../db/client'
 import { useDebouncedCallback } from '../hooks/useDebouncedCallback'
 import { useDocuments } from '../hooks/useDocuments'
 import { useDocumentStats } from '../hooks/useDocumentStats'
+import { useDocumentFont } from '../hooks/useDocumentFont'
 import { useFileDrop } from '../hooks/useFileDrop'
 import { useFileLaunch } from '../hooks/useFileLaunch'
 import { useGlobalShortcuts } from '../hooks/useGlobalShortcuts'
@@ -58,6 +59,7 @@ import { CommentSidebar } from './comments/CommentSidebar'
 import { HistoryPanel } from './history/HistoryPanel'
 import { BrandMark, HistoryIcon } from './icons'
 import { DocumentList } from './documents/DocumentList'
+import { DocumentFontMenu } from './DocumentFontMenu'
 import { ExportMenu } from './documents/ExportMenu'
 import { EditorSurface } from './editor/EditorSurface'
 import { FindBar } from './editor/FindBar'
@@ -120,6 +122,7 @@ export function AppShell() {
   const threads = useThreads(documents.activeId)
   const pwa = usePwaUpdate()
   const theme = useTheme()
+  const documentFont = useDocumentFont()
   const online = useOnline()
   const rail = useRailHidden()
 
@@ -876,6 +879,11 @@ export function AppShell() {
           >
             <HistoryIcon />
           </button>
+
+          <DocumentFontMenu
+            font={documentFont.font}
+            onSelect={documentFont.selectFont}
+          />
 
           <ThemeToggle theme={theme.theme} onToggle={theme.toggle} />
         </div>

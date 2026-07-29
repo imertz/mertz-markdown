@@ -6,6 +6,7 @@
 .ProseMirror {
   outline: none;
   color: var(--text-h);
+  font-family: var(--document-font);
   font-size: 1rem;
   line-height: 1.6;
   word-wrap: break-word;
@@ -21,7 +22,7 @@
   h4,
   h5,
   h6 {
-    font-family: var(--heading);
+    font-family: var(--document-font);
     font-weight: 600;
     color: var(--text-h);
     line-height: 1.25;
