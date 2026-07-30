@@ -43,9 +43,20 @@ describe('buildSnippet', () => {
     ])
   })
 
-  it('marks whole words only, never a substring of one', () => {
-    // "run" must not light up the "run" inside "runic".
-    expect(markedFor('A runic inscription', 'run')).toEqual([])
+  it('marks a word the index matched by prefix', () => {
+    // ZBSearch's radix index matches "run" against "runic" too — that is
+    // exactly what an incremental query does on every keystroke — so the
+    // returned row must show why it matched.
+    expect(markedFor('A runic inscription', 'run')).toEqual(['runic'])
+  })
+
+  it('never marks a word the query only appears inside', () => {
+    // "unic" returns nothing from the index either: prefix, not substring.
+    expect(markedFor('A runic inscription', 'unic')).toEqual([])
+  })
+
+  it('marks a Greek word for the prefix a user has typed so far', () => {
+    expect(markedFor('προστασία της οικογένειας', 'οικ')).toEqual(['οικογένειας'])
   })
 
   it('centres the window on the hit and ellipsises what it cut', () => {

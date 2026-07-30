@@ -163,6 +163,61 @@ describe('SearchPanel', () => {
     )
   })
 
+  it('caps hits per document and expands on demand', async () => {
+    const { user, input } = await setup()
+    const manyHits = makeDocument({
+      title: 'Alignment everywhere',
+      doc: paragraphs(
+        'First alignment paragraph here.',
+        'Second alignment paragraph here.',
+        'Third alignment paragraph here.',
+        'Fourth alignment paragraph here.',
+        'Fifth alignment paragraph here.',
+      ),
+    })
+    await putDocument(manyHits)
+
+    await user.type(input, 'alignment')
+    const more = await screen.findByRole('button', { name: /more in this document/ })
+    const beforeCount = hits().length
+
+    await user.click(more)
+    await waitFor(() => expect(hits().length).toBeGreaterThan(beforeCount))
+    expect(
+      screen.queryByRole('button', { name: /more in this document/ }),
+    ).toBeNull()
+  })
+
+  it('never repeats the document title in a hit\'s hint', async () => {
+    const { user, input } = await setup()
+    const withHeading = makeDocument({
+      title: 'Big Heading',
+      doc: {
+        type: 'doc',
+        content: [
+          {
+            type: 'heading',
+            attrs: { level: 1 },
+            content: [{ type: 'text', text: 'Big Heading' }],
+          },
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Some quarterly figures here.' }],
+          },
+        ],
+      },
+    })
+    await putDocument(withHeading)
+
+    await user.type(input, 'quarterly')
+    await waitFor(() => expect(hits().length).toBeGreaterThan(0))
+
+    const hints = document.querySelectorAll('.search-panel__hint')
+    for (const hint of hints) {
+      expect(hint.textContent?.startsWith('Big Heading')).toBe(false)
+    }
+  })
+
   it('reruns an open query when vault sync replaces storage', async () => {
     const { searchable, user, input, refresh } = await setup()
     await user.type(input, 'alignment')
