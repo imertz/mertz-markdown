@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { SaveStatus } from '../hooks/useDocuments'
 import type { PersistenceState } from '../hooks/usePersistentStorage'
 import type { DocumentStats } from '../hooks/useDocumentStats'
-import { formatShortcut } from '../lib/shortcuts'
+import { titleFor } from '../keys/catalog'
 import { ChevronDownIcon, ChevronUpIcon, PanelRightIcon } from './icons'
 import { OutlineMenu } from './OutlineMenu'
 import { SaveIndicator } from './SaveIndicator'
@@ -90,7 +90,7 @@ export function StatusBar({
           type="button"
           className="status-bar__step"
           aria-label="Previous section"
-          title={`Previous section (${formatShortcut('mod+alt+up')})`}
+          title={titleFor('nav.prevSection')}
           disabled={stats.activeIndex < 0}
           onClick={() => onStepSection(-1)}
         >
@@ -107,7 +107,7 @@ export function StatusBar({
           type="button"
           className="status-bar__step"
           aria-label="Next section"
-          title={`Next section (${formatShortcut('mod+alt+down')})`}
+          title={titleFor('nav.nextSection')}
           disabled={stats.activeIndex >= stats.outline.length - 1}
           onClick={() => onStepSection(1)}
         >
@@ -135,7 +135,7 @@ export function StatusBar({
               type="button"
               className="status-bar__step"
               aria-label="Previous comment"
-              title={`Previous comment (${formatShortcut('mod+alt+shift+up')})`}
+              title={titleFor('comment.previous')}
               onClick={() => onStepThread(-1)}
             >
               <ChevronUpIcon />
@@ -158,7 +158,7 @@ export function StatusBar({
               type="button"
               className="status-bar__step"
               aria-label="Next comment"
-              title={`Next comment (${formatShortcut('mod+alt+shift+down')})`}
+              title={titleFor('comment.next')}
               onClick={() => onStepThread(1)}
             >
               <ChevronDownIcon />

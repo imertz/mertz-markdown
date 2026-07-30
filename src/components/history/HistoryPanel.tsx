@@ -88,6 +88,7 @@ export function HistoryPanel({
         role="dialog"
         aria-modal="true"
         aria-label="Version history"
+        data-keys="overlay"
       >
         <header className="history__header">
           <h2 className="history__title">Version history</h2>

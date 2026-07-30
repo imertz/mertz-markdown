@@ -12,6 +12,7 @@ import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
 import { common, createLowlight } from 'lowlight'
 import { EDITOR_PLACEHOLDER, MARKED_OPTIONS } from '../../markdown/config'
+import { AppShortcuts } from './appShortcuts'
 import { CommentMark } from './comment'
 import { CommentActive } from './commentActive'
 import { CommentSanitizer } from './commentSanitizer'
@@ -121,8 +122,9 @@ export function buildExtensions(
       getKnownThreadIds: options.getKnownThreadIds ?? (() => NO_THREADS),
     }),
 
-    // Typing ergonomics and find/replace — neither adds a node or mark.
+    // Typing ergonomics and find/replace — none of these add a node or mark.
     TaskListShortcut,
+    AppShortcuts,
     Search,
 
     Placeholder.configure({ placeholder: EDITOR_PLACEHOLDER }),

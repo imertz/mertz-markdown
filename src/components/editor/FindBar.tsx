@@ -2,7 +2,7 @@ import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 import { getSearchState } from '../../editor/extensions/search'
-import { formatShortcut } from '../../lib/shortcuts'
+import { titleFor } from '../../keys/catalog'
 import { ChevronDownIcon, ChevronUpIcon, CloseIcon, SearchIcon } from '../icons'
 
 interface FindBarProps {
@@ -68,6 +68,10 @@ export function FindBar({ editor, focusRequest, onClose }: FindBarProps) {
       <div
         className="find-bar"
         role="search"
+        // Not a dialog, but it owns the keyboard while it is up — Enter and
+        // Shift-Enter are its own, and a global chord firing behind it would
+        // act on a document the reader is not looking at.
+        data-keys="overlay"
         // On the container, not the fields: Escape has to work from the
         // steppers and the replace buttons too, and those are exactly where
         // focus sits after clicking one.
@@ -117,7 +121,7 @@ export function FindBar({ editor, focusRequest, onClose }: FindBarProps) {
           <button
             type="button"
             aria-label="Previous match"
-            title={`Previous match (${formatShortcut('shift+enter')})`}
+            title={titleFor('find.previous')}
             disabled={total === 0}
             onClick={() => step(-1)}
           >
@@ -126,7 +130,7 @@ export function FindBar({ editor, focusRequest, onClose }: FindBarProps) {
           <button
             type="button"
             aria-label="Next match"
-            title={`Next match (${formatShortcut('enter')})`}
+            title={titleFor('find.next')}
             disabled={total === 0}
             onClick={() => step(1)}
           >

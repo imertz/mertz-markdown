@@ -155,6 +155,7 @@ export function SearchPanel({
         role="dialog"
         aria-modal="true"
         aria-label="Search all documents"
+        data-keys="overlay"
       >
         <header className="search-panel__header">
           <input

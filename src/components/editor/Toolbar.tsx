@@ -2,7 +2,7 @@ import type { Editor } from '@tiptap/core'
 import { useEditorState } from '@tiptap/react'
 import { useEffect, useRef, useState } from 'react'
 import type { ImageUrlInsertRequest } from '../../images/url'
-import { formatShortcut } from '../../lib/shortcuts'
+import { titleFor } from '../../keys/catalog'
 import {
   BulletListIcon,
   CodeBlockIcon,
@@ -65,7 +65,7 @@ export function Toolbar({
       <div className="toolbar__group">
         <button
           type="button"
-          title={`Bold (${formatShortcut('mod+b')})`}
+          title={titleFor('format.bold')}
           aria-label="Bold"
           aria-pressed={state.bold}
           onClick={() => editor.chain().focus().toggleBold().run()}
@@ -74,7 +74,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title={`Italic (${formatShortcut('mod+i')})`}
+          title={titleFor('format.italic')}
           aria-label="Italic"
           aria-pressed={state.italic}
           onClick={() => editor.chain().focus().toggleItalic().run()}
@@ -83,7 +83,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title="Strikethrough"
+          title={titleFor('format.strike')}
           aria-label="Strikethrough"
           aria-pressed={state.strike}
           onClick={() => editor.chain().focus().toggleStrike().run()}
@@ -92,7 +92,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title="Inline code"
+          title={titleFor('format.code')}
           aria-label="Inline code"
           aria-pressed={state.code}
           onClick={() => editor.chain().focus().toggleCode().run()}
@@ -108,7 +108,7 @@ export function Toolbar({
           <button
             key={level}
             type="button"
-            title={`Heading ${level}`}
+            title={titleFor(`format.h${level}` as const)}
             aria-label={`Heading ${level}`}
             aria-pressed={state[`h${level}` as 'h1' | 'h2' | 'h3']}
             onClick={() =>
@@ -125,7 +125,7 @@ export function Toolbar({
       <div className="toolbar__group">
         <button
           type="button"
-          title="Bullet list"
+          title={titleFor('format.bulletList')}
           aria-label="Bullet list"
           aria-pressed={state.bulletList}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
@@ -134,7 +134,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title="Numbered list"
+          title={titleFor('format.orderedList')}
           aria-label="Numbered list"
           aria-pressed={state.orderedList}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
@@ -143,7 +143,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title="Task list"
+          title={titleFor('format.taskList')}
           aria-label="Task list"
           aria-pressed={state.taskList}
           onClick={() => editor.chain().focus().toggleTaskList().run()}
@@ -157,7 +157,7 @@ export function Toolbar({
       <div className="toolbar__group">
         <button
           type="button"
-          title="Blockquote"
+          title={titleFor('format.blockquote')}
           aria-label="Blockquote"
           aria-pressed={state.blockquote}
           onClick={() => editor.chain().focus().toggleBlockquote().run()}
@@ -166,7 +166,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title="Code block"
+          title={titleFor('format.codeBlock')}
           aria-label="Code block"
           aria-pressed={state.codeBlock}
           onClick={() => editor.chain().focus().toggleCodeBlock().run()}
@@ -175,7 +175,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title="Table"
+          title={titleFor('insert.table')}
           aria-label="Insert table"
           onClick={() =>
             editor
@@ -189,7 +189,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title="Horizontal rule"
+          title={titleFor('insert.rule')}
           aria-label="Horizontal rule"
           onClick={() => editor.chain().focus().setHorizontalRule().run()}
         >
@@ -199,7 +199,7 @@ export function Toolbar({
           <button
             ref={imageButton}
             type="button"
-            title="Insert image"
+            title={titleFor('insert.image')}
             aria-label="Insert image"
             aria-expanded={imageInsertPosition !== null}
             onMouseDown={event => event.stopPropagation()}
@@ -228,7 +228,7 @@ export function Toolbar({
       <div className="toolbar__group">
         <button
           type="button"
-          title={`Undo (${formatShortcut('mod+z')})`}
+          title={titleFor('format.undo')}
           aria-label="Undo"
           disabled={!state.canUndo}
           onClick={() => editor.chain().focus().undo().run()}
@@ -237,7 +237,7 @@ export function Toolbar({
         </button>
         <button
           type="button"
-          title={`Redo (${formatShortcut('mod+shift+z')})`}
+          title={titleFor('format.redo')}
           aria-label="Redo"
           disabled={!state.canRedo}
           onClick={() => editor.chain().focus().redo().run()}

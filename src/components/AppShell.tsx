@@ -16,7 +16,6 @@ import {
 } from '../editor/extensions/comment'
 import { setActiveThread } from '../editor/extensions/commentActive'
 import { clearSearch, findMatches } from '../editor/extensions/search'
-import { readTableInfo } from '../editor/extensions/tableColumn'
 import { hrefAt, linkRangeAt } from '../editor/linkActions'
 import type { OutlineEntry } from '../editor/outline'
 import { caretFor, collectOutline, stepHeading } from '../editor/outline'
@@ -29,7 +28,6 @@ import { useDocumentStats } from '../hooks/useDocumentStats'
 import { useDocumentFont } from '../hooks/useDocumentFont'
 import { useFileDrop } from '../hooks/useFileDrop'
 import { useFileLaunch } from '../hooks/useFileLaunch'
-import { useGlobalShortcuts } from '../hooks/useGlobalShortcuts'
 import { useOnline } from '../hooks/useOnline'
 import { usePersistentStorage } from '../hooks/usePersistentStorage'
 import { usePwaUpdate } from '../hooks/usePwaUpdate'
@@ -46,8 +44,14 @@ import {
 } from '../images/transform'
 import type { ImageUrlInsertRequest } from '../images/url'
 import { fetchImageFile, insertImageUrl } from '../images/url'
-import { formatShortcut } from '../lib/shortcuts'
-import { relative } from '../lib/time'
+import { titleFor } from '../keys/catalog'
+import type { OverlayId } from '../keys/context'
+import { buildPaletteEntries } from '../keys/paletteEntries'
+import { toPaletteActions } from '../keys/registry'
+import { useCommands } from '../keys/useCommands'
+import { usePeek } from '../keys/usePeek'
+import { PeekHud } from './keys/PeekHud'
+import { ShortcutSheet } from './keys/ShortcutSheet'
 import { buildDocumentExport, downloadFile } from '../markdown/bundle'
 import { resolveSelector } from '../markdown/anchors'
 import { toMarkdown } from '../markdown/export'
@@ -148,6 +152,15 @@ export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  /*
+   * A quiet confirmation, distinct from `notice`.
+   *
+   * `notice` is a `role="alert"` with a dismiss button and a six-second life —
+   * right for "the image could not be added", wrong for "Version saved", which
+   * nobody needs interrupted or asked to acknowledge.
+   */
+  const [flash, setFlash] = useState<string | null>(null)
   /*
    * A hit in another document cannot be jumped to from the click handler:
    * `select` only sets `initialDoc`, and the editor applies it on the next
@@ -717,6 +730,27 @@ export function AppShell() {
   )
 
   /**
+   * What ⌘S means in an app that already saves on its own.
+   *
+   * Without a binding the browser's own "Save page as" dialog answers instead,
+   * which is actively wrong for a document that lives in this tab. Flushing
+   * first is what makes the snapshot contain the last keystroke rather than
+   * the one before the autosave window.
+   */
+  const saveVersion = useCallback(async () => {
+    await flush()
+    await takeSnapshot('manual')
+    setFlash('Version saved')
+  }, [flush, takeSnapshot])
+
+  // Long enough to read, short enough not to sit in the corner.
+  useEffect(() => {
+    if (!flash) return
+    const timer = window.setTimeout(() => setFlash(null), 2000)
+    return () => window.clearTimeout(timer)
+  }, [flash])
+
+  /**
    * Replace the document with an older version of itself.
    *
    * Never destructive: the state being replaced is snapshotted first, and the
@@ -750,232 +784,92 @@ export function AppShell() {
     [documents, flush, takeSnapshot],
   )
 
+  const closeSheet = useCallback(() => {
+    setSheetOpen(false)
+    if (editor && !editor.isDestroyed) editor.commands.focus()
+  }, [editor])
+
   const closePalette = useCallback(() => {
     setPaletteOpen(false)
     if (editor && !editor.isDestroyed) editor.commands.focus()
   }, [editor])
+  /*
+   * Which overlay owns the screen, if any.
+   *
+   * The find bar is deliberately absent: it is docked rather than modal, and
+   * the reader goes on typing in the document behind it. Its own
+   * `data-keys="overlay"` marker already stands the global table down for the
+   * keys it owns while it has focus, which is the narrower and correct rule.
+   */
+  const overlay: OverlayId | null = paletteOpen
+    ? 'palette'
+    : searchOpen
+      ? 'search'
+      : historyOpen
+        ? 'history'
+        : sheetOpen
+          ? 'cheatsheet'
+          : cropSession
+            ? 'crop'
+            : null
 
   /**
-   * Everything the palette can reach, assembled fresh each time it opens.
+   * The keyboard, wired.
    *
-   * The early return matters: this rebuilds on every render while the palette
-   * is open, and collecting the outline is only cheap enough to do that
-   * because it walks the document's top-level children rather than descending.
+   * Everything — the bindings, the palette's command half, the cheat sheet and
+   * the peek HUD — comes out of one registry built from `keys/catalog`, so a
+   * chord has a single spelling and a command a single label no matter which
+   * surface is showing it.
    */
-  const paletteActions = useMemo<PaletteAction[]>(() => {
-    if (!paletteOpen) return []
-
-    const commands: PaletteAction[] = [
-      {
-        id: 'cmd:new',
-        label: 'New document',
-        run: () => void documents.create(),
-      },
-      {
-        id: 'cmd:find',
-        label: 'Find in document',
-        hint: formatShortcut('mod+f'),
-        run: openFind,
-      },
-      {
-        id: 'cmd:link',
-        label: 'Add or edit link',
-        hint: formatShortcut('mod+shift+k'),
-        run: startLink,
-      },
-      {
-        id: 'cmd:comment',
-        label: 'Comment on selection',
-        hint: formatShortcut('mod+alt+m'),
-        run: startDraft,
-      },
-      { id: 'cmd:export', label: 'Export as Markdown', run: exportMarkdown },
-      {
-        id: 'cmd:export-html',
-        label: 'Export with comments',
-        hint: 'HTML',
-        run: exportAnnotated,
-      },
-      {
-        id: 'cmd:resolve-all',
-        label: 'Resolve all comments',
-        run: () => {
-          if (editor) void threads.resolveAll(editor)
+  const commands = useCommands(
+    {
+      editor,
+      documents,
+      threads,
+      rail,
+      theme,
+      ui: {
+        openPalette: () => setPaletteOpen(true),
+        openSearch: () => setSearchOpen(true),
+        openHistory: () => setHistoryOpen(true),
+        openCheatSheet: () => setSheetOpen(true),
+        openFind,
+        startLink,
+        startDraft,
+        exportMarkdown,
+        exportAnnotated,
+        stepSection,
+        stepThread,
+        saveVersion: () => void saveVersion(),
+        deleteActive: () => {
+          if (documents.activeId) void deleteDocument(documents.activeId)
         },
       },
-      {
-        id: 'cmd:search-all',
-        label: 'Search all documents',
-        hint: formatShortcut('mod+shift+f'),
-        run: () => setSearchOpen(true),
-      },
-      {
-        id: 'cmd:history',
-        label: 'Version history',
-        run: () => setHistoryOpen(true),
-      },
-      {
-        id: 'cmd:snapshot',
-        label: 'Save a version now',
-        run: () => void takeSnapshot('manual'),
-      },
-      {
-        id: 'cmd:theme',
-        label:
-          theme.theme === 'dark'
-            ? 'Switch to light theme'
-            : 'Switch to dark theme',
-        run: theme.toggle,
-      },
-      {
-        id: 'cmd:rail',
-        label: rail.hidden ? 'Show comments' : 'Hide comments',
-        run: toggleRail,
-      },
-      {
-        id: 'cmd:next-comment',
-        label: 'Go to next comment',
-        hint: formatShortcut('mod+alt+shift+down'),
-        run: () => stepThread(1),
-      },
-      {
-        id: 'cmd:prev-comment',
-        label: 'Go to previous comment',
-        hint: formatShortcut('mod+alt+shift+up'),
-        run: () => stepThread(-1),
-      },
-    ]
+    },
+    overlay,
+  )
 
-    const openDocuments: PaletteAction[] = documents.documents
-      .filter(record => record.id !== documents.activeId)
-      .map(record => ({
-        id: `doc:${record.id}`,
-        label: record.title,
-        hint: `Document · ${relative(record.updatedAt)}`,
-        run: () => documents.select(record.id),
-      }))
+  const peek = usePeek(overlay === null)
 
-    // Live editor state, not the debounced copy in `stats`: a heading typed a
-    // second ago has to be reachable, and its position has to be current.
-    const headings: PaletteAction[] =
-      editor && !editor.isDestroyed
-        ? collectOutline(editor.state.doc).map((entry, index) => ({
-            id: `heading:${index}`,
-            label: entry.text || 'Untitled section',
-            hint: `Heading ${entry.level}`,
-            run: () => jumpToHeading(index),
-          }))
-        : []
-
-    /*
-     * Not optional polish: the table extension binds Tab and Shift-Tab to cell
-     * navigation, so a keyboard user with the caret in a table cannot tab out
-     * to reach the floating bar at all. This is the only route to these
-     * commands that does not need a pointer.
-     */
-    const table: PaletteAction[] =
-      editor && !editor.isDestroyed && readTableInfo(editor.state)
+  /**
+   * The palette's list: the commands, then what only it can offer.
+   *
+   * The open documents and the live heading outline are the expensive half —
+   * `collectOutline` walks the document — so they stay behind the open check
+   * that has always guarded them, while the commands themselves are standing
+   * and feed the cheat sheet and the HUD as well.
+   */
+  const paletteActions = useMemo<PaletteAction[]>(
+    () =>
+      paletteOpen
         ? [
-            {
-              id: 'cmd:table-row-after',
-              label: 'Table: add row below',
-              run: () => editor.chain().focus().addRowAfter().run(),
-            },
-            {
-              id: 'cmd:table-row-delete',
-              label: 'Table: delete row',
-              run: () => editor.chain().focus().deleteRow().run(),
-            },
-            {
-              id: 'cmd:table-column-after',
-              label: 'Table: add column right',
-              run: () => editor.chain().focus().addColumnAfter().run(),
-            },
-            {
-              id: 'cmd:table-column-delete',
-              label: 'Table: delete column',
-              run: () => editor.chain().focus().deleteColumn().run(),
-            },
-            {
-              id: 'cmd:table-align-left',
-              label: 'Table: align column left',
-              run: () =>
-                editor.chain().focus().setColumnAlignment('left').run(),
-            },
-            {
-              id: 'cmd:table-align-center',
-              label: 'Table: align column centre',
-              run: () =>
-                editor.chain().focus().setColumnAlignment('center').run(),
-            },
-            {
-              id: 'cmd:table-align-right',
-              label: 'Table: align column right',
-              run: () =>
-                editor.chain().focus().setColumnAlignment('right').run(),
-            },
-            {
-              id: 'cmd:table-align-clear',
-              label: 'Table: clear column alignment',
-              run: () => editor.chain().focus().setColumnAlignment(null).run(),
-            },
-            {
-              id: 'cmd:table-header-row',
-              label: 'Table: toggle header row',
-              run: () => editor.chain().focus().toggleHeaderRow().run(),
-            },
-            {
-              id: 'cmd:table-delete',
-              label: 'Table: delete table',
-              run: () => editor.chain().focus().deleteTable().run(),
-            },
+            ...toPaletteActions(commands.live),
+            ...buildPaletteEntries({ editor, documents, jumpToHeading }),
           ]
-        : []
+        : [],
+    [paletteOpen, commands.live, editor, documents, jumpToHeading],
+  )
 
-    return [...commands, ...table, ...openDocuments, ...headings]
-  }, [
-    paletteOpen,
-    documents,
-    editor,
-    exportAnnotated,
-    exportMarkdown,
-    jumpToHeading,
-    openFind,
-    rail.hidden,
-    startDraft,
-    startLink,
-    stepThread,
-    takeSnapshot,
-    theme,
-    threads,
-    toggleRail,
-  ])
-
-  useGlobalShortcuts([
-    { key: 'f', mod: true, run: openFind },
-    { key: 'k', mod: true, run: () => setPaletteOpen(true) },
-    { key: 'f', mod: true, shift: true, run: () => setSearchOpen(true) },
-    { key: 'k', mod: true, shift: true, run: startLink },
-    { key: 'm', mod: true, alt: true, run: startDraft },
-    { key: 'arrowup', mod: true, alt: true, run: () => stepSection(-1) },
-    { key: 'arrowdown', mod: true, alt: true, run: () => stepSection(1) },
-    // Same gesture as section stepping with Shift added: modifiers are matched
-    // exactly, so these never fire the shift-less pair above.
-    {
-      key: 'arrowup',
-      mod: true,
-      alt: true,
-      shift: true,
-      run: () => stepThread(-1),
-    },
-    {
-      key: 'arrowdown',
-      mod: true,
-      alt: true,
-      shift: true,
-      run: () => stepThread(1),
-    },
-  ])
 
   const submitDraft = useCallback(
     (body: string) => {
@@ -1026,7 +920,7 @@ export function AppShell() {
             type="button"
             className="app-header__icon"
             aria-label="Search all documents"
-            title={`Search all documents (${formatShortcut('mod+shift+f')})`}
+            title={titleFor('find.searchAll')}
             onClick={() => setSearchOpen(true)}
           >
             <SearchIcon />
@@ -1189,6 +1083,16 @@ export function AppShell() {
         />
       ) : null}
 
+      {sheetOpen ? (
+        <ShortcutSheet
+          commands={commands.all}
+          context={commands.context}
+          onClose={closeSheet}
+        />
+      ) : null}
+
+      <PeekHud held={peek} commands={commands.live} />
+
       {historyOpen && editor && documents.activeId ? (
         <HistoryPanel
           docId={documents.activeId}
@@ -1236,6 +1140,14 @@ export function AppShell() {
           <button type="button" onClick={() => window.location.reload()}>
             Reload
           </button>
+        </div>
+      ) : null}
+
+      {flash && !notice && !dbOutdated ? (
+        // role="status", not "alert": polite, so it does not interrupt a
+        // screen reader mid-sentence for something the reader asked for.
+        <div className="toast" role="status">
+          <span>{flash}</span>
         </div>
       ) : null}
 

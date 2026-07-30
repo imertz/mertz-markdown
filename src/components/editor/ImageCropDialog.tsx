@@ -158,6 +158,7 @@ export function ImageCropDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Crop image"
+        data-keys="overlay"
       >
         <header className="crop-dialog__header">
           <h2>Crop image</h2>

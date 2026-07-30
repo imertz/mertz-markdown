@@ -82,7 +82,14 @@ export function CommandPalette({ actions, onClose }: CommandPaletteProps) {
 
   return (
     <div className="palette-backdrop">
-      <div className="palette" ref={container} role="dialog" aria-modal="true">
+      {/* data-keys: global chords stand down while this owns the screen. */}
+      <div
+        className="palette"
+        ref={container}
+        role="dialog"
+        aria-modal="true"
+        data-keys="overlay"
+      >
         <input
           type="text"
           className="palette__input"

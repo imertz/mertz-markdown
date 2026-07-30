@@ -26,8 +26,30 @@ type Modifier = (typeof MODIFIER_ORDER)[number]
  * Return is ⏎ only on Apple's, so it splits.
  */
 const KEYS = {
-  apple: { up: '↑', down: '↓', left: '←', right: '→', enter: '⏎' },
-  other: { up: '↑', down: '↓', left: '←', right: '→', enter: 'Enter' },
+  apple: {
+    up: '↑',
+    down: '↓',
+    left: '←',
+    right: '→',
+    enter: '⏎',
+    tab: '⇥',
+    escape: '⎋',
+    space: 'Space',
+    backspace: '⌫',
+    delete: '⌦',
+  },
+  other: {
+    up: '↑',
+    down: '↓',
+    left: '←',
+    right: '→',
+    enter: 'Enter',
+    tab: 'Tab',
+    escape: 'Esc',
+    space: 'Space',
+    backspace: 'Backspace',
+    delete: 'Delete',
+  },
 } as const
 
 /**
