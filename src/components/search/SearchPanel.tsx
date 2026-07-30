@@ -36,12 +36,29 @@ const KIND_LABEL: Partial<Record<PassageDoc['kind'], string>> = {
   comment: 'Comment',
 }
 
-/** What a row shows to the right of its snippet. */
-function hintFor(passage: PassageDoc): string {
+/** Past this a document buries every other match; RESULT_LIMIT is 60 total. */
+const HITS_PER_DOC = 3
+/** Tuned to the one-line row's ~60-char budget: the default radius (90) would
+ *  centre the match past the point where the row clips it. */
+const SNIPPET_RADIUS = 30
+
+/**
+ * What a row shows to the right of its snippet: the deepest heading the
+ * passage sits under, unless that heading is the group header restated —
+ * `deriveTitle` makes the document title *the first heading*, so without this
+ * check most rows' hint opened with the exact text already shown above them.
+ */
+function hintFor(passage: PassageDoc, docTitle: string): string {
   const kind = KIND_LABEL[passage.kind]
-  if (passage.headingPath && kind) return `${kind} · ${passage.headingPath}`
-  return kind ?? passage.headingPath
+  const deepest = passage.headingPath.split(' › ').pop() ?? ''
+  const stem = docTitle.replace(/…$/, '')
+  const heading = deepest && !deepest.startsWith(stem) ? deepest : ''
+
+  if (heading && kind) return `${kind} · ${heading}`
+  return kind ?? heading
 }
+
+type Row = { kind: 'hit'; passage: PassageDoc } | { kind: 'more'; docId: string }
 
 export function SearchPanel({
   onClose,
@@ -51,26 +68,49 @@ export function SearchPanel({
   const panel = useSearchPanel(flushPendingWrites)
   const { query, scope, results, searching } = panel
   const [cursor, setCursor] = useState(0)
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const container = useDismissable<HTMLDivElement>(true, onClose)
   const list = useRef<HTMLDivElement>(null)
 
   /*
    * Groups are for display; the keyboard walks one flat list across them, so
    * arrow keys cross a document boundary without the user having to think
-   * about where one group ends.
+   * about where one group ends. Built once here — not per-row during render —
+   * because a document's hits are capped at HITS_PER_DOC until expanded, and
+   * `rows` has to reflect exactly what is on screen for the index math to
+   * line up with `data-row`.
    */
-  const rows = useMemo(
-    () =>
-      (results?.groups ?? []).flatMap(group =>
-        group.hits.map(hit => ({ group, passage: hit.passage })),
-      ),
-    [results],
-  )
+  const { sections, rows } = useMemo(() => {
+    const rows: Row[] = []
+    const sections = (results?.groups ?? []).map(group => {
+      const open = expanded.has(group.docId)
+      const shown = open ? group.hits : group.hits.slice(0, HITS_PER_DOC)
+
+      const items = shown.map(hit => {
+        const index = rows.length
+        rows.push({ kind: 'hit', passage: hit.passage })
+        return {
+          index,
+          passage: hit.passage,
+          snippet: buildSnippet(hit.passage.text, query, SNIPPET_RADIUS),
+          hint: hintFor(hit.passage, group.title),
+        }
+      })
+
+      const hidden = group.hits.length - shown.length
+      const more = hidden > 0 ? rows.length : -1
+      if (hidden > 0) rows.push({ kind: 'more', docId: group.docId })
+
+      return { group, items, hidden, more }
+    })
+    return { sections, rows }
+  }, [results, query, expanded])
 
   const active = Math.min(cursor, Math.max(rows.length - 1, 0))
 
   useEffect(() => {
     setCursor(0)
+    setExpanded(new Set())
   }, [query, scope])
 
   useEffect(() => {
@@ -82,6 +122,10 @@ export function SearchPanel({
   const choose = (index: number) => {
     const row = rows[index]
     if (!row) return
+    if (row.kind === 'more') {
+      setExpanded(current => new Set(current).add(row.docId))
+      return
+    }
     onOpenHit({ passage: row.passage, term: query })
     onClose()
   }
@@ -175,59 +219,72 @@ export function SearchPanel({
           ) : rows.length === 0 ? (
             <p className="search-panel__empty">No matches for “{query.trim()}”</p>
           ) : (
-            (results?.groups ?? []).map(group => (
-              <section className="search-panel__group" key={group.docId}>
+            sections.map(section => (
+              <section className="search-panel__group" key={section.group.docId}>
                 <h3 className="search-panel__doc">
-                  <span className="search-panel__doc-title">{group.title}</span>
-                  {group.trashed ? (
+                  <span className="search-panel__doc-title">{section.group.title}</span>
+                  {section.group.trashed ? (
                     <span className="search-panel__badge">In trash</span>
                   ) : null}
-                  <span className="search-panel__doc-time">
-                    {relative(group.updatedAt)}
+                  <span className="search-panel__doc-meta">
+                    {section.group.hits.length === 1
+                      ? '1 hit'
+                      : `${section.group.hits.length} hits`}
+                    {' · '}
+                    {relative(section.group.updatedAt)}
                   </span>
                 </h3>
 
                 <ul className="search-panel__hits">
-                  {group.hits.map(hit => {
-                    const index = rows.findIndex(
-                      row => row.passage.id === hit.passage.id,
-                    )
-                    const snippet = buildSnippet(hit.passage.text, query)
-                    const hint = hintFor(hit.passage)
-
-                    return (
-                      <li key={hit.passage.id}>
-                        <button
-                          type="button"
-                          data-row={index}
-                          className="search-panel__hit"
-                          aria-current={index === active}
-                          // mousedown, not click: useDismissable closes on
-                          // mousedown outside, and a click would land after
-                          // the unmount.
-                          onMouseDown={event => {
-                            event.preventDefault()
-                            choose(index)
-                          }}
-                          onMouseEnter={() => setCursor(index)}
-                        >
-                          <span className="search-panel__snippet">
-                            {segments(snippet.text, snippet.matched).map((part, i) =>
+                  {section.items.map(item => (
+                    <li key={item.passage.id}>
+                      <button
+                        type="button"
+                        data-row={item.index}
+                        className="search-panel__hit"
+                        aria-current={item.index === active}
+                        // mousedown, not click: useDismissable closes on
+                        // mousedown outside, and a click would land after
+                        // the unmount.
+                        onMouseDown={event => {
+                          event.preventDefault()
+                          choose(item.index)
+                        }}
+                        onMouseEnter={() => setCursor(item.index)}
+                      >
+                        <span className="search-panel__snippet">
+                          {segments(item.snippet.text, item.snippet.matched).map(
+                            (part, i) =>
                               part.on ? (
                                 <mark key={i}>{part.text}</mark>
                               ) : (
                                 <span key={i}>{part.text}</span>
                               ),
-                            )}
-                          </span>
-                          {hint ? (
-                            <span className="search-panel__hint">{hint}</span>
-                          ) : null}
-                        </button>
-                      </li>
-                    )
-                  })}
+                          )}
+                        </span>
+                        {item.hint ? (
+                          <span className="search-panel__hint">{item.hint}</span>
+                        ) : null}
+                      </button>
+                    </li>
+                  ))}
                 </ul>
+
+                {section.hidden > 0 ? (
+                  <button
+                    type="button"
+                    data-row={section.more}
+                    className="search-panel__more"
+                    aria-current={section.more === active}
+                    onMouseDown={event => {
+                      event.preventDefault()
+                      choose(section.more)
+                    }}
+                    onMouseEnter={() => setCursor(section.more)}
+                  >
+                    {section.hidden} more in this document
+                  </button>
+                ) : null}
               </section>
             ))
           )}

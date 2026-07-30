@@ -1230,17 +1230,25 @@ button {
   padding: 4px 0 8px;
 }
 
+.search-panel__group + .search-panel__group {
+  margin-top: 6px;
+}
+
+/*
+ * Sentence case, not uppercase: Greek drops accents in caps, so an uppercased
+ * Greek title reads as a different, unaccented word. Lower weight and size
+ * than a hit row so the header recedes behind the results it labels instead
+ * of shouting over them.
+ */
 .search-panel__doc {
   display: flex;
   align-items: baseline;
   gap: 8px;
   margin: 0;
-  padding: 6px 10px 4px;
-  font-size: 12px;
+  padding: 5px 10px 3px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .search-panel__doc-title {
@@ -1261,11 +1269,10 @@ button {
   letter-spacing: 0.02em;
 }
 
-.search-panel__doc-time {
+.search-panel__doc-meta {
   flex: 0 0 auto;
   font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
   opacity: 0.8;
 }
 
@@ -1280,7 +1287,7 @@ button {
   align-items: baseline;
   gap: 12px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 5px 10px;
   font: inherit;
   font-size: 14px;
   text-align: left;
@@ -1290,6 +1297,11 @@ button {
   border-radius: var(--radius-sm);
   cursor: pointer;
 
+  /* button:hover:not(:disabled) is specificity (0,2,1) and out-specifies a
+     bare [aria-current] rule, so the row under the pointer painted neutral
+     grey instead of the accent tint — even though hovering also moves the
+     keyboard cursor onto it. The two states have to agree. */
+  &:hover:not(:disabled),
   &[aria-current='true'] {
     background: var(--accent-bg);
   }
@@ -1298,12 +1310,11 @@ button {
 .search-panel__snippet {
   flex: 1 1 auto;
   min-width: 0;
-  /* Two lines, then clipped: a passage can be a whole paragraph, and rows of
-     wildly different heights make the list hard to scan. */
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  /* One line, then clipped: rows of wildly different heights made the list
+     hard to scan, and a passage can be a whole paragraph. */
+  white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 
   /* Matches the palette: colour carries the hit, not a yellow block that
      would fight the selected row's accent tint. */
@@ -1316,13 +1327,32 @@ button {
 
 .search-panel__hint {
   flex: 0 0 auto;
-  max-width: 40%;
+  max-width: 240px;
   font-size: 12px;
   color: var(--text);
   opacity: 0.8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.search-panel__more {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  color: var(--text);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &:hover:not(:disabled),
+  &[aria-current='true'] {
+    background: var(--accent-bg);
+  }
 }
 
 .search-panel__empty {
@@ -1419,6 +1449,10 @@ button {
   padding: 6px 8px;
   border-radius: var(--radius-sm);
 
+  /* button:hover:not(:disabled) is specificity (0,2,1) and out-specifies a
+     bare [aria-current] rule, so hovering the current entry would repaint it
+     neutral grey. The two states have to agree. */
+  &:hover:not(:disabled),
   &[aria-current='true'] {
     background: var(--accent-bg);
     color: var(--accent);

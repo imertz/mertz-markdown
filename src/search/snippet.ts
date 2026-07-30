@@ -15,6 +15,13 @@ import { tokenOf } from './tokenizer'
  * in the query. Case, accents, final sigma and inflection all fall out of that
  * for free, and offsets come from the segmenter rather than from rewriting the
  * string, so no index map is needed.
+ *
+ * Equality is not the whole story, though: ZBSearch's radix index matches a
+ * term against every token it *prefixes*, so a query typed one keystroke at a
+ * time — `οικ` while the user is still typing `οικογένειας` — returns rows
+ * whose text contains no token equal to `οικ`. Marking only on equality would
+ * make the panel show a result and then mark nothing in it. `markable` below
+ * tests prefix as well, matching what the engine actually did.
  */
 
 /** Same contract as `fuzzyMatch`, so `segments()` renders both. */
@@ -70,6 +77,21 @@ function words(text: string): Word[] {
   return found
 }
 
+/**
+ * Whether a passage word's token is what the index would have matched.
+ *
+ * Prefix, not substring: `unic` must not light up "runic" just because it
+ * appears inside it — the index would not have matched that either. Tolerance
+ * (edit-distance) hits stay unmarked; reproducing that walk here would be a
+ * second copy of the engine's, for the rarer case.
+ */
+function markable(token: string, wanted: ReadonlySet<string>): boolean {
+  if (!token) return false
+  if (wanted.has(token)) return true
+  for (const want of wanted) if (token.startsWith(want)) return true
+  return false
+}
+
 /** Grow a window out to the nearest word edges, so it never cuts mid-word. */
 function snapOut(text: string, all: Word[], from: number, to: number) {
   let start = from
@@ -94,7 +116,7 @@ export function buildSnippet(
 
   const all = words(text)
   const hits = wanted.size
-    ? all.filter(word => wanted.has(tokenOf(word.value)))
+    ? all.filter(word => markable(tokenOf(word.value), wanted))
     : []
 
   // Nothing to centre on — show the opening, which is still the most useful
