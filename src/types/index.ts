@@ -116,3 +116,66 @@ export interface SnapshotRecord {
   createdAt: number
   cause: SnapshotCause
 }
+
+/** Client-only credentials and progress for the optional encrypted vault. */
+export interface VaultConfigRecord {
+  id: 'primary'
+  vaultId: string
+  /** Raw 256-bit key. It never leaves this browser except wrapped for pairing. */
+  masterKey: ArrayBuffer
+  deviceId: string
+  deviceToken: string
+  deviceLabel: string
+  apiUrl: string
+  cursor: number
+  clockOffsetMs: number
+  createdAt: number
+}
+
+export type SyncObjectKind = 'document' | 'asset'
+export type SyncOperation = 'put' | 'delete'
+
+/** One coalesced local change. A document entry represents its whole sidecar graph. */
+export interface SyncOutboxRecord {
+  id: string
+  kind: SyncObjectKind
+  objectId: string
+  docId: string
+  operation: SyncOperation
+  changedAt: number
+  attempts: number
+  nextAttemptAt: number
+}
+
+/** Last remote revision known for an encrypted object. */
+export interface SyncObjectStateRecord {
+  id: string
+  kind: SyncObjectKind
+  objectId: string
+  revision: number
+  changedAt: number
+  deleted: boolean
+}
+
+/** A complete losing document revision retained for safe conflict restoration. */
+export interface SyncConflictRecord {
+  id: string
+  docId: string
+  revision: number
+  changedAt: number
+  deviceLabel: string
+  package: SyncedDocumentPackage
+  createdAt: number
+}
+
+/** Plaintext only inside AES-GCM; the server stores the resulting ciphertext. */
+export interface SyncedDocumentPackage {
+  schemaVersion: 1
+  document: DocumentRecord
+  threads: ThreadRecord[]
+  comments: CommentRecord[]
+  snapshots: SnapshotRecord[]
+  assetIds: string[]
+  changedAt: number
+  deviceLabel: string
+}

@@ -118,7 +118,7 @@ describe('migration from version 1', () => {
 
     // Opening through the app's client runs every fall-through migration.
     const db = await getDB()
-    expect(db.version).toBe(3)
+    expect(db.version).toBe(4)
     expect([...db.objectStoreNames]).toContain('snapshots')
     expect([...db.objectStoreNames]).toContain('assets')
 

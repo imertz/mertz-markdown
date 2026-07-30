@@ -36,6 +36,7 @@ import { useRailHidden } from '../hooks/useRailHidden'
 import { useStorageEstimate } from '../hooks/useStorageEstimate'
 import { useTheme } from '../hooks/useTheme'
 import { useThreads } from '../hooks/useThreads'
+import { useVaultSync } from '../hooks/useVaultSync'
 import { insertImageFiles } from '../images/insert'
 import {
   localizeRemoteImage,
@@ -50,6 +51,8 @@ import { buildDocumentExport, downloadFile } from '../markdown/bundle'
 import { toMarkdown } from '../markdown/export'
 import { downloadHtml, toAnnotatedHtml } from '../markdown/exportHtml'
 import type { SnapshotRecord } from '../types'
+import type { SyncConflictRecord } from '../types'
+import { restoreConflict } from '../sync/local'
 import type { PaletteAction } from './CommandPalette'
 import { CommandPalette } from './CommandPalette'
 import { DropOverlay } from './DropOverlay'
@@ -71,6 +74,7 @@ import { LinkPopover } from './editor/LinkPopover'
 import { SelectionBubbleMenu } from './editor/SelectionBubbleMenu'
 import { TableBubbleMenu } from './editor/TableBubbleMenu'
 import { Toolbar } from './editor/Toolbar'
+import { VaultMenu } from './sync/VaultMenu'
 
 const AUTOSAVE_DELAY_MS = 800
 
@@ -121,7 +125,7 @@ export function AppShell() {
   const documents = useDocuments()
   const persistence = usePersistentStorage()
   const storage = useStorageEstimate()
-  const threads = useThreads(documents.activeId)
+  const threads = useThreads(documents.activeId, documents.contentRevision)
   const pwa = usePwaUpdate()
   const theme = useTheme()
   const documentFont = useDocumentFont()
@@ -144,6 +148,7 @@ export function AppShell() {
   // Another tab upgraded the schema and took our connection with it. Nothing
   // this tab writes from here on will land.
   const [dbOutdated, setDbOutdated] = useState(false)
+  const pairingAttempted = useRef(false)
 
   // Owned here rather than inside the sidebar so the status bar's orphan chip,
   // its sibling, can scroll the section into view.
@@ -199,6 +204,20 @@ export function AppShell() {
     AUTOSAVE_DELAY_MS,
   )
   const { schedule, flush } = autosave
+  const vaultSync = useVaultSync(documents.refreshFromStorage, flush)
+
+  useEffect(() => {
+    if (pairingAttempted.current || !window.location.hash) return
+    pairingAttempted.current = true
+    void vaultSync
+      .claimPairingFromLocation()
+      .then(claimed => {
+        if (claimed) setNotice('This computer is now paired with the encrypted vault')
+      })
+      .catch(error => {
+        setNotice(error instanceof Error ? error.message : 'The pairing link could not be used')
+      })
+  }, [vaultSync])
 
   const onDocChanged = useCallback(
     (editor: Editor) => {
@@ -210,6 +229,7 @@ export function AppShell() {
   const editor = useMarkdownEditor({
     activeId: documents.activeId,
     initialDoc: documents.initialDoc,
+    reloadToken: documents.contentRevision,
     onDocChanged,
     onAnchorsChanged,
     getKnownThreadIds: getKnownIds,
@@ -633,6 +653,18 @@ export function AppShell() {
     [editor, takeSnapshot],
   )
 
+  const restoreSyncConflict = useCallback(
+    async (conflict: SyncConflictRecord) => {
+      await flush()
+      await takeSnapshot('restore')
+      await restoreConflict(conflict)
+      await documents.refreshFromStorage()
+      setHistoryOpen(false)
+      setNotice('The conflict version was restored and queued for sync')
+    },
+    [documents, flush, takeSnapshot],
+  )
+
   const closePalette = useCallback(() => {
     setPaletteOpen(false)
     if (editor && !editor.isDestroyed) editor.commands.focus()
@@ -921,6 +953,8 @@ export function AppShell() {
             onSelect={documentFont.selectFont}
           />
 
+          <VaultMenu sync={vaultSync} />
+
           <ThemeToggle theme={theme.theme} onToggle={theme.toggle} />
         </div>
       </header>
@@ -988,6 +1022,7 @@ export function AppShell() {
         savedAt={savedAt}
         usage={storage.usage}
         railHidden={rail.hidden}
+        syncStatus={vaultSync.status}
         onStepThread={stepThread}
         onShowOrphans={showOrphans}
         onJumpToHeading={jumpToHeading}
@@ -1048,6 +1083,7 @@ export function AppShell() {
           docId={documents.activeId}
           current={toMarkdown(editor)}
           onRestore={snapshot => void restoreSnapshot(snapshot)}
+          onRestoreConflict={conflict => void restoreSyncConflict(conflict)}
           onClose={() => setHistoryOpen(false)}
         />
       ) : null}
@@ -1096,7 +1132,12 @@ export function AppShell() {
       <PwaPrompt
         needRefresh={pwa.needRefresh}
         offlineReady={pwa.offlineReady}
-        onUpdate={() => void pwa.update(flush)}
+        onUpdate={() =>
+          void pwa.update(async () => {
+            await flush()
+            await vaultSync.syncNow().catch(() => undefined)
+          })
+        }
         onDismissUpdate={pwa.dismissUpdate}
         onDismissOfflineReady={pwa.dismissOfflineReady}
       />

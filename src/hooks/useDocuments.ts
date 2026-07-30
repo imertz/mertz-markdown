@@ -44,6 +44,9 @@ export interface DocumentsApi {
   initialDoc: JSONContent | null
   status: SaveStatus
   activeTitle: string
+  /** Changes only when storage was replaced by a remote sync. */
+  contentRevision: number
+  refreshFromStorage: () => Promise<void>
   select: (id: string) => void
   create: () => Promise<void>
   /** Moves to the trash and returns the record, so a caller can offer an undo. */
@@ -90,6 +93,7 @@ export function useDocuments(): DocumentsApi {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [initialDoc, setInitialDoc] = useState<JSONContent | null>(null)
   const [status, setStatus] = useState<SaveStatus>('loading')
+  const [contentRevision, setContentRevision] = useState(0)
 
   // StrictMode double-invokes effects. Without this the first run would create
   // two starter documents.
@@ -370,6 +374,25 @@ export function useDocuments(): DocumentsApi {
   const activeTitle =
     documents.find(candidate => candidate.id === activeId)?.title ?? UNTITLED
 
+  const refreshFromStorage = useCallback(async () => {
+    const live = await listDocuments()
+    const deleted = await listTrashedDocuments()
+    let opening = activeId ? live.find(record => record.id === activeId) : undefined
+    opening ??= live[0]
+    if (!opening && live.length === 0) {
+      const replacement = newDocument()
+      await putDocument(replacement)
+      opening = replacement
+      live.push(replacement)
+    }
+    setDocuments(live)
+    setTrashed(deleted)
+    setActiveId(opening?.id ?? null)
+    setInitialDoc(opening?.doc ?? null)
+    setContentRevision(value => value + 1)
+    setStatus('saved')
+  }, [activeId])
+
   return {
     documents,
     trashed,
@@ -377,6 +400,8 @@ export function useDocuments(): DocumentsApi {
     initialDoc,
     status,
     activeTitle,
+    contentRevision,
+    refreshFromStorage,
     select,
     create,
     remove,

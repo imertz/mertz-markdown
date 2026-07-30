@@ -6,6 +6,7 @@ import { formatShortcut } from '../lib/shortcuts'
 import { ChevronDownIcon, ChevronUpIcon, PanelRightIcon } from './icons'
 import { OutlineMenu } from './OutlineMenu'
 import { SaveIndicator } from './SaveIndicator'
+import type { SyncStatus } from '../sync/types'
 
 interface StatusBarProps {
   stats: DocumentStats
@@ -19,6 +20,7 @@ interface StatusBarProps {
   savedAt: number | null
   usage: number | null
   railHidden: boolean
+  syncStatus?: SyncStatus
   onStepThread: (delta: -1 | 1) => void
   onShowOrphans: () => void
   onJumpToHeading: (index: number) => void
@@ -52,6 +54,7 @@ export function StatusBar({
   savedAt,
   usage,
   railHidden,
+  syncStatus,
   onStepThread,
   onShowOrphans,
   onJumpToHeading,
@@ -209,6 +212,7 @@ export function StatusBar({
           persistence={persistence}
           savedAt={savedAt}
           usage={usage}
+          syncStatus={syncStatus}
         />
       </div>
     </footer>

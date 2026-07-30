@@ -1,4 +1,5 @@
 import type { DocumentRecord } from '../types'
+import { announceDirty, dirtyRecord } from '../sync/local'
 import { getDB } from './client'
 
 /** How long a trashed document is kept before it is purged for good. */
@@ -27,7 +28,14 @@ export async function getDocument(
 }
 
 export async function putDocument(doc: DocumentRecord): Promise<void> {
-  await (await getDB()).put('documents', doc)
+  const db = await getDB()
+  const tx = db.transaction(['documents', 'syncOutbox'], 'readwrite')
+  await Promise.all([
+    tx.objectStore('documents').put(doc),
+    tx.objectStore('syncOutbox').put(dirtyRecord('document', doc.id, doc.id)),
+    tx.done,
+  ])
+  announceDirty()
 }
 
 /**
@@ -49,7 +57,15 @@ export async function softDeleteDocument(
   if (!existing) return undefined
 
   const record: DocumentRecord = { ...existing, deletedAt: now }
-  await db.put('documents', record)
+  const tx = db.transaction(['documents', 'syncOutbox'], 'readwrite')
+  await Promise.all([
+    tx.objectStore('documents').put(record),
+    tx.objectStore('syncOutbox').put(
+      dirtyRecord('document', id, id, 'put', now),
+    ),
+    tx.done,
+  ])
+  announceDirty()
   return record
 }
 
@@ -61,7 +77,13 @@ export async function restoreDocument(
   if (!existing) return undefined
 
   const record: DocumentRecord = { ...existing, deletedAt: null }
-  await db.put('documents', record)
+  const tx = db.transaction(['documents', 'syncOutbox'], 'readwrite')
+  await Promise.all([
+    tx.objectStore('documents').put(record),
+    tx.objectStore('syncOutbox').put(dirtyRecord('document', id, id)),
+    tx.done,
+  ])
+  announceDirty()
   return record
 }
 
@@ -86,7 +108,7 @@ export async function purgeExpiredTrash(now = Date.now()): Promise<number> {
 export async function deleteDocumentCascade(docId: string): Promise<void> {
   const db = await getDB()
   const tx = db.transaction(
-    ['documents', 'threads', 'comments', 'snapshots', 'assets'],
+    ['documents', 'threads', 'comments', 'snapshots', 'assets', 'syncOutbox'],
     'readwrite',
   )
 
@@ -108,6 +130,11 @@ export async function deleteDocumentCascade(docId: string): Promise<void> {
     ...commentIds.map(id => commentStore.delete(id)),
     ...snapshotIds.map(id => snapshotStore.delete(id)),
     ...assetIds.map(id => assetStore.delete(id)),
+    tx.objectStore('syncOutbox').put(
+      dirtyRecord('document', docId, docId, 'delete'),
+    ),
+    ...assetIds.map(id => tx.objectStore('syncOutbox').delete(`asset:${String(id)}`)),
     tx.done,
   ])
+  announceDirty()
 }

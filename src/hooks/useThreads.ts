@@ -38,7 +38,7 @@ export interface ThreadsApi {
   reanchor: (editor: Editor, threadId: string) => Promise<void>
 }
 
-export function useThreads(docId: string | null): ThreadsApi {
+export function useThreads(docId: string | null, reloadToken = 0): ThreadsApi {
   const [threads, setThreads] = useState<ThreadWithComments[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
 
@@ -69,7 +69,7 @@ export function useThreads(docId: string | null): ThreadsApi {
     return () => {
       cancelled = true
     }
-  }, [docId])
+  }, [docId, reloadToken])
 
   useEffect(
     () => () => {

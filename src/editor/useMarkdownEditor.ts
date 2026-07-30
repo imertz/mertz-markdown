@@ -8,6 +8,8 @@ export interface UseMarkdownEditorOptions {
   activeId: string | null
   /** Canonical ProseMirror JSON for `activeId`. */
   initialDoc: JSONContent | null
+  /** Forces a reload when sync replaced the currently open id in storage. */
+  reloadToken?: number
   /** Fired on every document change; the caller debounces. */
   onDocChanged?: (editor: Editor) => void
   /** Fired when the set of threads holding a live anchor changes. */
@@ -33,6 +35,7 @@ export interface UseMarkdownEditorOptions {
 export function useMarkdownEditor({
   activeId,
   initialDoc,
+  reloadToken = 0,
   onDocChanged,
   onAnchorsChanged,
   getKnownThreadIds,
@@ -81,18 +84,18 @@ export function useMarkdownEditor({
     },
   })
 
-  const loadedId = useRef<string | null>(null)
+  const loaded = useRef<{ id: string; token: number } | null>(null)
 
   useEffect(() => {
     if (!editor || editor.isDestroyed) return
     if (!activeId || !initialDoc) return
     // Only reload when a *different* document is opened. Re-running on every
     // autosave would stomp the caret and re-emit updates forever.
-    if (loadedId.current === activeId) return
+    if (loaded.current?.id === activeId && loaded.current.token === reloadToken) return
 
-    loadedId.current = activeId
+    loaded.current = { id: activeId, token: reloadToken }
     editor.commands.setContent(initialDoc, { emitUpdate: false })
-  }, [editor, activeId, initialDoc])
+  }, [editor, activeId, initialDoc, reloadToken])
 
   return editor
 }

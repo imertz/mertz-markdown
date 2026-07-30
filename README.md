@@ -196,3 +196,83 @@ files from the OS file manager, and works with the network off.
 
 Storage requests `navigator.storage.persist()` on first use; without it Safari
 evicts IndexedDB after 7 days of inactivity.
+
+## Encrypted cross-device sync
+
+Sync is optional. Without it the app behaves exactly as before. When enabled,
+IndexedDB remains the offline working copy and the VPS stores only AES-256-GCM
+ciphertext. A document envelope carries the canonical editor JSON, clean
+Markdown, comments, history and trash state; image blobs are encrypted and
+uploaded separately.
+
+The vault id in `/v/<id>` is an address, not a credential. A new computer is
+admitted with a ten-minute, single-use QR/link whose secrets live in the URL
+fragment and are removed from browser history after pairing. Each computer then
+uses its own revocable random credential. The server stores credential hashes,
+object sizes and timing metadata, but never receives the vault key or document
+plaintext.
+
+There is deliberately **no recovery key or server escrow**. If every paired
+browser profile is lost, the ciphertext cannot be recovered. Revoking a device
+stops future server access; it cannot erase data already cached on that device.
+
+### VPS deployment
+
+The repository includes a Bun/SQLite API, a localhost-only Docker Compose
+service and an Nginx example:
+
+```bash
+cp deploy/sync.env.example .env
+# Generate separate SYNC_ADMIN_TOKEN and SYNC_RATE_LIMIT_SECRET values:
+openssl rand -hex 32
+docker compose -f docker-compose.sync.yml up -d --build
+curl http://127.0.0.1:8787/v1/health
+```
+
+1. Point `sync.markdown.mysolon.gr` at the VPS.
+2. Adapt `deploy/nginx-sync.conf` to the VPS's existing certificate paths,
+   install it, validate Nginx, and reload it.
+3. Confirm `https://sync.markdown.mysolon.gr/v1/health` returns `{"ok":true}`.
+4. Open the app's **Sync** menu, accept the no-recovery warning, and create an
+   anonymous encrypted vault. Each vault has a 500 MiB allowance. Registration
+   permits at most three vaults per public IP per day, ten attempts per hour,
+   and 80 vaults on the server.
+5. Use **Add computer** on an existing device to pair another one. Real local
+   documents on the new browser require confirmation before they join the
+   vault; the untouched starter document is discarded automatically.
+
+The container persists SQLite, its WAL and encrypted object files in the named
+Docker volume `mertz_markdown_sync_data`. Back it up with a Docker-volume or VPS
+filesystem snapshot that captures it consistently, retain daily snapshots for
+30 days, and test a restore periodically. For a plain file-copy backup, stop
+the sync service first so SQLite and its WAL are captured together, then start
+it immediately after the copy. A backup protects against VPS loss but does not
+replace the browser-held vault key.
+
+Useful development commands:
+
+```bash
+bun run sync:serve              # requires registration/admin environment variables
+bun run sync:smoke              # fresh server; requires SYNC_BASE_URL + admin token
+bun run sync:registration-smoke # fresh policy-test server configured for five vaults
+```
+
+The server stores only an HMAC of a registration IP, never the address itself.
+Disable new signups immediately with `SYNC_REGISTRATION_ENABLED=false`. Manage
+opaque vaults from inside the container, where the admin token is already in the
+environment:
+
+```bash
+docker compose -f docker-compose.sync.yml exec sync bun run server/admin.ts list
+docker compose -f docker-compose.sync.yml exec sync \
+  bun run server/admin.ts delete VAULT_ID --confirm VAULT_ID
+```
+
+Admin deletion permanently removes that vault's device credentials, metadata,
+and ciphertext. The CLI requires the exact id twice to prevent accidental
+deletion.
+
+Concurrent offline edits use clock-corrected edit times. The newer revision is
+shown, while the losing complete revision appears in Version history as a
+restorable **Sync conflict**. The server keeps up to 50 such conflict revisions
+per document.

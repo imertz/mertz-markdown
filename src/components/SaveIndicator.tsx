@@ -1,5 +1,6 @@
 import type { SaveStatus } from '../hooks/useDocuments'
 import type { PersistenceState } from '../hooks/usePersistentStorage'
+import type { SyncStatus } from '../sync/types'
 import { formatBytes, relative } from '../lib/time'
 
 const STATUS_LABEL = {
@@ -23,6 +24,7 @@ interface SaveIndicatorProps {
   savedAt?: number | null
   /** Bytes this origin occupies, surfaced only in the tooltip. */
   usage?: number | null
+  syncStatus?: SyncStatus
 }
 
 /**
@@ -42,16 +44,29 @@ export function SaveIndicator({
   persistence,
   savedAt,
   usage,
+  syncStatus = 'disabled',
 }: SaveIndicatorProps) {
-  const label =
+  const localLabel =
     status === 'saved' && savedAt
       ? `${STATUS_LABEL.saved} ${relative(savedAt)}`
       : STATUS_LABEL[status]
+  const syncLabel =
+    syncStatus === 'disabled'
+      ? ''
+      : syncStatus === 'idle'
+        ? ' · Synced'
+        : syncStatus === 'syncing'
+          ? ' · Syncing…'
+          : syncStatus === 'offline'
+            ? ' · Queued'
+            : ' · Sync failed'
+  const label = `${localLabel}${syncLabel}`
 
   const title = [
     `${STATUS_LABEL[status]}.`,
     DURABILITY_HINT[persistence],
     usage != null ? `${formatBytes(usage)} in use.` : '',
+    syncStatus === 'disabled' ? '' : `Vault: ${syncLabel.slice(3) || 'enabled'}.`,
   ]
     .filter(Boolean)
     .join(' ')

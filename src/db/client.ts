@@ -9,8 +9,8 @@ let dbPromise: Promise<IDBPDatabase<MertzDB>> | null = null
 export function getDB(): Promise<IDBPDatabase<MertzDB>> {
   dbPromise ??= openDB<MertzDB>(DB_NAME, DB_VERSION, {
     /**
-     * Deliberately falls through: a browser sitting at v1 upgrading to v3 must
-     * run 1 -> 2 -> 3 in order. `noFallthroughCasesInSwitch` is off in
+     * Deliberately falls through: a browser sitting at v1 upgrading to v4 must
+     * run every migration in order. `noFallthroughCasesInSwitch` is off in
      * tsconfig.app.json for exactly this function.
      */
     upgrade(db, oldVersion) {
@@ -40,7 +40,17 @@ export function getDB(): Promise<IDBPDatabase<MertzDB>> {
           const assets = db.createObjectStore('assets', { keyPath: 'id' })
           assets.createIndex('by-docId', 'docId')
         }
-        // case 3: … future migrations go here, with no `break` above.
+        case 3: {
+          db.createObjectStore('vaultConfig', { keyPath: 'id' })
+          const outbox = db.createObjectStore('syncOutbox', { keyPath: 'id' })
+          outbox.createIndex('by-nextAttemptAt', 'nextAttemptAt')
+          db.createObjectStore('syncObjects', { keyPath: 'id' })
+          const conflicts = db.createObjectStore('syncConflicts', {
+            keyPath: 'id',
+          })
+          conflicts.createIndex('by-doc-createdAt', ['docId', 'createdAt'])
+        }
+        // case 4: … future migrations go here, with no `break` above.
       }
     },
 

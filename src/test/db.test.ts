@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { closeDB, getDB } from '../db/client'
 import { DB_NAME } from '../db/schema'
-import { getDocumentAsset, putAssets } from '../db/assets'
+import { getAsset, getDocumentAsset, putAssets, putRemoteAsset } from '../db/assets'
 import {
   deleteDocumentCascade,
   getDocument,
@@ -33,7 +33,11 @@ describe('schema creation', () => {
       'comments',
       'documents',
       'snapshots',
+      'syncConflicts',
+      'syncObjects',
+      'syncOutbox',
       'threads',
+      'vaultConfig',
     ])
 
     const tx = db.transaction(
@@ -55,6 +59,15 @@ describe('schema creation', () => {
     ])
     expect([...tx.objectStore('assets').indexNames]).toEqual(['by-docId'])
     await tx.done
+
+    const syncTx = db.transaction(['syncOutbox', 'syncConflicts'], 'readonly')
+    expect([...syncTx.objectStore('syncOutbox').indexNames]).toEqual([
+      'by-nextAttemptAt',
+    ])
+    expect([...syncTx.objectStore('syncConflicts').indexNames]).toEqual([
+      'by-doc-createdAt',
+    ])
+    await syncTx.done
   })
 
   it('upgrades a legacy v2 database without touching its existing stores', async () => {
@@ -79,7 +92,11 @@ describe('schema creation', () => {
       'comments',
       'documents',
       'snapshots',
+      'syncConflicts',
+      'syncObjects',
+      'syncOutbox',
       'threads',
+      'vaultConfig',
     ])
   })
 })
@@ -186,6 +203,31 @@ describe('documents', () => {
     expect(loaded?.storageName).toBe(asset.storageName)
     expect(await loaded?.blob.text()).toBe('image bytes')
     expect(await getDocumentAsset(other.id, asset.id)).toBeUndefined()
+  })
+
+  it('persists image bytes instead of Blob/File structured clones', async () => {
+    const doc = makeDocument()
+    const asset = makeAsset(doc.id, {
+      blob: new File(['safari image'], 'safari.png', { type: 'image/png' }),
+      size: 12,
+    })
+    await putAssets([asset])
+
+    const db = await getDB()
+    const stored = await db.get('assets', asset.id)
+    expect(stored?.bytes).toBeInstanceOf(ArrayBuffer)
+    expect(stored?.blob).toBeUndefined()
+    expect(await (await getAsset(asset.id))?.blob.text()).toBe('safari image')
+  })
+
+  it('stores downloaded vault images as bytes without creating an upload echo', async () => {
+    const asset = makeAsset('remote-doc')
+    await putRemoteAsset(asset)
+
+    const db = await getDB()
+    expect((await db.get('assets', asset.id))?.bytes).toBeInstanceOf(ArrayBuffer)
+    expect(await db.get('syncOutbox', `asset:${asset.id}`)).toBeUndefined()
+    expect(await (await getAsset(asset.id))?.blob.text()).toBe('image bytes')
   })
 })
 

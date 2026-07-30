@@ -11,29 +11,7 @@
       white flash while the bundle loads. useTheme takes over from here; the
       two must agree on the storage key and the data-theme attribute.
     -->
-    <script>
-      ;(function () {
-        try {
-          var stored = localStorage.getItem('mertz-md:theme')
-          var theme =
-            stored === 'light' || stored === 'dark'
-              ? stored
-              : matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'dark'
-                : 'light'
-          document.documentElement.dataset.theme = theme
-          document.documentElement.style.colorScheme = theme
-          var storedFont = localStorage.getItem('mertz-md:document-font')
-          document.documentElement.dataset.documentFont =
-            storedFont || 'system'
-          if (theme === 'dark') {
-            document
-              .querySelector('meta[name="theme-color"]')
-              .setAttribute('content', '#1a1917')
-          }
-        } catch (e) {}
-      })()
-    </script>
+    <script src="/theme-init.js"></script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="YMM" />
     <meta

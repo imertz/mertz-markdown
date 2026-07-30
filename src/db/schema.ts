@@ -4,17 +4,49 @@ import type {
   CommentRecord,
   DocumentRecord,
   SnapshotRecord,
+  SyncConflictRecord,
+  SyncObjectStateRecord,
+  SyncOutboxRecord,
   ThreadRecord,
   ThreadStatus,
+  VaultConfigRecord,
 } from '../types'
 
 export const DB_NAME = 'mertz-markdown'
-export const DB_VERSION = 3
+export const DB_VERSION = 4
+
+/**
+ * Safari can reject Blob/File structured clones during IndexedDB writes.
+ * New records therefore persist owned bytes; `blob` remains optional solely
+ * so databases created by earlier releases can be read and migrated lazily.
+ */
+export type StoredAssetRecord = Omit<AssetRecord, 'blob'> & {
+  bytes?: ArrayBuffer
+  blob?: Blob
+}
 
 export interface MertzDB extends DBSchema {
+  vaultConfig: {
+    key: string
+    value: VaultConfigRecord
+  }
+  syncOutbox: {
+    key: string
+    value: SyncOutboxRecord
+    indexes: { 'by-nextAttemptAt': number }
+  }
+  syncObjects: {
+    key: string
+    value: SyncObjectStateRecord
+  }
+  syncConflicts: {
+    key: string
+    value: SyncConflictRecord
+    indexes: { 'by-doc-createdAt': [string, number] }
+  }
   assets: {
     key: string
-    value: AssetRecord
+    value: StoredAssetRecord
     indexes: { 'by-docId': string }
   }
   documents: {

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { listSnapshots } from '../../db/snapshots'
+import { listConflicts } from '../../sync/local'
 import { useDismissable } from '../../hooks/useDismissable'
 import { collapseUnchanged, diffStats, lineDiff } from '../../lib/lineDiff'
 import { relative } from '../../lib/time'
-import type { SnapshotCause, SnapshotRecord } from '../../types'
+import type { SnapshotCause, SnapshotRecord, SyncConflictRecord } from '../../types'
 import { CloseIcon } from '../icons'
 
 interface HistoryPanelProps {
@@ -14,6 +15,7 @@ interface HistoryPanelProps {
    */
   current: string
   onRestore: (snapshot: SnapshotRecord) => void
+  onRestoreConflict?: (conflict: SyncConflictRecord) => void
   onClose: () => void
 }
 
@@ -27,29 +29,52 @@ export function HistoryPanel({
   docId,
   current,
   onRestore,
+  onRestoreConflict,
   onClose,
 }: HistoryPanelProps) {
   const [snapshots, setSnapshots] = useState<SnapshotRecord[] | null>(null)
+  const [conflicts, setConflicts] = useState<SyncConflictRecord[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const container = useDismissable<HTMLDivElement>(true, onClose)
 
   useEffect(() => {
     let cancelled = false
-    void listSnapshots(docId).then(loaded => {
+    void Promise.all([listSnapshots(docId), listConflicts(docId)]).then(([loaded, remote]) => {
       if (cancelled) return
       setSnapshots(loaded)
-      setSelectedId(loaded[0]?.id ?? null)
+      setConflicts(remote)
+      const newest = [
+        ...loaded.map(record => ({ id: record.id, time: record.createdAt })),
+        ...remote.map(record => ({ id: record.id, time: record.changedAt })),
+      ].sort((a, b) => b.time - a.time)[0]
+      setSelectedId(newest?.id ?? null)
     })
     return () => {
       cancelled = true
     }
   }, [docId])
 
-  const selected = snapshots?.find(record => record.id === selectedId) ?? null
+  const entries = useMemo(
+    () => [
+      ...(snapshots ?? []).map(record => ({ kind: 'snapshot' as const, record })),
+      ...conflicts.map(record => ({ kind: 'conflict' as const, record })),
+    ].sort((a, b) => {
+      const aTime = a.kind === 'snapshot' ? a.record.createdAt : a.record.changedAt
+      const bTime = b.kind === 'snapshot' ? b.record.createdAt : b.record.changedAt
+      return bTime - aTime
+    }),
+    [conflicts, snapshots],
+  )
+  const selected = entries.find(entry => entry.record.id === selectedId) ?? null
+  const selectedMarkdown = selected
+    ? selected.kind === 'snapshot'
+      ? selected.record.markdown
+      : selected.record.package.document.markdown
+    : ''
 
   const rows = useMemo(
-    () => (selected ? lineDiff(selected.markdown, current) : []),
-    [selected, current],
+    () => (selected ? lineDiff(selectedMarkdown, current) : []),
+    [selected, selectedMarkdown, current],
   )
   const stats = useMemo(() => diffStats(rows), [rows])
   const folded = useMemo(() => collapseUnchanged(rows), [rows])
@@ -78,26 +103,32 @@ export function HistoryPanel({
 
         {snapshots === null ? (
           <p className="history__empty">Loading…</p>
-        ) : snapshots.length === 0 ? (
+        ) : entries.length === 0 ? (
           <p className="history__empty">
             No versions yet. One is kept every few minutes as you write.
           </p>
         ) : (
           <div className="history__body">
             <ul className="history__list" aria-label="Versions">
-              {snapshots.map(record => (
-                <li key={record.id}>
+              {entries.map(entry => (
+                <li key={entry.record.id}>
                   <button
                     type="button"
                     className="history__entry"
-                    aria-current={record.id === selectedId}
-                    onClick={() => setSelectedId(record.id)}
+                    aria-current={entry.record.id === selectedId}
+                    onClick={() => setSelectedId(entry.record.id)}
                   >
                     <span className="history__when">
-                      {relative(record.createdAt)}
+                      {relative(
+                        entry.kind === 'snapshot'
+                          ? entry.record.createdAt
+                          : entry.record.changedAt,
+                      )}
                     </span>
                     <span className="history__cause">
-                      {CAUSE_LABEL[record.cause]}
+                      {entry.kind === 'snapshot'
+                        ? CAUSE_LABEL[entry.record.cause]
+                        : `Sync conflict · ${entry.record.deviceLabel}`}
                     </span>
                   </button>
                 </li>
@@ -124,7 +155,10 @@ export function HistoryPanel({
                     // and lands as one undoable transaction, so there is
                     // nothing here to confirm.
                     title="Replaces the document with this version. Undoable."
-                    onClick={() => onRestore(selected)}
+                    onClick={() => {
+                      if (selected.kind === 'snapshot') onRestore(selected.record)
+                      else onRestoreConflict?.(selected.record)
+                    }}
                   >
                     Restore this version
                   </button>

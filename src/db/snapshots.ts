@@ -1,4 +1,5 @@
 import type { SnapshotRecord } from '../types'
+import { announceDirty, dirtyRecord } from '../sync/local'
 import { getDB } from './client'
 
 /**
@@ -25,7 +26,16 @@ export async function listSnapshots(
 }
 
 export async function addSnapshot(record: SnapshotRecord): Promise<void> {
-  await (await getDB()).put('snapshots', record)
+  const db = await getDB()
+  const tx = db.transaction(['snapshots', 'syncOutbox'], 'readwrite')
+  await Promise.all([
+    tx.objectStore('snapshots').put(record),
+    tx.objectStore('syncOutbox').put(
+      dirtyRecord('document', record.docId, record.docId),
+    ),
+    tx.done,
+  ])
+  announceDirty()
 }
 
 /**

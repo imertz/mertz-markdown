@@ -1,0 +1,26 @@
+services:
+  sync:
+    build:
+      context: .
+      dockerfile: Dockerfile.sync
+    restart: unless-stopped
+    environment:
+      SYNC_DATA_DIR: /data
+      SYNC_PORT: 8787
+      SYNC_ADMIN_TOKEN: ${SYNC_ADMIN_TOKEN:?set SYNC_ADMIN_TOKEN}
+      SYNC_RATE_LIMIT_SECRET: ${SYNC_RATE_LIMIT_SECRET:?set SYNC_RATE_LIMIT_SECRET}
+      SYNC_REGISTRATION_ENABLED: ${SYNC_REGISTRATION_ENABLED:-false}
+      SYNC_MAX_VAULTS: ${SYNC_MAX_VAULTS:-80}
+      SYNC_VAULT_QUOTA_BYTES: ${SYNC_VAULT_QUOTA_BYTES:-524288000}
+      SYNC_REGISTRATION_ATTEMPTS_PER_HOUR: ${SYNC_REGISTRATION_ATTEMPTS_PER_HOUR:-10}
+      SYNC_REGISTRATIONS_PER_IP_PER_DAY: ${SYNC_REGISTRATIONS_PER_IP_PER_DAY:-3}
+      SYNC_ALLOWED_ORIGINS: ${SYNC_ALLOWED_ORIGINS:-https://markdown.mysolon.gr}
+      SYNC_MAX_OBJECT_BYTES: ${SYNC_MAX_OBJECT_BYTES:-31457280}
+    volumes:
+      - sync_data:/data
+    ports:
+      - "127.0.0.1:8787:8787"
+
+volumes:
+  sync_data:
+    name: mertz_markdown_sync_data
