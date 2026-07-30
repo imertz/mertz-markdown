@@ -6,6 +6,7 @@ import {
   makeAssetRecord,
   validateImageFile,
 } from './files'
+import { encodeCanvasAsWebp, makeImportedImageAsset } from './optimize'
 import { fetchImageFile } from './url'
 
 export const CROPPED_IMAGE_MIME = 'image/webp'
@@ -74,26 +75,18 @@ export async function localizeRemoteImage(
   await replaceWithAsset(
     editor,
     target,
-    makeAssetRecord(docId, file),
+    await makeImportedImageAsset(docId, file),
     undefined,
     isCurrent,
   )
 }
 
 export function canvasToWebp(canvas: HTMLCanvasElement): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      blob => {
-        if (!blob || blob.type !== CROPPED_IMAGE_MIME) {
-          reject(new Error('This browser could not encode the cropped image'))
-          return
-        }
-        resolve(blob)
-      },
-      CROPPED_IMAGE_MIME,
-      CROPPED_IMAGE_QUALITY,
-    )
-  })
+  return encodeCanvasAsWebp(
+    canvas,
+    CROPPED_IMAGE_QUALITY,
+    'This browser could not encode the cropped image',
+  )
 }
 
 export async function replaceImageWithCrop(

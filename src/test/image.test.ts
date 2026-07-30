@@ -1,16 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getDocumentAsset } from '../db/assets'
+import { getDocumentAsset, listDocumentAssets } from '../db/assets'
 import { putDocument } from '../db/documents'
 import { insertImageFiles } from '../images/insert'
 import { toMarkdown } from '../markdown/export'
 import { createTestEditor, createTestEditorFromJSON } from './editorHarness'
 import { makeDocument, resetDatabase } from './dbHarness'
+import { stubImageOptimizer } from './imageOptimizeHarness'
 
 beforeEach(async () => {
-  vi.stubGlobal('createImageBitmap', undefined)
+  stubImageOptimizer()
   await resetDatabase()
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 describe('image Markdown', () => {
   it('round-trips ordinary URL images as standard syntax', () => {
@@ -108,10 +112,39 @@ describe('image insertion', () => {
     })
 
     expect(assetId).not.toBe('')
-    expect(src).toMatch(/^images\/.+\.png$/)
-    expect((await getDocumentAsset(document_.id, assetId))?.storageName).toBe(
-      src.replace('images/', ''),
-    )
+    expect(src).toMatch(/^images\/.+\.webp$/)
+    const asset = await getDocumentAsset(document_.id, assetId)
+    expect(asset?.storageName).toBe(src.replace('images/', ''))
+    expect(asset?.mimeType).toBe('image/webp')
+    expect(asset?.originalName).toBe('release-chart.png')
     expect(toMarkdown(editor)).toContain(`![release chart](${src})`)
+  })
+
+  it('does not store or insert a partial batch when encoding fails', async () => {
+    vi.restoreAllMocks()
+    vi.unstubAllGlobals()
+    const encoding = stubImageOptimizer()
+    encoding.toBlob
+      .mockImplementationOnce((callback, type) => {
+        callback(new Blob(['first webp'], { type }))
+      })
+      .mockImplementationOnce(callback => callback(null))
+    const document_ = makeDocument()
+    await putDocument(document_)
+    const editor = createTestEditor('hello')
+
+    await expect(
+      insertImageFiles({
+        editor,
+        docId: document_.id,
+        files: [
+          new File(['first'], 'first.png', { type: 'image/png' }),
+          new File(['second'], 'second.png', { type: 'image/png' }),
+        ],
+      }),
+    ).rejects.toThrow('could not encode the imported image as WebP')
+
+    expect(await listDocumentAssets(document_.id)).toEqual([])
+    expect(toMarkdown(editor)).toBe('hello\n')
   })
 })

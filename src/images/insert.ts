@@ -3,9 +3,8 @@ import { deleteAssets, putAssets } from '../db/assets'
 import {
   assetMarkdownPath,
   defaultImageAlt,
-  makeAssetRecord,
-  validateImageFile,
 } from './files'
+import { makeImportedImageAsset } from './optimize'
 
 export interface InsertImageFilesOptions {
   editor: Editor
@@ -29,10 +28,15 @@ export async function insertImageFiles({
   position,
 }: InsertImageFilesOptions): Promise<void> {
   if (!files.length) return
-  await Promise.all(files.map(validateImageFile))
   if (!isCurrent()) throw new Error('The document changed before the image was ready')
 
-  const assets = files.map(file => makeAssetRecord(docId, file))
+  const assets = []
+  for (const file of files) {
+    assets.push(await makeImportedImageAsset(docId, file))
+    if (!isCurrent()) {
+      throw new Error('The document changed before the image was ready')
+    }
+  }
   await putAssets(assets)
 
   if (editor.isDestroyed || !isCurrent()) {

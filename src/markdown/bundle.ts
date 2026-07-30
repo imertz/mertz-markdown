@@ -4,10 +4,9 @@ import { getDocumentAsset } from '../db/assets'
 import {
   assetMarkdownPath,
   imageMimeTypeForPath,
-  makeAssetRecord,
   MAX_IMAGE_BYTES,
-  validateImageFile,
 } from '../images/files'
+import { makeImportedImageAsset } from '../images/optimize'
 import type { AssetRecord } from '../types'
 import { toMarkdown } from './export'
 import { titleFromFilename } from './import'
@@ -213,8 +212,7 @@ export async function readDocumentBundle(
     const image = new File([bytes.slice().buffer as ArrayBuffer], path.split('/').pop() ?? 'image', {
       type: mimeType,
     })
-    await validateImageFile(image)
-    const asset = makeAssetRecord(docId, image)
+    const asset = await makeImportedImageAsset(docId, image)
     assets.push(asset)
     byPath.set(path, asset)
   }

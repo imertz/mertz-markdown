@@ -9,13 +9,17 @@ import {
 import { toMarkdown } from '../markdown/export'
 import { makeDocument, resetDatabase } from './dbHarness'
 import { createTestEditor } from './editorHarness'
+import { stubImageOptimizer } from './imageOptimizeHarness'
 
 beforeEach(async () => {
-  vi.stubGlobal('createImageBitmap', undefined)
+  stubImageOptimizer()
   await resetDatabase()
 })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 describe('image URL validation', () => {
   it('normalizes hosts and accepts only credential-free HTTP URLs', () => {
@@ -105,8 +109,8 @@ describe('image URL validation', () => {
 
     const assets = await listDocumentAssets(document_.id)
     expect(assets).toHaveLength(1)
-    expect(assets[0]?.mimeType).toBe('image/png')
-    expect(toMarkdown(editor)).toMatch(/!\[Offline diagram]\(images\/.+\.png\)/)
+    expect(assets[0]?.mimeType).toBe('image/webp')
+    expect(toMarkdown(editor)).toMatch(/!\[Offline diagram]\(images\/.+\.webp\)/)
   })
 
   it('leaves the document unchanged when CORS or networking blocks a copy', async () => {

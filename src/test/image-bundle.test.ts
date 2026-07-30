@@ -9,12 +9,19 @@ import {
 } from '../markdown/bundle'
 import { createTestEditor, createTestEditorFromJSON } from './editorHarness'
 import { makeAsset, makeDocument, resetDatabase } from './dbHarness'
+import {
+  OPTIMIZED_IMAGE_BYTES,
+  stubImageOptimizer,
+} from './imageOptimizeHarness'
 
 beforeEach(async () => {
-  vi.stubGlobal('createImageBitmap', undefined)
+  stubImageOptimizer()
   await resetDatabase()
 })
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 describe('portable image bundles', () => {
   it('exports clean Markdown and the exact referenced image bytes', async () => {
@@ -83,8 +90,9 @@ describe('portable image bundles', () => {
     expect(imported.assets).toHaveLength(1)
     expect(imported.assets[0]?.id).not.toBe(sourceAsset.id)
     expect(imported.assets[0]?.docId).toBe('new-doc')
-    expect(await imported.assets[0]?.blob.text()).toBe('image bytes')
-    expect(imported.markdown).toMatch(/^!\[Diagram]\(images\/.+\.png\)\n$/)
+    expect(await imported.assets[0]?.blob.text()).toBe(OPTIMIZED_IMAGE_BYTES)
+    expect(imported.assets[0]?.originalName).toBe(sourceAsset.storageName)
+    expect(imported.markdown).toMatch(/^!\[Diagram]\(images\/.+\.webp\)\n$/)
   })
 
   it('leaves a remote-only document as a plain Markdown download', async () => {
@@ -146,7 +154,24 @@ describe('portable image bundles', () => {
     const imported = await readDocumentBundle(file, 'doc')
 
     expect(imported.assets).toHaveLength(1)
-    expect(await imported.assets[0]?.blob.text()).toBe('image bytes')
+    expect(await imported.assets[0]?.blob.text()).toBe(OPTIMIZED_IMAGE_BYTES)
+    expect(imported.markdown).toMatch(/^!\[Diagram]\(images\/.+\.webp\)\n$/)
+  })
+
+  it('preserves animated GIF assets and paths', async () => {
+    const zipped = zipSync({
+      'notes.md': strToU8('![Animation](images/animation.gif)'),
+      'images/animation.gif': strToU8('animated gif bytes'),
+    })
+    const file = new File([zipped.buffer as ArrayBuffer], 'animated.zip', {
+      type: 'application/zip',
+    })
+
+    const imported = await readDocumentBundle(file, 'doc')
+
+    expect(imported.assets[0]?.mimeType).toBe('image/gif')
+    expect(await imported.assets[0]?.blob.text()).toBe('animated gif bytes')
+    expect(imported.markdown).toMatch(/^!\[Animation]\(images\/.+\.gif\)\n$/)
   })
 
   it('rejects a bundle whose Markdown references a missing image', async () => {
