@@ -63,7 +63,7 @@ import { CommentSidebar } from './comments/CommentSidebar'
 import { HistoryPanel } from './history/HistoryPanel'
 import type { SearchHit } from './search/SearchPanel'
 import { SearchPanel } from './search/SearchPanel'
-import { BrandMark, HistoryIcon } from './icons'
+import { BrandMark, HistoryIcon, SearchIcon } from './icons'
 import { DocumentList } from './documents/DocumentList'
 import { DocumentFontMenu } from './DocumentFontMenu'
 import { ExportMenu } from './documents/ExportMenu'
@@ -990,6 +990,16 @@ export function AppShell() {
 
         <div className="app-header__tools">
           {/* Save state lives in the status bar; this row is actions only. */}
+          <button
+            type="button"
+            className="app-header__icon"
+            aria-label="Search all documents"
+            title={`Search all documents (${formatShortcut('mod+shift+f')})`}
+            onClick={() => setSearchOpen(true)}
+          >
+            <SearchIcon />
+          </button>
+
           <ExportMenu
             disabled={!editor}
             onExport={exportMarkdown}
