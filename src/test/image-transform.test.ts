@@ -9,13 +9,17 @@ import {
 import { assetMarkdownPath } from '../images/files'
 import { makeAsset, makeDocument, resetDatabase } from './dbHarness'
 import { createTestEditorFromJSON } from './editorHarness'
+import { stubImageOptimizer } from './imageOptimizeHarness'
 
 beforeEach(async () => {
-  vi.stubGlobal('createImageBitmap', undefined)
+  stubImageOptimizer()
   await resetDatabase()
 })
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 function webpCanvas(width = 800, height = 400): HTMLCanvasElement {
   return {
@@ -177,7 +181,7 @@ describe('remote image localization', () => {
 
     const image = editor.state.doc.nodeAt(position)
     expect(image?.attrs.assetId).toEqual(expect.any(String))
-    expect(image?.attrs.src).toMatch(/^images\/.+\.png$/)
+    expect(image?.attrs.src).toMatch(/^images\/.+\.webp$/)
     expect(await listDocumentAssets(document_.id)).toHaveLength(1)
   })
 })

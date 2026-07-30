@@ -11,9 +11,11 @@ export const IMAGE_MIME_TYPES = [
   'image/avif',
 ] as const
 
+export type ImageMimeType = (typeof IMAGE_MIME_TYPES)[number]
+
 export const IMAGE_ACCEPT = IMAGE_MIME_TYPES.join(',')
 
-const EXTENSION_FOR_MIME: Record<(typeof IMAGE_MIME_TYPES)[number], string> = {
+const EXTENSION_FOR_MIME: Record<ImageMimeType, string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/gif': 'gif',
@@ -21,7 +23,7 @@ const EXTENSION_FOR_MIME: Record<(typeof IMAGE_MIME_TYPES)[number], string> = {
   'image/avif': 'avif',
 }
 
-const MIME_FROM_EXTENSION: Record<string, (typeof IMAGE_MIME_TYPES)[number]> = {
+const MIME_FROM_EXTENSION: Record<string, ImageMimeType> = {
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
@@ -32,14 +34,14 @@ const MIME_FROM_EXTENSION: Record<string, (typeof IMAGE_MIME_TYPES)[number]> = {
 
 export function imageMimeTypeForPath(
   path: string,
-): (typeof IMAGE_MIME_TYPES)[number] | null {
+): ImageMimeType | null {
   const extension = path.split('.').pop()?.toLowerCase() ?? ''
   return MIME_FROM_EXTENSION[extension] ?? null
 }
 
-export function imageMimeType(file: File): (typeof IMAGE_MIME_TYPES)[number] | null {
+export function imageMimeType(file: File): ImageMimeType | null {
   if ((IMAGE_MIME_TYPES as readonly string[]).includes(file.type)) {
-    return file.type as (typeof IMAGE_MIME_TYPES)[number]
+    return file.type as ImageMimeType
   }
   return imageMimeTypeForPath(file.name)
 }
@@ -59,13 +61,19 @@ export function defaultImageAlt(filename: string): string {
     .trim()
 }
 
-export async function validateImageFile(file: File): Promise<void> {
-  if (!imageMimeType(file)) {
+export function validateImageFileMetadata(file: File): ImageMimeType {
+  const mimeType = imageMimeType(file)
+  if (!mimeType) {
     throw new Error(`“${file.name || 'Clipboard image'}” is not a supported image`)
   }
   if (file.size > MAX_IMAGE_BYTES) {
     throw new Error(`“${file.name || 'Clipboard image'}” is larger than 25 MiB`)
   }
+  return mimeType
+}
+
+export async function validateImageFile(file: File): Promise<void> {
+  validateImageFileMetadata(file)
 
   // createImageBitmap verifies the bytes where the browser provides it. The
   // node view remains the fallback verifier on older Safari releases.
@@ -79,7 +87,11 @@ export async function validateImageFile(file: File): Promise<void> {
   }
 }
 
-export function makeAssetRecord(docId: string, file: File): AssetRecord {
+export function makeAssetRecord(
+  docId: string,
+  file: File,
+  originalName = file.name,
+): AssetRecord {
   const mimeType = imageMimeType(file)
   if (!mimeType) throw new Error('Unsupported image type')
 
@@ -90,7 +102,7 @@ export function makeAssetRecord(docId: string, file: File): AssetRecord {
     docId,
     blob: file,
     mimeType,
-    originalName: file.name || `pasted-image.${extension}`,
+    originalName: originalName || file.name || `pasted-image.${extension}`,
     storageName: `${id}.${extension}`,
     size: file.size,
     createdAt: Date.now(),
