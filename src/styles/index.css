@@ -30,6 +30,16 @@
   --warn: #b45309;
   --danger: #e5484d;
 
+  /* Caution surfaces. Separate from --accent-bg so a warning never borrows the
+     brand colour: the accent means "this is the action", not "read this twice". */
+  --warn-bg: rgba(180, 83, 9, 0.09);
+  --warn-border: rgba(180, 83, 9, 0.3);
+
+  /* Panels sunk into a raised surface — stat cards, list rows. Not --code-bg:
+     that one collapses onto --bg-raised in the dark theme, which is fine for a
+     code block but leaves a borderless row invisible. */
+  --bg-inset: #f2efe9;
+
   /* Find highlights. Yellow rather than the accent: comment anchors already own
      the terracotta, and the two are routinely on screen together. Yellow also
      stays clear of the browser's blue ::selection, which find matches sit under
@@ -119,6 +129,16 @@
   --ok: #4ade80;
   --warn: #fbbf24;
   --danger: #ff6369;
+
+  /* Lighter fill and a stronger edge than the light theme: amber at any real
+     opacity over the warm dark surface turns olive, so the border carries the
+     signal and the fill only separates the block. */
+  --warn-bg: rgba(251, 191, 36, 0.08);
+  --warn-border: rgba(251, 191, 36, 0.4);
+
+  /* Lighter than --bg-raised, not darker: going down lands on the page colour
+     and the row reads as a hole cut through the panel. */
+  --bg-inset: #2e2b27;
 
   /* Translucent, so the text under a highlight keeps its own colour instead of
      being read as a swatch of black on amber. */
@@ -664,21 +684,30 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 30px;
+  height: 30px;
   padding: 0 9px;
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
+
+  &:hover:not(:disabled) {
+    color: var(--text-h);
+  }
 }
 
+/* Hollow while sync is off, filled once a vault exists. An unfilled dot has to
+   be drawn as a ring rather than left colourless: --border is nearly invisible
+   against the dark page, and --text at full strength reads as "on". */
 .vault-menu__mark {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--muted);
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--text);
 }
 
 .vault-menu__mark[data-status='idle'] {
-  background: var(--success, #3d8b63);
+  background: var(--ok);
+  box-shadow: none;
 }
 
 .vault-menu__mark[data-status='syncing'] {
@@ -686,14 +715,20 @@ body {
   box-shadow: 0 0 0 3px var(--accent-bg);
 }
 
-.vault-menu__mark[data-status='offline'],
+/* Queued is not failed. Offline keeps the amber; only a real error goes red. */
+.vault-menu__mark[data-status='offline'] {
+  background: var(--warn);
+  box-shadow: none;
+}
+
 .vault-menu__mark[data-status='error'] {
-  background: var(--warning, #b87524);
+  background: var(--danger);
+  box-shadow: none;
 }
 
 .vault-menu__panel {
   position: absolute;
-  z-index: 60;
+  z-index: 40;
   top: calc(100% + 8px);
   right: 0;
   width: min(380px, calc(100vw - 24px));
@@ -716,16 +751,37 @@ body {
   gap: 12px;
 }
 
-.vault-menu__header > div {
-  display: grid;
-  gap: 2px;
+.vault-menu__header {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
 }
 
-.vault-menu__header span,
+/* Same size and weight as .history__title: this panel is an overlay like any
+   other, and inheriting the 18px root size made it the loudest thing on screen. */
+.vault-menu__title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  font-family: var(--heading);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.vault-menu__status,
 .vault-menu__muted,
+.vault-menu__self,
 .vault-menu__pairing small {
-  color: var(--muted);
+  color: var(--text);
   font-size: 12px;
+  font-weight: 400;
+}
+
+.vault-menu__status::before {
+  content: '·';
+  margin-inline-end: 6px;
 }
 
 .vault-menu__setup,
@@ -749,22 +805,28 @@ body {
   margin: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
+  background: var(--bg-inset);
 }
 
-.vault-menu__allocation div {
+/* Direct children only — the meter is a div inside a dd and must not inherit
+   the cell's padding. */
+.vault-menu__allocation > div {
   display: grid;
-  gap: 2px;
+  gap: 3px;
+  min-width: 0;
   padding: 9px 10px;
 }
 
-.vault-menu__allocation div + div {
+.vault-menu__allocation > div + div {
   border-inline-start: 1px solid var(--border);
 }
 
-.vault-menu__allocation dt {
-  color: var(--muted);
-  font-size: 10px;
+/* Shared with the section heading so every label in the panel reads as a label.
+   10px uppercase at this tracking was below comfortable legibility. */
+.vault-menu__allocation dt,
+.vault-menu__section-heading strong {
+  color: var(--text);
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -772,24 +834,51 @@ body {
 
 .vault-menu__allocation dd {
   margin: 0;
+  color: var(--text-h);
   font-size: 13px;
   font-weight: 650;
 }
 
+.vault-menu__meter {
+  height: 3px;
+  margin-top: 5px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.vault-menu__meter span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+/* Near the ceiling the bar stops being informational: the next upload is the
+   one the server rejects. */
+.vault-menu__meter[data-full='true'] span {
+  background: var(--warn);
+}
+
+/* Amber, not the accent. The accent means "this is the action to take"; borrowing
+   it for a caution notice put the loudest colour in the panel on the one block
+   the reader is meant to slow down for. */
 .vault-menu__warning {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: start;
   gap: 8px;
   padding: 9px;
+  border: 1px solid var(--warn-border);
   border-radius: var(--radius-sm);
-  background: var(--accent-bg);
+  background: var(--warn-bg);
   font-size: 12px;
   line-height: 1.4;
+  cursor: pointer;
 }
 
 .vault-menu__warning input {
   margin-top: 2px;
+  accent-color: var(--accent);
 }
 
 .vault-menu__section {
@@ -807,10 +896,20 @@ body {
 
 .vault-menu__devices li {
   min-height: 34px;
-  padding: 0 8px;
+  padding: 4px 8px;
   border-radius: var(--radius-sm);
-  background: var(--bg-subtle);
-  font-size: 12px;
+  background: var(--bg-inset);
+  color: var(--text-h);
+  font-size: 13px;
+}
+
+/* Inline rather than stacked: only the current device carries a suffix, and
+   stacking it made one row in the list taller than the rest. */
+.vault-menu__devices li > span {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
 }
 
 .vault-menu__pairing {
@@ -818,25 +917,43 @@ body {
   padding: 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  background: var(--bg-inset);
 }
 
+/* The QR is a black-on-white PNG generated with a one-module quiet zone. On the
+   dark theme that margin is too thin for a camera to lock onto, so the white is
+   extended here rather than by re-encoding the image. */
 .vault-menu__pairing img {
   width: 220px;
   max-width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  background: #fff;
   border-radius: var(--radius-sm);
   image-rendering: pixelated;
 }
 
+.vault-menu__footer {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
 .vault-menu__forget {
   width: 100%;
-  margin-top: 14px;
-  color: var(--danger, #a33d3d);
+  color: var(--danger);
 }
 
 .vault-menu__message {
   margin: 10px 0 0;
-  color: var(--danger, #a33d3d);
+  color: var(--danger);
   font-size: 12px;
+  line-height: 1.4;
+}
+
+/* Not every message is a failure — copying a pairing link lands here too. */
+.vault-menu__message[data-tone='ok'] {
+  color: var(--ok);
 }
 
 /* --- Save indicator --- */

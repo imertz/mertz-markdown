@@ -737,6 +737,10 @@ function listDevices(request: Request, vaultId: string, current: Row): Response 
         lastSeenAt: Number(row.last_seen_at),
         current: row.id === current.id,
       })),
+      /* Piggy-backed on the device list rather than given its own route: the
+         panel that shows the allowance is the same one that lists devices, so
+         this costs no extra round trip. */
+      usage: { bytes: vaultBytes(vaultId), quotaBytes: vaultQuota(vaultId) },
     },
     200,
     request,

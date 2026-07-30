@@ -18,7 +18,13 @@ import {
   queueWholeLibrary,
   SYNC_DIRTY_EVENT,
 } from '../sync/local'
-import { DEFAULT_SYNC_API, VAULT_ROUTE, type SyncStatus, type VaultDevice } from '../sync/types'
+import {
+  DEFAULT_SYNC_API,
+  VAULT_ROUTE,
+  type SyncStatus,
+  type VaultDevice,
+  type VaultUsage,
+} from '../sync/types'
 
 const PAIRING_TTL_MS = 10 * 60 * 1000
 
@@ -79,6 +85,7 @@ export interface VaultSyncApi {
   enabled: boolean
   config: VaultConfigRecord | null
   devices: VaultDevice[]
+  usage: VaultUsage | null
   pendingPairing: boolean
   syncNow: () => Promise<void>
   enable: (apiUrl?: string) => Promise<void>
@@ -97,6 +104,7 @@ export function useVaultSync(
   const [error, setError] = useState<string | null>(null)
   const [config, setConfig] = useState<VaultConfigRecord | null>(null)
   const [devices, setDevices] = useState<VaultDevice[]>([])
+  const [usage, setUsage] = useState<VaultUsage | null>(null)
   const [pendingPairing, setPendingPairing] = useState(false)
   const remoteRef = useRef(onRemoteChange)
   remoteRef.current = onRemoteChange
@@ -261,6 +269,9 @@ export function useVaultSync(
       token: current.deviceToken,
     }).devices()
     setDevices(response.devices)
+    // Older servers predate the usage block; leaving it null keeps the panel on
+    // the plain allowance figure rather than showing a 0-byte meter.
+    setUsage(response.usage ?? null)
   }, [config])
 
   const revokeDevice = useCallback(
@@ -281,6 +292,7 @@ export function useVaultSync(
     await clearVaultConfig()
     setConfig(null)
     setDevices([])
+    setUsage(null)
     setStatus('disabled')
   }, [])
 
@@ -290,6 +302,7 @@ export function useVaultSync(
     enabled: config !== null,
     config,
     devices,
+    usage,
     pendingPairing,
     syncNow,
     enable,

@@ -4,6 +4,7 @@ import type {
   PairingClaimResponse,
   UploadResponse,
   VaultDevice,
+  VaultUsage,
 } from './types'
 
 interface ClientOptions {
@@ -137,7 +138,7 @@ export class SyncApiClient {
     )
   }
 
-  devices(): Promise<{ devices: VaultDevice[] }> {
+  devices(): Promise<{ devices: VaultDevice[]; usage?: VaultUsage }> {
     return this.request(this.vaultPath('/devices'))
   }
 

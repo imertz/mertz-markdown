@@ -46,6 +46,17 @@ export interface VaultDevice {
   current: boolean
 }
 
+/**
+ * Server-side vault occupancy. Distinct from `navigator.storage.estimate()`,
+ * which measures this browser's whole origin: the quota that can actually
+ * reject a write lives on the server, so the number shown next to it has to
+ * come from there too.
+ */
+export interface VaultUsage {
+  bytes: number
+  quotaBytes: number
+}
+
 export type SyncStatus =
   | 'disabled'
   | 'idle'

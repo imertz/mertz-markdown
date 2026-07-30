@@ -36,3 +36,25 @@ export function formatBytes(bytes: number): string {
   const decimals = exponent === 0 || value >= 100 ? 0 : 1
   return `${value.toFixed(decimals)} ${UNITS[exponent]}`
 }
+
+const BINARY_UNITS = ['B', 'KiB', 'MiB', 'GiB', 'TiB'] as const
+
+/**
+ * Binary sibling of `formatBytes`, for the vault allowance.
+ *
+ * Kept separate rather than made a flag: the two exist for opposite reasons.
+ * `formatBytes` is decimal to match what the browser reports about local disk;
+ * the vault quota is a server constant defined in MiB, so rendering it decimal
+ * would print "524.3 MB" under a heading that says the limit is 500 MiB.
+ */
+export function formatBinaryBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B'
+
+  const exponent = Math.min(
+    Math.floor(Math.log2(bytes) / 10),
+    BINARY_UNITS.length - 1,
+  )
+  const value = bytes / 1024 ** exponent
+  const decimals = exponent === 0 || value >= 100 ? 0 : 1
+  return `${value.toFixed(decimals)} ${BINARY_UNITS[exponent]}`
+}

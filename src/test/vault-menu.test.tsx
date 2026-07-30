@@ -13,6 +13,7 @@ function syncApi(overrides: Partial<VaultSyncApi> = {}): VaultSyncApi {
     enabled: false,
     config: null,
     devices: [],
+    usage: null,
     pendingPairing: false,
     syncNow: vi.fn(),
     enable: vi.fn(),
