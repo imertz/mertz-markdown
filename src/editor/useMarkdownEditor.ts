@@ -18,6 +18,15 @@ export interface UseMarkdownEditorOptions {
   getKnownThreadIds?: () => ReadonlySet<string>
   resolveImageAsset?: (assetId: string) => Promise<Blob | undefined>
   onImageFiles?: (editor: Editor, files: File[], position?: number) => void
+  /**
+   * Fired after each document load, immediately after the content lands.
+   *
+   * `activeId` changes a commit earlier than the content does, so anything that
+   * needs to act on the *new* document — jumping to a search hit, say — cannot
+   * key off it without reading the outgoing document instead. A vault sync can
+   * also reload the same id by advancing `reloadToken`.
+   */
+  onDocumentLoaded?: (docId: string) => void
 }
 
 /**
@@ -41,6 +50,7 @@ export function useMarkdownEditor({
   getKnownThreadIds,
   resolveImageAsset,
   onImageFiles,
+  onDocumentLoaded,
 }: UseMarkdownEditorOptions): Editor | null {
   const handlers = useRef({
     onDocChanged,
@@ -48,6 +58,7 @@ export function useMarkdownEditor({
     getKnownThreadIds,
     resolveImageAsset,
     onImageFiles,
+    onDocumentLoaded,
   })
   useEffect(() => {
     handlers.current = {
@@ -56,6 +67,7 @@ export function useMarkdownEditor({
       getKnownThreadIds,
       resolveImageAsset,
       onImageFiles,
+      onDocumentLoaded,
     }
   })
 
@@ -95,6 +107,7 @@ export function useMarkdownEditor({
 
     loaded.current = { id: activeId, token: reloadToken }
     editor.commands.setContent(initialDoc, { emitUpdate: false })
+    handlers.current.onDocumentLoaded?.(activeId)
   }, [editor, activeId, initialDoc, reloadToken])
 
   return editor

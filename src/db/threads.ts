@@ -32,6 +32,38 @@ export async function loadThreadsForDoc(
     .sort((a, b) => a.createdAt - b.createdAt)
 }
 
+/** Every comment on one document, in creation order. */
+export async function listCommentsForDoc(
+  docId: string,
+): Promise<CommentRecord[]> {
+  const db = await getDB()
+  const comments = await db.getAllFromIndex('comments', 'by-docId', docId)
+  return comments.sort((a, b) => a.createdAt - b.createdAt)
+}
+
+/**
+ * Every comment in the database, bucketed by document.
+ *
+ * Only the search index needs this: it builds in one pass over all documents,
+ * and asking per document would be one transaction each. Everything else in the
+ * app works a document at a time and should keep using `loadThreadsForDoc`.
+ */
+export async function listAllComments(): Promise<Map<string, CommentRecord[]>> {
+  const db = await getDB()
+  const all = await db.getAll('comments')
+
+  const byDoc = new Map<string, CommentRecord[]>()
+  for (const comment of all) {
+    const bucket = byDoc.get(comment.docId)
+    if (bucket) bucket.push(comment)
+    else byDoc.set(comment.docId, [comment])
+  }
+  for (const bucket of byDoc.values()) {
+    bucket.sort((a, b) => a.createdAt - b.createdAt)
+  }
+  return byDoc
+}
+
 /** Write several thread records in one transaction (used by the reconciler). */
 export async function putThreads(records: ThreadRecord[]): Promise<void> {
   if (!records.length) return

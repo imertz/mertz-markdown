@@ -1424,6 +1424,216 @@ button {
   text-align: center;
 }
 
+/* --- Search across documents --- */
+
+/* Shares the palette's backdrop, like version history does. */
+.search-panel {
+  width: min(720px, 100%);
+  max-height: 72vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.search-panel__header {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+
+.search-panel__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text-h);
+  background: transparent;
+  border: 0;
+  padding: 12px 14px;
+
+  /* The panel is the focus ring — a second one inside it is noise. */
+  &:focus {
+    outline: none;
+  }
+
+  &::placeholder {
+    color: var(--text);
+    opacity: 0.7;
+  }
+}
+
+.search-panel__close {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  margin-right: 6px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+
+  &:hover {
+    background: var(--code-bg);
+    color: var(--text-h);
+  }
+}
+
+.search-panel__scopes {
+  display: flex;
+  gap: 4px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.search-panel__scope {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  cursor: pointer;
+
+  &[aria-selected='true'] {
+    background: var(--accent-bg);
+    color: var(--text-h);
+    border-color: var(--border);
+  }
+
+  &:hover:not([aria-selected='true']) {
+    background: var(--code-bg);
+  }
+}
+
+/* Tabular so the chips do not jitter as counts change while typing. */
+.search-panel__count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.search-panel__body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px;
+}
+
+.search-panel__group {
+  padding: 4px 0 8px;
+}
+
+.search-panel__doc {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 10px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.search-panel__doc-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-h);
+}
+
+.search-panel__badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+.search-panel__doc-time {
+  flex: 0 0 auto;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  opacity: 0.8;
+}
+
+.search-panel__hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.search-panel__hit {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--text-h);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+
+  &[aria-current='true'] {
+    background: var(--accent-bg);
+  }
+}
+
+.search-panel__snippet {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Two lines, then clipped: a passage can be a whole paragraph, and rows of
+     wildly different heights make the list hard to scan. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+
+  /* Matches the palette: colour carries the hit, not a yellow block that
+     would fight the selected row's accent tint. */
+  & > mark {
+    background: transparent;
+    color: var(--accent);
+    font-weight: 600;
+  }
+}
+
+.search-panel__hint {
+  flex: 0 0 auto;
+  max-width: 40%;
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-panel__empty {
+  padding: 24px 16px;
+  font-size: 13px;
+  color: var(--text);
+  text-align: center;
+}
+
 /* --- Version history --- */
 
 /* Shares the palette's backdrop; both are transient full-screen surfaces. */

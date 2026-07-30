@@ -9,6 +9,7 @@ import {
 } from '../db/threads'
 import { buildSelector } from '../markdown/anchors'
 import { createId } from '../lib/id'
+import { reindexDocumentById } from '../search/store'
 import type { CommentRecord, ThreadWithComments } from '../types'
 
 /**
@@ -163,6 +164,17 @@ export function useThreads(docId: string | null, reloadToken = 0): ThreadsApi {
     }, ORPHAN_GRACE_MS)
   }, [])
 
+  /**
+   * Comment bodies are indexed too, so every write to one has to reach the
+   * index. Fire-and-forget for the same reason as in useDocuments: the record
+   * is already in IndexedDB, which is what the index is derived from.
+   */
+  const reindexComments = useCallback((id: string) => {
+    void reindexDocumentById(id).catch(error => {
+      console.error('[search] comment reindex failed', error)
+    })
+  }, [])
+
   const addThread = useCallback(
     async (editor: Editor, body: string): Promise<string | null> => {
       if (!docId) return null
@@ -200,12 +212,13 @@ export function useThreads(docId: string | null, reloadToken = 0): ThreadsApi {
       pendingIds.current.add(threadId)
       editor.commands.setComment(threadId)
       await createThread(thread, first)
+      reindexComments(docId)
 
       setThreads(previous => [...previous, { ...thread, comments: [first] }])
       setActiveId(threadId)
       return threadId
     },
-    [docId],
+    [docId, reindexComments],
   )
 
   const reply = useCallback(
@@ -223,6 +236,7 @@ export function useThreads(docId: string | null, reloadToken = 0): ThreadsApi {
       }
 
       await putComment(comment)
+      reindexComments(docId)
       setThreads(previous =>
         previous.map(thread =>
           thread.id === threadId
@@ -231,7 +245,7 @@ export function useThreads(docId: string | null, reloadToken = 0): ThreadsApi {
         ),
       )
     },
-    [docId],
+    [docId, reindexComments],
   )
 
   /**
@@ -261,8 +275,11 @@ export function useThreads(docId: string | null, reloadToken = 0): ThreadsApi {
       }),
     )
 
-    if (updated) await putComment(updated)
-  }, [])
+    if (updated) {
+      await putComment(updated)
+      reindexComments(updated.docId)
+    }
+  }, [reindexComments])
 
   const resolve = useCallback(
     async (editor: Editor, threadId: string, resolved: boolean) => {
@@ -332,15 +349,19 @@ export function useThreads(docId: string | null, reloadToken = 0): ThreadsApi {
     return changed.length
   }, [])
 
-  const remove = useCallback(async (editor: Editor, threadId: string) => {
-    // Delete the record first: the reconciler iterates known threads, so a
-    // thread that is already gone cannot orphan itself on the way out.
-    await deleteThreadCascade(threadId)
-    pendingIds.current.delete(threadId)
-    setThreads(previous => previous.filter(thread => thread.id !== threadId))
-    setActiveId(current => (current === threadId ? null : current))
-    editor.commands.unsetComment(threadId)
-  }, [])
+  const remove = useCallback(
+    async (editor: Editor, threadId: string) => {
+      // Delete the record first: the reconciler iterates known threads, so a
+      // thread that is already gone cannot orphan itself on the way out.
+      await deleteThreadCascade(threadId)
+      if (docId) reindexComments(docId)
+      pendingIds.current.delete(threadId)
+      setThreads(previous => previous.filter(thread => thread.id !== threadId))
+      setActiveId(current => (current === threadId ? null : current))
+      editor.commands.unsetComment(threadId)
+    },
+    [docId, reindexComments],
+  )
 
   /** Re-attach an orphaned thread to the current selection. */
   const reanchor = useCallback(async (editor: Editor, threadId: string) => {
