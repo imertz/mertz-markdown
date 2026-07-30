@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/core'
 import { useEffect, useRef, useState } from 'react'
+import { unlinkRange } from '../../editor/linkActions'
 import { useDismissable } from '../../hooks/useDismissable'
 import { normalizeHref } from '../../lib/href'
 import { ExternalLinkIcon } from '../icons'
@@ -73,13 +74,7 @@ export function LinkPopover({ editor, target, onClose }: LinkPopoverProps) {
   }
 
   const remove = () => {
-    editor
-      .chain()
-      .setTextSelection(range)
-      .extendMarkRange('link')
-      .unsetLink()
-      .focus()
-      .run()
+    unlinkRange(editor, range)
     onClose()
   }
 

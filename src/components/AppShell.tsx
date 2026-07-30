@@ -17,6 +17,7 @@ import {
 import { setActiveThread } from '../editor/extensions/commentActive'
 import { clearSearch, findMatches } from '../editor/extensions/search'
 import { readTableInfo } from '../editor/extensions/tableColumn'
+import { hrefAt, linkRangeAt } from '../editor/linkActions'
 import type { OutlineEntry } from '../editor/outline'
 import { caretFor, collectOutline, stepHeading } from '../editor/outline'
 import { useMarkdownEditor } from '../editor/useMarkdownEditor'
@@ -69,6 +70,7 @@ import { ExportMenu } from './documents/ExportMenu'
 import { EditorSurface } from './editor/EditorSurface'
 import { FindBar } from './editor/FindBar'
 import { ImageBubbleMenu } from './editor/ImageBubbleMenu'
+import { LinkHoverCard } from './editor/LinkHoverCard'
 import type { LinkTarget } from './editor/LinkPopover'
 import { LinkPopover } from './editor/LinkPopover'
 import { SelectionBubbleMenu } from './editor/SelectionBubbleMenu'
@@ -417,26 +419,16 @@ export function AppShell() {
   const startLink = useCallback(() => {
     if (!editor || editor.isDestroyed) return
     const { state } = editor
-    const type = state.schema.marks.link
-    if (!type) return
-
-    const hrefOf = (pos: number): string => {
-      const mark = state.doc
-        .resolve(pos)
-        .marks()
-        .find(candidate => candidate.type === type)
-      return typeof mark?.attrs.href === 'string' ? mark.attrs.href : ''
-    }
-
     const { from, to, empty } = state.selection
+
     if (!empty) {
-      setLinkTarget({ from, to, href: hrefOf(from) })
+      setLinkTarget({ from, to, href: hrefAt(state, from) })
       return
     }
 
-    const range = getMarkRange(state.selection.$from, type)
-    if (!range) return
-    setLinkTarget({ ...range, href: hrefOf(range.from) })
+    const found = linkRangeAt(state, from)
+    if (!found) return
+    setLinkTarget(found)
   }, [editor])
 
   const exportMarkdown = useCallback(() => {
@@ -1157,6 +1149,14 @@ export function AppShell() {
           current={toMarkdown(editor)}
           onRestore={snapshot => void restoreSnapshot(snapshot)}
           onClose={() => setHistoryOpen(false)}
+        />
+      ) : null}
+
+      {editor ? (
+        <LinkHoverCard
+          editor={editor}
+          suppressed={linkTarget !== null}
+          onEdit={setLinkTarget}
         />
       ) : null}
 
