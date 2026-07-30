@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { formatShortcut } from '../../lib/shortcuts'
+import { hintFor } from '../../keys/catalog'
 
 interface CommentComposerProps {
   placeholder?: string
@@ -51,7 +51,9 @@ export function CommentComposer({
   }
 
   return (
-    <div className="composer">
+    // data-keys: ⌘⏎ submits and Escape cancels while this is focused, so the
+    // global table stands down rather than acting on the document behind it.
+    <div className="composer" data-keys="overlay">
       <textarea
         ref={field}
         value={body}
@@ -77,7 +79,7 @@ export function CommentComposer({
           type="button"
           className="btn--primary"
           disabled={!body.trim()}
-          title={`${submitLabel} (${formatShortcut('mod+enter')})`}
+          title={`${submitLabel} (${hintFor('comment.submit')})`}
           onClick={submit}
         >
           {submitLabel}

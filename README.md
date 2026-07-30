@@ -74,6 +74,48 @@ Two upstream quirks are handled in `src/markdown/`:
   `normalizeDocForExport`. `toMarkdown()` is the only sanctioned way markdown
   leaves the app; a test greps for direct `getMarkdown()` calls.
 
+## Keyboard
+
+Every chord in the app is declared once, in `src/keys/catalog.ts`. The window
+matcher, the command palette, the cheat sheet, the hold-a-modifier panel and
+every tooltip are views of that one table, so a chord cannot mean one thing in
+a tooltip and another in the keymap. Chords below are written in the ⌘ spelling;
+off Apple hardware they print, and bind, as Ctrl.
+
+- **Hold ⌘ for a moment** and a panel lists what that modifier does from here —
+  filtered live as you add ⇧ or ⌥, dismissed the instant you press a key or let
+  go. It is a view of the keymap, never a second dispatcher: the key you press
+  runs through the ordinary matcher.
+- **`⌘/`, or just `?`** opens the full reference, grouped and searchable,
+  including the chords Tiptap delivers (`⌘B`, `⌘Z`, Tab between table cells)
+  that nothing used to mention. Context-gated groups are shown as inactive
+  rather than hidden — *these exist, and here is what they need*.
+- **A bare key is inert while you type.** `?` mid-sentence is a question mark;
+  `?` with focus on the page opens the sheet. Chords carrying ⌘ or ⌥ work
+  either way, and nothing at all fires while an overlay owns the keyboard.
+
+Some chords differ off Apple hardware, and not as a translation:
+
+| | Apple | Windows / Linux | Why |
+|---|---|---|---|
+| Comment on selection | `⌘⌥M` | `Alt+M` | Windows spells AltGr as Ctrl+Alt, so Ctrl+Alt+M is how a German keyboard types `µ` |
+| Previous / next section | `⌘⌥↑` `⌘⌥↓` | `Alt+↑` `Alt+↓` | GNOME and KDE take Ctrl+Alt+arrows for switching workspaces — the browser never sees them |
+| Previous / next comment | `⌘⌥⇧↑` `⌘⌥⇧↓` | `Alt+Shift+↑` `Alt+Shift+↓` | same |
+| Heading 1–3, code block | `⌘⌥1–3` `⌘⌥C` | `Alt+1–3` `Alt+C` | Tiptap's own `Mod-Alt-` chords, given a spelling that is not AltGr |
+| Strikethrough | `⌘⇧X` | `Ctrl+Shift+X` | Tiptap binds `⌘⇧S`, which is Firefox's debugger off Apple |
+| Blockquote | `⌘⇧.` | `Ctrl+Shift+.` | Tiptap binds `⌘⇧B`, which is Chrome's bookmarks bar |
+
+The rule these follow is **never ship Ctrl+Alt off Apple** — it *is* AltGr — and
+a test enforces it over the whole catalog rather than trusting anyone to
+remember. Plain Alt is safe by construction: AltGr also sets `ctrlKey`, so an
+Alt-only chord can never match it. AltGr is additionally guarded in the matcher
+and inside the editor's keymap, so typing the `²` in "10 m²" no longer converts
+the paragraph to a heading.
+
+`⌘N` and `⌘1`–`⌘9` are the browser's in a tab and land only in the installed
+app; the cheat sheet says so rather than pretending otherwise, and `⌘⇧[` / `⌘⇧]`
+step between documents everywhere.
+
 ## Beyond the editor
 
 Everything below is built on the same rule: nothing reaches the `.md`.
@@ -82,7 +124,11 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   document, so `⌘Z` after a search still undoes your last *edit*. Replace-all
   lands as a single undo step.
 - **Command palette** (`⌘K`) fuzzy-searches documents, the live heading outline
-  and the commands, from one field.
+  and the commands, from one field. The command half comes straight from the
+  shortcut catalog, so a command is reachable by name whether or not it has a
+  chord — and the table commands are only listed with the caret in a table,
+  which is the sole pointer-free route to them, since the table extension owns
+  Tab.
 - **Search across documents** (`⌘⇧F`) is full-text, not title-only: BM25 over
   every passage of every document, its comments and its trash, ranked and
   grouped by document. Picking a hit opens the document and puts the caret on
@@ -94,6 +140,10 @@ Everything below is built on the same rule: nothing reaches the `.md`.
 - **Links** (`⌘⇧K`) get a popover instead of nothing: the mark was always in the
   schema with no UI. Bare hosts gain `https://`, bare addresses become
   `mailto:`, and `javascript:` is refused.
+- **`⌘S` saves a version**, rather than offering the browser's "Save page as"
+  for a document that lives in this tab. Edits already persist on their own;
+  this flushes the pending write first, so the snapshot holds the last
+  keystroke rather than the one before it.
 - **Version history.** Snapshots are written at most every 5 minutes per
   document, capped at 50, and pruned oldest-first. A snapshot stores canonical
   ProseMirror JSON — markdown could not carry the anchors — so restoring brings

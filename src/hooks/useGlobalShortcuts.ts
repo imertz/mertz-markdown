@@ -1,19 +1,25 @@
 import { useEffect, useRef } from 'react'
+import type { Chord } from '../keys/chord'
+import { matchesChord } from '../keys/chord'
+import { firesIn, scopeOf } from '../keys/scope'
 
-export interface Shortcut {
+/**
+ * A chord plus what to do about it.
+ *
+ * The chord itself — which key, which modifiers, and whether it matches by
+ * character or by position — lives in `keys/chord`, so the same shape drives
+ * the matcher, the cheat sheet and the peek HUD without any of them restating
+ * it.
+ */
+export interface Shortcut extends Chord {
   /**
-   * `event.key`, lower-cased — so `'f'`, `'arrowup'`, `'escape'`.
+   * Whether this binding applies right now.
    *
-   * Deliberately `key` and not `code`: `code` is the physical key and would
-   * send a Dvorak or AZERTY user's fingers somewhere else entirely. macOS does
-   * not apply Option's character translation while Command is held, so
-   * ⌘⌥M still arrives as `'m'` rather than `'µ'`.
+   * Falling *through* to the next match rather than swallowing the key: a
+   * table-only chord that is not in a table has to leave the keystroke for
+   * whoever else wants it, including the browser.
    */
-  key: string
-  /** ⌘ on macOS, Ctrl everywhere else — the two are never distinguished. */
-  mod?: boolean
-  alt?: boolean
-  shift?: boolean
+  when?: () => boolean
   run: () => void
 }
 
@@ -36,14 +42,20 @@ export function useGlobalShortcuts(shortcuts: readonly Shortcut[]): void {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const mod = event.metaKey || event.ctrlKey
-      const key = event.key.toLowerCase()
+      /*
+       * ProseMirror's own keymap sits on the editable node and runs first, so
+       * a key it has already handled arrives here marked. Bailing makes the
+       * editor authoritative over its own chords — ⌘B, Tab in a table — without
+       * either side holding a list of the other's bindings.
+       */
+      if (event.defaultPrevented) return
+
+      const scope = scopeOf(event)
 
       for (const shortcut of current.current) {
-        if (key !== shortcut.key) continue
-        if (mod !== Boolean(shortcut.mod)) continue
-        if (event.altKey !== Boolean(shortcut.alt)) continue
-        if (event.shiftKey !== Boolean(shortcut.shift)) continue
+        if (!matchesChord(shortcut, event)) continue
+        if (!firesIn(shortcut, scope)) continue
+        if (shortcut.when && !shortcut.when()) continue
 
         event.preventDefault()
         shortcut.run()
