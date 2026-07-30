@@ -19,7 +19,7 @@
 ```bash
 bun install
 bun run dev        # http://localhost:5173
-bun run test       # 417 tests
+bun run test       # 536 tests
 bun run build      # tsc -b && vite build (emits the service worker)
 bun run preview    # serve the production build, service worker active
 ```
@@ -83,6 +83,14 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   lands as a single undo step.
 - **Command palette** (`⌘K`) fuzzy-searches documents, the live heading outline
   and the commands, from one field.
+- **Search across documents** (`⌘⇧F`) is full-text, not title-only: BM25 over
+  every passage of every document, its comments and its trash, ranked and
+  grouped by document. Picking a hit opens the document and puts the caret on
+  the passage, by handing the passage's `TextQuoteSelector` to the same
+  resolver comment re-anchoring uses. The index lives in memory, is rebuilt
+  from IndexedDB, and is updated at the same choke point that writes a
+  document — `src/test/search-index-guard.test.ts` fails the build if a write
+  ever bypasses it, because a stale index reports no error at all.
 - **Links** (`⌘⇧K`) get a popover instead of nothing: the mark was always in the
   schema with no UI. Bare hosts gain `https://`, bare addresses become
   `mailto:`, and `javascript:` is refused.
@@ -142,7 +150,17 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   because it changes the exported asset bytes. GIF cropping is disabled to
   avoid silently flattening an animation.
 - **Find is literal and case-insensitive.** No regular expressions, no
-  whole-word, and a match never spans a block boundary.
+  whole-word, and a match never spans a block boundary. Cross-document search
+  (`⌘⇧F`) is the opposite: stemmed and ranked, so it matches *running* for
+  *run* but will not do substrings.
+- **Cross-document search stems English and Greek.** Text in other languages is
+  still found, but only on the forms actually written — *läuft* will not find
+  *laufen*. ZBSearch holds one language per index, so a script-dispatched
+  stemmer keeps a single comparable BM25 space rather than splitting into
+  per-language indexes whose scores could not be merged honestly.
+- **Search results reflect this tab's view of the database.** The index is
+  built per tab, so another tab's writes are invisible to it until reload — a
+  narrower case of the last-write-wins limitation above.
 - **The diff in version history is line-based, over the derived markdown.**
   A reflowed paragraph reads as one line replaced, because it is one line.
 - **A table cell holds one line.** GFM has no way to put a line break in a pipe
@@ -163,6 +181,13 @@ Everything below is built on the same rule: nothing reaches the `.md`.
 - **Turning off a table's header row leaves an empty one in the file.** A GFM
   table must have a header, so a headerless table serializes with an empty
   header row and reads back with one. Idempotent, but not what you left.
+- **`zbsearch` and `@zbsearch/stemmers` are pinned exactly.** Both are weeks-old
+  forks of Orama on a shared version line, and an unattended patch bump into a
+  Workbox-precached offline app is not something you discover until a user's
+  search quietly stops matching. `src/test/search-language.test.ts` pins the
+  upstream behaviours the index schema depends on, including two the published
+  docs get wrong: `groupBy` rejects `enum` properties, and multilingual mode
+  does not fold Greek diacritics.
 - **`@tiptap/*` versions are pinned exactly.** Their peer deps demand an exact
   match; a caret lets two copies of `@tiptap/core` resolve, which breaks
   ProseMirror plugin identity. Bump them together.
@@ -175,7 +200,8 @@ src/
 ├── markdown/    config (allowlists) · export · exportHtml · import · anchors
 ├── editor/      extensions/ (comment mark, search, plugins) · useMarkdownEditor
 ├── images/      file/URL validation · durable insertion · crop transforms
-├── lib/         fuzzy · lineDiff · snapshotPolicy · href · stats · time · title
+├── lib/         fuzzy · highlight · lineDiff · snapshotPolicy · href · stats · time
+├── search/      passages · flatten (anchor rule) · store (index) · snippet · stemmer
 ├── hooks/       useDocuments · useThreads · useGlobalShortcuts · useFileDrop · …
 ├── components/  AppShell · editor/ · comments/ · documents/ · history/
 └── test/        schema-lock · markdown-roundtrip · comment-mark · orphan · db

@@ -16,6 +16,14 @@ export interface UseMarkdownEditorOptions {
   getKnownThreadIds?: () => ReadonlySet<string>
   resolveImageAsset?: (assetId: string) => Promise<Blob | undefined>
   onImageFiles?: (editor: Editor, files: File[], position?: number) => void
+  /**
+   * Fired once per document load, immediately after the content lands.
+   *
+   * `activeId` changes a commit earlier than the content does, so anything that
+   * needs to act on the *new* document — jumping to a search hit, say — cannot
+   * key off it without reading the outgoing document instead.
+   */
+  onDocumentLoaded?: (docId: string) => void
 }
 
 /**
@@ -38,6 +46,7 @@ export function useMarkdownEditor({
   getKnownThreadIds,
   resolveImageAsset,
   onImageFiles,
+  onDocumentLoaded,
 }: UseMarkdownEditorOptions): Editor | null {
   const handlers = useRef({
     onDocChanged,
@@ -45,6 +54,7 @@ export function useMarkdownEditor({
     getKnownThreadIds,
     resolveImageAsset,
     onImageFiles,
+    onDocumentLoaded,
   })
   useEffect(() => {
     handlers.current = {
@@ -53,6 +63,7 @@ export function useMarkdownEditor({
       getKnownThreadIds,
       resolveImageAsset,
       onImageFiles,
+      onDocumentLoaded,
     }
   })
 
@@ -92,6 +103,7 @@ export function useMarkdownEditor({
 
     loadedId.current = activeId
     editor.commands.setContent(initialDoc, { emitUpdate: false })
+    handlers.current.onDocumentLoaded?.(activeId)
   }, [editor, activeId, initialDoc])
 
   return editor

@@ -20,7 +20,15 @@ interface FindBarProps {
  * typing, which is most of what it is for. Escape closes it, nothing else does.
  */
 export function FindBar({ editor, focusRequest, onClose }: FindBarProps) {
-  const [query, setQuery] = useState('')
+  /*
+   * Seeded from the extension rather than from empty.
+   *
+   * The bar can open onto a search that is already running — opening a
+   * cross-document hit sets the query so the passage is highlighted in
+   * context — and a field that read empty while the document was visibly
+   * highlighted would be lying about what it controls.
+   */
+  const [query, setQuery] = useState(() => getSearchState(editor).query)
   const [replacement, setReplacement] = useState('')
   const [replacing, setReplacing] = useState(false)
   const input = useRef<HTMLInputElement>(null)

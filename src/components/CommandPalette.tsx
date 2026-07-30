@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDismissable } from '../hooks/useDismissable'
 import { fuzzyMatch } from '../lib/fuzzy'
+import { segments } from '../lib/highlight'
 
 export interface PaletteAction {
   id: string
@@ -21,21 +22,6 @@ const MAX_RESULTS = 40
 interface Row {
   action: PaletteAction
   matched: number[]
-}
-
-/** Split a label into the runs the query hit and the runs it did not. */
-function segments(label: string, matched: readonly number[]) {
-  const hit = new Set(matched)
-  const parts: { text: string; on: boolean }[] = []
-
-  for (let i = 0; i < label.length; i += 1) {
-    const on = hit.has(i)
-    const last = parts.at(-1)
-    if (last && last.on === on) last.text += label[i]
-    else parts.push({ text: label[i], on })
-  }
-
-  return parts
 }
 
 /**

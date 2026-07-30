@@ -15,7 +15,7 @@ import {
   previousThreadBefore,
 } from '../editor/extensions/comment'
 import { setActiveThread } from '../editor/extensions/commentActive'
-import { clearSearch } from '../editor/extensions/search'
+import { clearSearch, findMatches } from '../editor/extensions/search'
 import { readTableInfo } from '../editor/extensions/tableColumn'
 import type { OutlineEntry } from '../editor/outline'
 import { caretFor, collectOutline, stepHeading } from '../editor/outline'
@@ -47,6 +47,7 @@ import { fetchImageFile, insertImageUrl } from '../images/url'
 import { formatShortcut } from '../lib/shortcuts'
 import { relative } from '../lib/time'
 import { buildDocumentExport, downloadFile } from '../markdown/bundle'
+import { resolveSelector } from '../markdown/anchors'
 import { toMarkdown } from '../markdown/export'
 import { downloadHtml, toAnnotatedHtml } from '../markdown/exportHtml'
 import type { SnapshotRecord } from '../types'
@@ -59,6 +60,8 @@ import { ThemeToggle } from './ThemeToggle'
 import { UndoToast } from './UndoToast'
 import { CommentSidebar } from './comments/CommentSidebar'
 import { HistoryPanel } from './history/HistoryPanel'
+import type { SearchHit } from './search/SearchPanel'
+import { SearchPanel } from './search/SearchPanel'
 import { BrandMark, HistoryIcon } from './icons'
 import { DocumentList } from './documents/DocumentList'
 import { DocumentFontMenu } from './DocumentFontMenu'
@@ -138,6 +141,17 @@ export function AppShell() {
   const [linkTarget, setLinkTarget] = useState<LinkTarget | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
+  /*
+   * A hit in another document cannot be jumped to from the click handler:
+   * `select` only sets `initialDoc`, and the editor applies it on the next
+   * commit. So park the intent and let the load edge deliver it.
+   *
+   * A ref rather than state, unlike `pendingOrphanScroll` below: nothing
+   * renders from this, and the editor calls us imperatively rather than us
+   * waiting for an effect, so a re-render would buy nothing.
+   */
+  const pendingJump = useRef<SearchHit | null>(null)
   const [undo, setUndo] = useState<{ id: string; message: string } | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const [cropSession, setCropSession] = useState<CropSession | null>(null)
@@ -190,6 +204,14 @@ export function AppShell() {
     [activeId],
   )
 
+  /*
+   * The search-hit jump needs the editor, so it is defined far below this
+   * point — but useMarkdownEditor has to be handed something now. The hook
+   * reads its handlers through a ref anyway, so a stable indirection costs
+   * nothing and keeps the definition next to the rest of the search wiring.
+   */
+  const documentLoaded = useRef<(docId: string) => void>(() => {})
+
   const autosave = useDebouncedCallback(
     async (docId: string, editor: Editor) => {
       // Canonical PM JSON plus derived markdown, written together so the two
@@ -215,6 +237,7 @@ export function AppShell() {
     getKnownThreadIds: getKnownIds,
     resolveImageAsset,
     onImageFiles: addImageFiles,
+    onDocumentLoaded: docId => documentLoaded.current(docId),
   })
 
   const addImageUrl = useCallback(
@@ -535,6 +558,76 @@ export function AppShell() {
     [editor, goTo],
   )
 
+  /**
+   * Put the caret on the passage a search hit came from.
+   *
+   * Three fallbacks deep and it never throws: an anchor that no longer resolves
+   * means the document was edited since it was indexed, which is ordinary, and
+   * opening the document is still the right outcome.
+   */
+  const jumpToHit = useCallback(
+    (hit: SearchHit) => {
+      if (!editor || editor.isDestroyed) return
+
+      const term = hit.term.trim()
+      const range =
+        (hit.passage.anchor.exact
+          ? resolveSelector(editor.state.doc, hit.passage.anchor)
+          : null) ?? (term ? (findMatches(editor.state.doc, term)[0] ?? null) : null)
+
+      if (hit.passage.threadId) {
+        // A comment lives in the rail, not in the text.
+        showRail()
+        setActiveId(hit.passage.threadId)
+        setActiveThread(editor, hit.passage.threadId)
+      }
+
+      if (range) {
+        editor.chain().focus().setTextSelection(range).scrollIntoView().run()
+        // Reuse the find stack so the match is highlighted in context and the
+        // other occurrences are one keystroke away.
+        if (term) {
+          editor.commands.setSearchQuery(term)
+          setFindOpen(true)
+        }
+      }
+    },
+    [editor, setActiveId, showRail],
+  )
+
+  const openHit = useCallback(
+    (hit: SearchHit) => {
+      if (hit.passage.trashed) {
+        // `select` only knows live documents, and restore already opens it.
+        pendingJump.current = hit
+        void documents.restore(hit.passage.docId)
+        return
+      }
+      if (hit.passage.docId === documents.activeId) {
+        jumpToHit(hit)
+        return
+      }
+      pendingJump.current = hit
+      documents.select(hit.passage.docId)
+    },
+    [documents, jumpToHit],
+  )
+
+  /** Fired by useMarkdownEditor once the new content is actually in the view. */
+  const onDocumentLoaded = useCallback(
+    (docId: string) => {
+      const hit = pendingJump.current
+      if (!hit || hit.passage.docId !== docId) return
+      // Cleared first: a jump that throws must not strand the intent and fire
+      // again on the next unrelated document load.
+      pendingJump.current = null
+      jumpToHit(hit)
+    },
+    [jumpToHit],
+  )
+
+  documentLoaded.current = onDocumentLoaded
+
   const stepSection = useCallback(
     (delta: -1 | 1) => {
       if (!editor || editor.isDestroyed) return
@@ -687,6 +780,12 @@ export function AppShell() {
         },
       },
       {
+        id: 'cmd:search-all',
+        label: 'Search all documents',
+        hint: formatShortcut('mod+shift+f'),
+        run: () => setSearchOpen(true),
+      },
+      {
         id: 'cmd:history',
         label: 'Version history',
         run: () => setHistoryOpen(true),
@@ -831,6 +930,7 @@ export function AppShell() {
   useGlobalShortcuts([
     { key: 'f', mod: true, run: openFind },
     { key: 'k', mod: true, run: () => setPaletteOpen(true) },
+    { key: 'f', mod: true, shift: true, run: () => setSearchOpen(true) },
     { key: 'k', mod: true, shift: true, run: startLink },
     { key: 'm', mod: true, alt: true, run: startDraft },
     { key: 'arrowup', mod: true, alt: true, run: () => stepSection(-1) },
@@ -1041,6 +1141,14 @@ export function AppShell() {
 
       {paletteOpen ? (
         <CommandPalette actions={paletteActions} onClose={closePalette} />
+      ) : null}
+
+      {searchOpen ? (
+        <SearchPanel
+          onClose={() => setSearchOpen(false)}
+          onOpenHit={openHit}
+          flushPendingWrites={flush}
+        />
       ) : null}
 
       {historyOpen && editor && documents.activeId ? (

@@ -17,6 +17,7 @@ import {
   pruneSnapshots,
 } from '../db/snapshots'
 import { createId } from '../lib/id'
+import { dropDocument, reindexDocument } from '../search/store'
 import {
   SNAPSHOT_LIMIT,
   shouldSnapshot,
@@ -148,20 +149,37 @@ export function useDocuments(): DocumentsApi {
     [activeId, documents],
   )
 
+  /*
+   * Keeping the search index level with the database.
+   *
+   * Every one of these is fire-and-forget, on the same reasoning as the
+   * `void snapshot(...)` below: the write has landed, and no user-visible
+   * status should wait on bookkeeping. Nor can they corrupt anything if they
+   * lose a race — the index is derived from IndexedDB and every mutation writes
+   * there first, so a rebuild is always the truth. See src/search/store.ts.
+   */
+  const reindex = useCallback((record: DocumentRecord) => {
+    void reindexDocument(record).catch(error => {
+      console.error('[search] reindex failed', error)
+    })
+  }, [])
+
   const create = useCallback(async () => {
     const record = newDocument()
     await putDocument(record)
+    reindex(record)
     setDocuments(previous => [record, ...previous])
     setActiveId(record.id)
     setInitialDoc(record.doc)
     setStatus('saved')
-  }, [])
+  }, [reindex])
 
   /** Open whichever document should take over from one leaving the list. */
   const openFrom = useCallback(async (remaining: DocumentRecord[]) => {
     if (remaining.length === 0) {
       const replacement = newDocument()
       await putDocument(replacement)
+      reindex(replacement)
       setDocuments([replacement])
       setActiveId(replacement.id)
       setInitialDoc(replacement.doc)
@@ -172,12 +190,14 @@ export function useDocuments(): DocumentsApi {
     const next = remaining[0]
     setActiveId(next.id)
     setInitialDoc(next.doc)
-  }, [])
+  }, [reindex])
 
   const remove = useCallback(
     async (id: string): Promise<DocumentRecord | null> => {
       const record = await softDeleteDocument(id)
       if (!record) return null
+      // Not a drop: trashed documents stay searchable behind the Trash chip.
+      reindex(record)
 
       const remaining = documents.filter(candidate => candidate.id !== id)
       setTrashed(previous => [record, ...previous])
@@ -190,12 +210,13 @@ export function useDocuments(): DocumentsApi {
 
       return record
     },
-    [activeId, documents, openFrom],
+    [activeId, documents, openFrom, reindex],
   )
 
   const restore = useCallback(async (id: string) => {
     const record = await restoreDocument(id)
     if (!record) return
+    reindex(record)
 
     setTrashed(previous => previous.filter(candidate => candidate.id !== id))
     setDocuments(previous =>
@@ -206,10 +227,13 @@ export function useDocuments(): DocumentsApi {
     )
     setActiveId(record.id)
     setInitialDoc(record.doc)
-  }, [])
+  }, [reindex])
 
   const destroy = useCallback(async (id: string) => {
     await deleteDocumentCascade(id)
+    void dropDocument(id).catch(error => {
+      console.error('[search] drop failed', error)
+    })
     setTrashed(previous => previous.filter(candidate => candidate.id !== id))
   }, [])
 
@@ -232,10 +256,11 @@ export function useDocuments(): DocumentsApi {
     }
 
     await putDocument(record)
+    reindex(record)
     setDocuments(previous =>
       previous.map(candidate => (candidate.id === id ? record : candidate)),
     )
-  }, [])
+  }, [reindex])
 
   /**
    * Write a restore point.
@@ -305,12 +330,13 @@ export function useDocuments(): DocumentsApi {
         // Deliberately not awaited: the save is done, and the status must not
         // wait on history bookkeeping to say so.
         void snapshot(docId, doc, markdown, 'interval')
+        reindex(record)
       } catch (error) {
         console.error('[documents] save failed', error)
         setStatus('error')
       }
     },
-    [snapshot],
+    [reindex, snapshot],
   )
 
   /**
@@ -338,6 +364,7 @@ export function useDocuments(): DocumentsApi {
         }
 
         await putDocumentWithAssets(record, imported.assets)
+        reindex(record)
         setDocuments(previous => [record, ...previous])
         setActiveId(record.id)
         setInitialDoc(record.doc)
@@ -359,12 +386,13 @@ export function useDocuments(): DocumentsApi {
       }
 
       await putDocument(record)
+      reindex(record)
       setDocuments(previous => [record, ...previous])
       setActiveId(record.id)
       setInitialDoc(record.doc)
       setStatus('saved')
     },
-    [],
+    [reindex],
   )
 
   const activeTitle =
