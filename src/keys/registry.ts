@@ -158,6 +158,11 @@ export function buildCommands(deps: CommandDeps): Command[] {
       hasEditor,
     ),
     define(
+      'format.justify',
+      editorCommand(e => e.chain().focus().setTextAlign('justify').run()),
+      hasEditor,
+    ),
+    define(
       'format.bulletList',
       editorCommand(e => e.chain().focus().toggleBulletList().run()),
       hasEditor,

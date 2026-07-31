@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDocument } from '../db/documents'
 import { useDocuments } from '../hooks/useDocuments'
+import { APP_NAME, pageTitle } from '../lib/title'
 import { resetDatabase } from './dbHarness'
 
 /**
@@ -108,5 +109,24 @@ describe('document titles', () => {
     expect(
       view.result.current.documents.find(record => record.id === id)?.updatedAt,
     ).toBe(before)
+  })
+})
+
+describe('browser page titles', () => {
+  it('combines a document title with the app name', () => {
+    expect(pageTitle('Release notes')).toBe(
+      `Release notes | ${APP_NAME}`,
+    )
+  })
+
+  it('uses only the app name when the document is untitled', () => {
+    expect(pageTitle('Untitled document')).toBe(APP_NAME)
+    expect(pageTitle('')).toBe(APP_NAME)
+  })
+
+  it('trims whitespace before building the page title', () => {
+    expect(pageTitle('  Release notes  ')).toBe(
+      `Release notes | ${APP_NAME}`,
+    )
   })
 })
