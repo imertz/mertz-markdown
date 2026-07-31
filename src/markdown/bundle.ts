@@ -7,6 +7,7 @@ import {
   MAX_IMAGE_BYTES,
 } from '../images/files'
 import { makeImportedImageAsset } from '../images/optimize'
+import { safeStem } from '../lib/filename'
 import type { AssetRecord } from '../types'
 import { toMarkdown } from './export'
 import { titleFromFilename } from './import'
@@ -23,9 +24,6 @@ export const BUNDLE_ACCEPT = '.zip,application/zip,application/x-zip-compressed'
 export function isBundleFile(file: File): boolean {
   return file.name.toLowerCase().endsWith('.zip') || file.type === ZIP_MIME
 }
-
-const safeStem = (value: string): string =>
-  value.replace(/[/\\?%*:|"<>]/g, '-').slice(0, 100) || 'document'
 
 interface LocalImageReference {
   assetId: string

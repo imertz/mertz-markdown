@@ -4,6 +4,7 @@ import {
   COMMENT_MARK_NAME,
   collectThreadStarts,
 } from '../editor/extensions/comment'
+import { withExtension } from '../lib/filename'
 import type { ThreadWithComments } from '../types'
 
 /**
@@ -235,13 +236,12 @@ function buildAnnex(
 
 /** Trigger a download of `html` as a `.html` file. */
 export function downloadHtml(filename: string, html: string): void {
-  const safeName = filename.replace(/[/\\?%*:|"<>]/g, '-').slice(0, 100)
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
 
   const link = document.createElement('a')
   link.href = url
-  link.download = safeName.endsWith('.html') ? safeName : `${safeName}.html`
+  link.download = withExtension(filename, 'html')
   document.body.append(link)
   link.click()
   link.remove()

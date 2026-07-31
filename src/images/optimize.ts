@@ -9,7 +9,7 @@ export const IMPORTED_IMAGE_MAX_EDGE = 1920
 export const IMPORTED_IMAGE_MIME = 'image/webp'
 export const IMPORTED_IMAGE_QUALITY = 0.85
 
-interface DecodedImage {
+export interface DecodedImage {
   source: CanvasImageSource
   width: number
   height: number
@@ -19,7 +19,13 @@ interface DecodedImage {
 const decodeError = (file: File): Error =>
   new Error(`“${file.name || 'Clipboard image'}” could not be decoded`)
 
-async function decodeImage(file: File): Promise<DecodedImage> {
+/**
+ * Intrinsic pixel dimensions plus a source a canvas can draw.
+ *
+ * Exported for the DOCX exporter, which needs the same two things — real
+ * dimensions, and a way to re-encode formats Word will not display.
+ */
+export async function decodeImage(file: File): Promise<DecodedImage> {
   if (typeof createImageBitmap === 'function') {
     try {
       const bitmap = await createImageBitmap(file)
@@ -61,24 +67,40 @@ async function decodeImage(file: File): Promise<DecodedImage> {
   }
 }
 
-export function encodeCanvasAsWebp(
+/**
+ * `canvas.toBlob` as a promise, with the type check the callers need.
+ *
+ * The check is not paranoia: `toBlob` falls back to PNG for a format the
+ * browser cannot encode, so without it a Safari that lacks WebP would hand
+ * back PNG bytes under a `.webp` name.
+ */
+export function encodeCanvas(
   canvas: HTMLCanvasElement,
+  mimeType: string,
   quality: number,
   failureMessage: string,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       blob => {
-        if (!blob || blob.type !== IMPORTED_IMAGE_MIME) {
+        if (!blob || blob.type !== mimeType) {
           reject(new Error(failureMessage))
           return
         }
         resolve(blob)
       },
-      IMPORTED_IMAGE_MIME,
+      mimeType,
       quality,
     )
   })
+}
+
+export function encodeCanvasAsWebp(
+  canvas: HTMLCanvasElement,
+  quality: number,
+  failureMessage: string,
+): Promise<Blob> {
+  return encodeCanvas(canvas, IMPORTED_IMAGE_MIME, quality, failureMessage)
 }
 
 function webpFilename(filename: string): string {

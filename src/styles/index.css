@@ -524,11 +524,23 @@ body {
  * attention in an otherwise borderless header.
  */
 .export-menu {
+  position: relative;
   display: flex;
   flex: 0 0 auto;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  overflow: hidden;
+}
+
+/* The group used to clip its children to the radius, which the panel below
+   cannot live inside. The two buttons round their own outer corners instead. */
+.export-menu > button:first-of-type {
+  border-start-start-radius: var(--radius);
+  border-end-start-radius: var(--radius);
+}
+
+.export-menu > button:last-of-type {
+  border-start-end-radius: var(--radius);
+  border-end-end-radius: var(--radius);
 }
 
 .export-menu button {
@@ -564,10 +576,52 @@ body {
   }
 }
 
-/* Icon only, so it does not need a label's worth of horizontal padding.
-   Outranks the rule above, which is why the element selector is repeated. */
-.export-menu button.export-menu__annotated {
-  padding-inline: 7px;
+.export-menu__chevron {
+  opacity: 0.55;
+  margin-inline-start: -2px;
+}
+
+.export-menu__trigger[aria-expanded='true'] > .export-menu__chevron {
+  transform: rotate(180deg);
+}
+
+.export-menu__panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(300px, calc(100vw - 24px));
+  padding: 4px;
+  box-sizing: border-box;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* Outranks `.export-menu button` above, which is why the class is doubled up
+   with the element selector. */
+.export-menu .export-menu__option {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  padding: 7px 8px;
+  text-align: start;
+  box-shadow: none;
+}
+
+.export-menu__option-name {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.export-menu__option-hint {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  opacity: 0.75;
+  text-wrap: pretty;
 }
 
 /* Square icon buttons in the header: the theme toggle and version history. */

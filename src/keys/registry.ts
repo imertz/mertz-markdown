@@ -45,6 +45,8 @@ export interface CommandDeps {
     startLink: () => void
     startDraft: () => void
     exportMarkdown: () => void
+    exportDocx: () => void
+    exportDocxAnnotated: () => void
     exportAnnotated: () => void
     stepSection: (delta: -1 | 1) => void
     stepThread: (delta: -1 | 1) => void
@@ -91,6 +93,8 @@ export function buildCommands(deps: CommandDeps): Command[] {
     define('app.cheatsheet', ui.openCheatSheet),
     define('app.history', ui.openHistory),
     define('app.export', ui.exportMarkdown, hasEditor),
+    define('app.exportDocx', ui.exportDocx, hasEditor),
+    define('app.exportDocxComments', ui.exportDocxAnnotated, hasEditor),
     define('app.exportHtml', ui.exportAnnotated, hasEditor),
     define('app.toggleRail', rail.toggle),
     define('app.toggleTheme', theme.toggle),
