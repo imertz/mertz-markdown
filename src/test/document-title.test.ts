@@ -3,7 +3,7 @@ import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDocument } from '../db/documents'
 import { useDocuments } from '../hooks/useDocuments'
-import { APP_NAME, pageTitle } from '../lib/title'
+import { APP_NAME, deriveTitle, pageTitle, UNTITLED } from '../lib/title'
 import { resetDatabase } from './dbHarness'
 
 /**
@@ -40,6 +40,20 @@ const openDocuments = async () => {
 }
 
 describe('document titles', () => {
+  it('does not use a slash-command trigger as the title', () => {
+    expect(
+      deriveTitle({
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: '/heading' }],
+          },
+        ],
+      }),
+    ).toBe(UNTITLED)
+  })
+
   it('follows the content while the document has no name of its own', async () => {
     const { view, id } = await openDocuments()
 

@@ -21,6 +21,17 @@ const textOf = (node: JSONContent): string => {
  */
 export function deriveTitle(doc: JSONContent): string {
   const blocks = doc.content ?? []
+  const meaningfulBlocks = blocks.filter(block => textOf(block).trim() !== '')
+
+  // A slash command is transient editor UI. It remains ordinary text until a
+  // command is chosen, but it must not rename a new document while the menu is
+  // open (or while the user dismisses it without choosing anything).
+  if (
+    meaningfulBlocks.length === 1 &&
+    textOf(meaningfulBlocks[0]!).trim().startsWith('/')
+  ) {
+    return UNTITLED
+  }
 
   const heading = blocks.find(
     block => block.type === 'heading' && textOf(block).trim() !== '',
