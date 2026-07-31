@@ -19,6 +19,7 @@ import { CommentSanitizer } from './commentSanitizer'
 import { CommentSync } from './commentSync'
 import { LocalImage } from './image'
 import { Search } from './search'
+import { SlashCommands } from './slashCommands'
 import { TextAlign } from './textAlign'
 import {
   SingleParagraphTableCell,
@@ -27,6 +28,7 @@ import {
 } from './tableCells'
 import { TableColumn } from './tableColumn'
 import { TaskListShortcut } from './taskListShortcut'
+import { TabNavigation } from './tabNavigation'
 
 export interface EditorExtensionOptions {
   /** Called whenever the set of threads with a live anchor changes. */
@@ -125,11 +127,20 @@ export function buildExtensions(
 
     // Typing ergonomics and find/replace — none of these add a node or mark.
     TaskListShortcut,
+    TabNavigation,
     AppShortcuts,
     Search,
+    SlashCommands,
     TextAlign,
 
-    Placeholder.configure({ placeholder: EDITOR_PLACEHOLDER }),
+    // Keep the first empty paragraph decorated even if startup or a document
+    // reload leaves the selection in another empty block. The CSS uses the
+    // `is-editor-empty` class, so this still renders only for a truly empty
+    // document rather than adding prompts to ordinary blank lines.
+    Placeholder.configure({
+      placeholder: EDITOR_PLACEHOLDER,
+      showOnlyCurrent: false,
+    }),
 
     Markdown.configure({ markedOptions: MARKED_OPTIONS }),
   ]

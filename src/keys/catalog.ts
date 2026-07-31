@@ -63,6 +63,8 @@ export type Dispatch = 'window' | 'editor' | 'component'
 export interface CommandMeta {
   label: string
   category: CategoryId
+  /** Search terms used by contextual command menus, such as `/`. */
+  menuKeywords?: readonly string[]
   /** A `formatShortcut` spec. The canonical chord, and the Apple spelling. */
   keys?: string
   /**
@@ -266,6 +268,7 @@ export const CATALOG = {
   'format.h1': {
     label: 'Heading 1',
     category: 'format',
+    menuKeywords: ['heading', 'title', 'large'],
     keys: 'mod+alt+1',
     keysOther: 'alt+1',
     aliasesOther: ['mod+alt+1'],
@@ -274,6 +277,7 @@ export const CATALOG = {
   'format.h2': {
     label: 'Heading 2',
     category: 'format',
+    menuKeywords: ['heading', 'subtitle', 'medium'],
     keys: 'mod+alt+2',
     keysOther: 'alt+2',
     aliasesOther: ['mod+alt+2'],
@@ -282,6 +286,7 @@ export const CATALOG = {
   'format.h3': {
     label: 'Heading 3',
     category: 'format',
+    menuKeywords: ['heading', 'subheading', 'small'],
     keys: 'mod+alt+3',
     keysOther: 'alt+3',
     aliasesOther: ['mod+alt+3'],
@@ -303,24 +308,28 @@ export const CATALOG = {
   'format.bulletList': {
     label: 'Bullet list',
     category: 'format',
+    menuKeywords: ['bullets', 'unordered', 'list'],
     keys: 'mod+shift+8',
     dispatch: 'editor',
   },
   'format.orderedList': {
     label: 'Numbered list',
     category: 'format',
+    menuKeywords: ['numbered', 'ordered', 'list'],
     keys: 'mod+shift+7',
     dispatch: 'editor',
   },
   'format.taskList': {
     label: 'Task list',
     category: 'format',
+    menuKeywords: ['task', 'todo', 'checklist', 'checkbox'],
     keys: 'mod+shift+9',
     dispatch: 'editor',
   },
   'format.blockquote': {
     label: 'Blockquote',
     category: 'format',
+    menuKeywords: ['quote', 'callout'],
     // Tiptap binds Mod-Shift-b; off Apple that is Chrome's bookmarks bar.
     keys: 'mod+shift+.',
     aliases: ['mod+shift+b'],
@@ -329,6 +338,7 @@ export const CATALOG = {
   'format.codeBlock': {
     label: 'Code block',
     category: 'format',
+    menuKeywords: ['code', 'fence', 'preformatted'],
     keys: 'mod+alt+c',
     keysOther: 'alt+c',
     aliasesOther: ['mod+alt+c'],
@@ -346,11 +356,11 @@ export const CATALOG = {
     keys: 'mod+shift+z',
     dispatch: 'editor',
   },
-
   // --- Insert ------------------------------------------------------------
   'insert.link': {
     label: 'Add or edit link',
     category: 'insert',
+    menuKeywords: ['link', 'url', 'website', 'hyperlink'],
     keys: 'mod+shift+k',
     noteOther: 'Firefox keeps Ctrl+Shift+K for its web console',
   },
@@ -362,13 +372,21 @@ export const CATALOG = {
     keysOther: 'alt+-',
     dispatch: 'editor',
   },
-  'insert.table': { label: 'Insert table', category: 'insert' },
-  'insert.image': { label: 'Insert image', category: 'insert' },
-
+  'insert.table': {
+    label: 'Insert table',
+    category: 'insert',
+    menuKeywords: ['table', 'grid', 'rows', 'columns'],
+  },
+  'insert.image': {
+    label: 'Insert image',
+    category: 'insert',
+    menuKeywords: ['image', 'photo', 'picture', 'illustration'],
+  },
   // --- Comments ----------------------------------------------------------
   'comment.add': {
     label: 'Comment on selection',
     category: 'comments',
+    menuKeywords: ['comment', 'note', 'feedback', 'annotation'],
     keys: 'mod+alt+m',
     keysOther: 'alt+m',
   },

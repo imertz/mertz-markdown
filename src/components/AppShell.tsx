@@ -26,6 +26,7 @@ import { useDebouncedCallback } from '../hooks/useDebouncedCallback'
 import { useDocuments } from '../hooks/useDocuments'
 import { useDocumentStats } from '../hooks/useDocumentStats'
 import { useDocumentFont } from '../hooks/useDocumentFont'
+import { useDocumentTextSize } from '../hooks/useDocumentTextSize'
 import { useFileDrop } from '../hooks/useFileDrop'
 import { useFileLaunch } from '../hooks/useFileLaunch'
 import { useOnline } from '../hooks/useOnline'
@@ -72,6 +73,7 @@ import { SearchPanel } from './search/SearchPanel'
 import { BrandMark, HistoryIcon, SearchIcon } from './icons'
 import { DocumentList } from './documents/DocumentList'
 import { DocumentFontMenu } from './DocumentFontMenu'
+import { DocumentTextSizeMenu } from './DocumentTextSizeMenu'
 import { ExportMenu } from './documents/ExportMenu'
 import { EditorSurface } from './editor/EditorSurface'
 import { FindBar } from './editor/FindBar'
@@ -80,6 +82,7 @@ import { LinkHoverCard } from './editor/LinkHoverCard'
 import type { LinkTarget } from './editor/LinkPopover'
 import { LinkPopover } from './editor/LinkPopover'
 import { SelectionBubbleMenu } from './editor/SelectionBubbleMenu'
+import { SlashCommandMenu } from './editor/SlashCommandMenu'
 import { TableBubbleMenu } from './editor/TableBubbleMenu'
 import { Toolbar } from './editor/Toolbar'
 
@@ -136,6 +139,7 @@ export function AppShell() {
   const pwa = usePwaUpdate()
   const theme = useTheme()
   const documentFont = useDocumentFont()
+  const documentTextSize = useDocumentTextSize()
   const online = useOnline()
   const rail = useRailHidden()
 
@@ -264,6 +268,14 @@ export function AppShell() {
     onImageFiles: addImageFiles,
     onDocumentLoaded: docId => documentLoaded.current(docId),
   })
+
+  const insertImagesAt = useCallback(
+    (files: File[], position: number) => {
+      if (!editor || editor.isDestroyed) return
+      addImageFiles(editor, files, position)
+    },
+    [addImageFiles, editor],
+  )
 
   const addImageUrl = useCallback(
     async (request: ImageUrlInsertRequest) => {
@@ -965,6 +977,11 @@ export function AppShell() {
             onSelect={documentFont.selectFont}
           />
 
+          <DocumentTextSizeMenu
+            size={documentTextSize.size}
+            onSelect={documentTextSize.selectSize}
+          />
+
           <ThemeToggle theme={theme.theme} onToggle={theme.toggle} />
         </div>
       </header>
@@ -1044,6 +1061,15 @@ export function AppShell() {
           editor={editor}
           onAddComment={startDraft}
           onAddLink={startLink}
+        />
+      ) : null}
+
+      {editor ? (
+        <SlashCommandMenu
+          editor={editor}
+          onAddComment={startDraft}
+          onAddLink={startLink}
+          onInsertImages={insertImagesAt}
         />
       ) : null}
 
