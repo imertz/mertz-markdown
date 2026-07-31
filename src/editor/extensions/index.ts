@@ -19,6 +19,7 @@ import { CommentSanitizer } from './commentSanitizer'
 import { CommentSync } from './commentSync'
 import { LocalImage } from './image'
 import { Search } from './search'
+import { TextAlign } from './textAlign'
 import {
   SingleParagraphTableCell,
   SingleParagraphTableHeader,
@@ -126,6 +127,7 @@ export function buildExtensions(
     TaskListShortcut,
     AppShortcuts,
     Search,
+    TextAlign,
 
     Placeholder.configure({ placeholder: EDITOR_PLACEHOLDER }),
 

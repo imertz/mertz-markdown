@@ -56,6 +56,14 @@ export function TaskListIcon(props: IconProps) {
   )
 }
 
+export function JustifyIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 5h16M4 9.7h16M4 14.3h16M4 19h16" />
+    </svg>
+  )
+}
+
 /* Quote marks rather than the indented-text shape: sitting next to three list
  * icons, anything built from horizontal rules just reads as a fourth list. */
 export function QuoteIcon(props: IconProps) {

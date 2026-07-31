@@ -8,6 +8,7 @@ import {
   CodeBlockIcon,
   HorizontalRuleIcon,
   ImageIcon,
+  JustifyIcon,
   OrderedListIcon,
   QuoteIcon,
   RedoIcon,
@@ -50,6 +51,8 @@ export function Toolbar({
       h1: e.isActive('heading', { level: 1 }),
       h2: e.isActive('heading', { level: 2 }),
       h3: e.isActive('heading', { level: 3 }),
+      justify: e.isActive('paragraph', { textAlign: 'justify' }),
+      canJustify: e.can().setTextAlign('justify'),
       bulletList: e.isActive('bulletList'),
       orderedList: e.isActive('orderedList'),
       taskList: e.isActive('taskList'),
@@ -118,6 +121,21 @@ export function Toolbar({
             H{level}
           </button>
         ))}
+        <button
+          type="button"
+          title={titleFor('format.justify')}
+          aria-label="Justify paragraph"
+          aria-pressed={state.justify}
+          disabled={!state.canJustify}
+          onClick={() =>
+            (state.justify
+              ? editor.chain().focus().unsetTextAlign()
+              : editor.chain().focus().setTextAlign('justify')
+            ).run()
+          }
+        >
+          <JustifyIcon />
+        </button>
       </div>
 
       <div className="toolbar__sep" />

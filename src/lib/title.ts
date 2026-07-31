@@ -1,6 +1,13 @@
 import type { JSONContent } from '@tiptap/core'
 
+export const APP_NAME = "Yiannis Mertzanis' Markdown"
 export const UNTITLED = 'Untitled document'
+
+/** Build the browser tab title for the currently open document. */
+export function pageTitle(documentTitle: string): string {
+  const title = documentTitle.trim()
+  return !title || title === UNTITLED ? APP_NAME : `${title} | ${APP_NAME}`
+}
 
 const textOf = (node: JSONContent): string => {
   if (typeof node.text === 'string') return node.text

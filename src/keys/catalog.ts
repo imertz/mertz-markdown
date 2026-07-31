@@ -285,6 +285,11 @@ export const CATALOG = {
     aliasesOther: ['mod+alt+0'],
     dispatch: 'editor',
   },
+  'format.justify': {
+    label: 'Justify paragraph',
+    category: 'format',
+    dispatch: 'editor',
+  },
   'format.bulletList': {
     label: 'Bullet list',
     category: 'format',

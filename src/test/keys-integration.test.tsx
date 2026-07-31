@@ -180,6 +180,22 @@ describe('shortcuts in the running app', () => {
     await waitFor(() => expect(strike.getAttribute('aria-pressed')).toBe('true'))
   })
 
+  it('justifies the current paragraph from the toolbar', async () => {
+    const user = await open()
+    const surface = focusEditor()
+    const justify = screen.getByRole('button', { name: 'Justify paragraph' })
+
+    expect(justify.getAttribute('disabled')).toBeNull()
+    await user.click(justify)
+
+    await waitFor(() => {
+      expect(justify.getAttribute('aria-pressed')).toBe('true')
+      expect(surface.querySelector('p')?.getAttribute('style')).toContain(
+        'text-align: justify',
+      )
+    })
+  })
+
   it('prints every tooltip in the catalog’s spelling for this keyboard', async () => {
     // The three sources of truth collapsing into one, visible from outside:
     // these chords are Tiptap's and were advertised nowhere before.

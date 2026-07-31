@@ -50,6 +50,7 @@ import { buildPaletteEntries } from '../keys/paletteEntries'
 import { toPaletteActions } from '../keys/registry'
 import { useCommands } from '../keys/useCommands'
 import { usePeek } from '../keys/usePeek'
+import { pageTitle } from '../lib/title'
 import { PeekHud } from './keys/PeekHud'
 import { ShortcutSheet } from './keys/ShortcutSheet'
 import { buildDocumentExport, downloadFile } from '../markdown/bundle'
@@ -194,6 +195,14 @@ export function AppShell() {
   // Destructured because the hook returns a fresh object each render; the
   // callbacks inside it are stable, the wrapper is not.
   const { show: showRail, toggle: toggleRail } = rail
+
+  useEffect(() => {
+    const previousTitle = document.title
+    document.title = pageTitle(documents.activeTitle)
+    return () => {
+      document.title = previousTitle
+    }
+  }, [documents.activeTitle])
 
   const resolveImageAsset = useCallback(
     async (assetId: string) => {
