@@ -52,6 +52,7 @@ import { usePeek } from '../keys/usePeek'
 import { pageTitle } from '../lib/title'
 import { PeekHud } from './keys/PeekHud'
 import { ShortcutSheet } from './keys/ShortcutSheet'
+import { buildDocxExport } from '../docx'
 import { buildDocumentExport, downloadFile } from '../markdown/bundle'
 import { resolveSelector } from '../markdown/anchors'
 import { toMarkdown } from '../markdown/export'
@@ -473,6 +474,40 @@ export function AppShell() {
       })
   }, [editor, documents.activeId, documents.activeTitle])
 
+  /**
+   * The same document as a Word file.
+   *
+   * `threads` is what separates the two variants, and it is the only thing
+   * that does: without it the render context has no comment registry and the
+   * anchors have nowhere to go, exactly as the markdown serializer drops them.
+   */
+  const exportDocxFile = useCallback(
+    (withComments: boolean) => {
+      if (!editor || editor.isDestroyed || !documents.activeId) return
+      void buildDocxExport(editor, {
+        docId: documents.activeId,
+        title: documents.activeTitle,
+        threads: withComments ? threads.threads : undefined,
+      })
+        .then(file => downloadFile(file.filename, file.blob))
+        .catch(error => {
+          console.error('[docx export] failed', error)
+          setNotice(
+            error instanceof Error
+              ? error.message
+              : 'The Word file could not export',
+          )
+        })
+    },
+    [editor, documents.activeId, documents.activeTitle, threads.threads],
+  )
+
+  const exportDocx = useCallback(() => exportDocxFile(false), [exportDocxFile])
+  const exportDocxAnnotated = useCallback(
+    () => exportDocxFile(true),
+    [exportDocxFile],
+  )
+
   /** The document plus its comments, as a standalone `.html` file. */
   const exportAnnotated = useCallback(() => {
     if (!editor || editor.isDestroyed) return
@@ -814,6 +849,8 @@ export function AppShell() {
         startLink,
         startDraft,
         exportMarkdown,
+        exportDocx,
+        exportDocxAnnotated,
         exportAnnotated,
         stepSection,
         stepThread,
@@ -906,6 +943,8 @@ export function AppShell() {
           <ExportMenu
             disabled={!editor}
             onExport={exportMarkdown}
+            onExportDocx={exportDocx}
+            onExportDocxAnnotated={exportDocxAnnotated}
             onExportAnnotated={exportAnnotated}
             onImport={importFile}
           />

@@ -1,51 +1,93 @@
-import { useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
+import { useDismissable } from '../../hooks/useDismissable'
 import { BUNDLE_ACCEPT } from '../../markdown/bundle'
 import { MARKDOWN_ACCEPT } from '../../markdown/import'
-import { CommentIcon, DownloadIcon, UploadIcon } from '../icons'
+import { ChevronDownIcon, DownloadIcon, UploadIcon } from '../icons'
 
-interface ExportMenuProps {
+export interface ExportMenuProps {
   onExport: () => void
+  onExportDocx: () => void
+  onExportDocxAnnotated: () => void
   onExportAnnotated: () => void
   onImport: (file: File) => void
   disabled?: boolean
 }
 
+interface Format {
+  id: string
+  label: string
+  hint: string
+  run: (props: ExportMenuProps) => void
+}
+
 /**
- * Export and Import read as one file-transfer unit rather than two competing
- * buttons: a single shared border with a hairline divider between them.
+ * The formats, in order of how much of the app they carry.
+ *
+ * Markdown first because it is the one with the guarantee; the two that carry
+ * comments are last, and say so, because "with comments" is the decision the
+ * user is actually making when they pick one of them.
  */
-export function ExportMenu({
-  onExport,
-  onExportAnnotated,
-  onImport,
-  disabled,
-}: ExportMenuProps) {
+const FORMATS: Format[] = [
+  {
+    id: 'markdown',
+    label: 'Markdown',
+    hint: 'Clean GFM, bundled with an images folder when needed. Never any comments.',
+    run: props => props.onExport(),
+  },
+  {
+    id: 'docx',
+    label: 'Word',
+    hint: 'A .docx for readers who work in Word. No comments.',
+    run: props => props.onExportDocx(),
+  },
+  {
+    id: 'docx-comments',
+    label: 'Word, with comments',
+    hint: 'A .docx whose threads open in Word’s review pane.',
+    run: props => props.onExportDocxAnnotated(),
+  },
+  {
+    id: 'html-comments',
+    label: 'HTML, with comments',
+    hint: 'One self-contained page, comments in an annex.',
+    run: props => props.onExportAnnotated(),
+  },
+]
+
+/**
+ * Export as a format menu, Import as its peer.
+ *
+ * Four formats is past what a row of buttons can hold, and flattening them
+ * would also flatten the distinction the app cares most about: two of these
+ * carry the comment threads and two are guaranteed not to. A menu can say that
+ * next to each item; a row of icons cannot.
+ */
+export function ExportMenu(props: ExportMenuProps) {
+  const { onImport, disabled } = props
   const fileInput = useRef<HTMLInputElement>(null)
+  const [open, setOpen] = useState(false)
+  const close = useCallback(() => setOpen(false), [])
+  const container = useDismissable<HTMLDivElement>(open, close)
 
   return (
-    <div className="export-menu" role="group" aria-label="Document file actions">
+    <div
+      className="export-menu"
+      role="group"
+      aria-label="Document file actions"
+      ref={container}
+    >
       <button
         type="button"
+        className="export-menu__trigger"
         disabled={disabled}
-        title="Download clean Markdown, bundled with an images folder when needed. Comments are never included."
-        onClick={onExport}
+        title="Download this document"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        onClick={() => setOpen(value => !value)}
       >
         <DownloadIcon width={14} height={14} />
         Export
-      </button>
-
-      {/* A separate file, not an option on the one above: the .md file's
-          guarantee is that it carries no trace of the app, and comments in it
-          would be exactly that trace. */}
-      <button
-        type="button"
-        className="export-menu__annotated"
-        disabled={disabled}
-        aria-label="Export with comments"
-        title="Download an .html copy with the comments alongside it"
-        onClick={onExportAnnotated}
-      >
-        <CommentIcon width={14} height={14} />
+        <ChevronDownIcon className="export-menu__chevron" width={12} height={12} />
       </button>
 
       <button
@@ -57,6 +99,26 @@ export function ExportMenu({
         <UploadIcon width={14} height={14} />
         Import
       </button>
+
+      {open ? (
+        <div className="export-menu__panel" role="menu" aria-label="Export format">
+          {FORMATS.map(format => (
+            <button
+              key={format.id}
+              type="button"
+              role="menuitem"
+              className="export-menu__option"
+              onClick={() => {
+                close()
+                format.run(props)
+              }}
+            >
+              <span className="export-menu__option-name">{format.label}</span>
+              <span className="export-menu__option-hint">{format.hint}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <input
         ref={fileInput}

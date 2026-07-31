@@ -19,7 +19,7 @@
 ```bash
 bun install
 bun run dev        # http://localhost:5173
-bun run test       # 536 tests
+bun run test       # 761 tests
 bun run build      # tsc -b && vite build (emits the service worker)
 bun run preview    # serve the production build, service worker active
 ```
@@ -176,6 +176,23 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   comes from the schema's own DOM serializer, so the anchors highlight for free,
   and the threads follow as a numbered annex. It shares no code with the
   markdown path — which is the point.
+- **Word export** (`src/docx/`) writes OOXML directly and zips it with the
+  `fflate` already carrying the images bundle: **+6.6 KB gzipped**, no new
+  dependency. The `docx` package would have added 115 KB gzipped to a 352 KB
+  app — a third again, precached — brought a second ZIP engine along with it,
+  and still left the ProseMirror-to-Word mapping to be written by hand. The
+  saving is real but it is not the main reason: owning the XML is what makes
+  native Word comments reachable at all.
+  There are two variants, and the split is the same one
+  the HTML export makes: a clean `.docx`, and a separate `…-comments.docx`
+  whose threads are **native Word comments** — they open in the review pane,
+  anchored to their spans, replies kept in order.
+
+  Word is not covered by the guarantee above, and cannot be: it is a format
+  with an opinion about everything. What it does get is the same defence
+  against silent loss — `src/test/docx-lock.test.ts` is the `.docx` twin of
+  the schema lock, and fails the build if a node or mark reaches the schema
+  without someone deciding how Word should show it.
 
 ## Known limitations
 
@@ -241,6 +258,25 @@ Everything below is built on the same rule: nothing reaches the `.md`.
 - **`@tiptap/*` versions are pinned exactly.** Their peer deps demand an exact
   match; a caret lets two copies of `@tiptap/core` resolve, which breaks
   ProseMirror plugin identity. Bump them together.
+- **Word export re-encodes WebP and AVIF to PNG.** Word's WebP support depends
+  on the release and AVIF is absent entirely, while this app stores almost
+  every local image as WebP — both `IMPORTED_IMAGE_MIME` and
+  `CROPPED_IMAGE_MIME` are `image/webp`. Passing the stored bytes through would
+  give most readers a document of empty frames, so the exporter draws them
+  through a canvas on the way out. Lossless, but not byte-identical to the
+  `.md` bundle's images.
+- **A remote image becomes a link in a `.docx`.** Its bytes are not in browser
+  storage, and fetching them at export time would need the image host's CORS
+  permission and a network no other part of this path requires.
+- **A `.docx` drops a code block's language and a task item's interactivity.**
+  Word has no fenced-language concept, and its real checkbox is a content
+  control; the box is a printed glyph, so it survives every reader but does not
+  tick.
+- **Word comment replies are flattened into one comment per thread.** Threaded
+  replies live in `word/commentsExtended.xml`, keyed by a second identity
+  scheme (`w15:paraId`) that has to agree with the comments part. Every word
+  and author is kept, in order, inside the one comment — only the reply indent
+  is lost.
 
 ## Layout
 

@@ -135,6 +135,16 @@ export const CATALOG = {
     keys: 'mod+shift+e',
     noteOther: 'Firefox keeps Ctrl+Shift+E for its network panel',
   },
+  // No chords for these three: mod+shift+e is spoken for, and the palette and
+  // the cheat sheet reach a command whether or not it has one.
+  'app.exportDocx': {
+    label: 'Export as Word',
+    category: 'app',
+  },
+  'app.exportDocxComments': {
+    label: 'Export with comments as Word',
+    category: 'app',
+  },
   'app.exportHtml': {
     label: 'Export with comments as HTML',
     category: 'app',

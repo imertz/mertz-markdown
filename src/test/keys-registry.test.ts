@@ -53,6 +53,8 @@ function makeDeps(overrides: { documents?: DocumentsApi } = {}) {
     startLink: vi.fn(),
     startDraft: vi.fn(),
     exportMarkdown: vi.fn(),
+    exportDocx: vi.fn(),
+    exportDocxAnnotated: vi.fn(),
     exportAnnotated: vi.fn(),
     stepSection: vi.fn(),
     stepThread: vi.fn(),
