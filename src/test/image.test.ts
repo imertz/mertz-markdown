@@ -89,6 +89,38 @@ describe('image Markdown', () => {
       '![Chart](https://example.com/chart.png)\n',
     )
   })
+
+  it('marks only top-level standalone images for block spacing', () => {
+    const standalone = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'image',
+              attrs: { src: 'https://example.com/standalone.png', alt: '' },
+            },
+          ],
+        },
+      ],
+    })
+    const inline = createTestEditor(
+      'Before ![chart](https://example.com/inline.png) after',
+    )
+
+    expect(
+      standalone.view.dom.querySelector(
+        '.editor-image-resize--standalone',
+      ),
+    ).not.toBeNull()
+    expect(
+      inline.view.dom.querySelector('.editor-image-resize--standalone'),
+    ).toBeNull()
+
+    standalone.destroy()
+    inline.destroy()
+  })
 })
 
 describe('image insertion', () => {

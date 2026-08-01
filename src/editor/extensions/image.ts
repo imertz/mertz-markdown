@@ -196,6 +196,29 @@ export const LocalImage = Image.extend<LocalImageOptions>({
       document.addEventListener('touchend', finishTouchResize)
       document.addEventListener('touchcancel', finishTouchResize)
 
+      /*
+       * Images remain inline schema nodes so ordinary Markdown such as
+       * `Before ![chart](chart.png) after` keeps working. Give only an image
+       * that occupies its own top-level paragraph the document-block rhythm.
+       */
+      const syncStandaloneState = () => {
+        const position = getPos()
+        if (position === undefined) return
+        const resolved = editor.state.doc.resolve(position)
+        const parent = resolved.parent
+        const standalone =
+          resolved.depth === 1 &&
+          parent.type.name === 'paragraph' &&
+          parent.childCount === 1 &&
+          parent.firstChild?.type === node.type
+        resizable.dom.classList.toggle(
+          'editor-image-resize--standalone',
+          standalone,
+        )
+      }
+      editor.on('transaction', syncStandaloneState)
+      syncStandaloneState()
+
       void sync(node)
 
       return {
@@ -207,6 +230,7 @@ export const LocalImage = Image.extend<LocalImageOptions>({
           document.removeEventListener('touchend', finishTouchResize)
           document.removeEventListener('touchcancel', finishTouchResize)
           document.removeEventListener('touchmove', resizableTouch.handleTouchMove)
+          editor.off('transaction', syncStandaloneState)
           resizable.destroy()
         },
       }

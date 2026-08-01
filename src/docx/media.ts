@@ -6,10 +6,10 @@ import { decodeImage, encodeCanvas } from '../images/optimize'
  *
  * Word's raster support stops at PNG, JPEG, GIF and a handful of legacy
  * formats. **WebP is version-dependent and AVIF is not supported at all** —
- * and this app stores almost every local image as WebP, because both
- * `IMPORTED_IMAGE_MIME` and `CROPPED_IMAGE_MIME` are `image/webp`. Embedding
- * the stored bytes unchanged would therefore give most users a document full
- * of empty frames, so those two formats are re-encoded to PNG on the way out.
+ * and this app stores almost every local image as WebP. (Crops use PNG only
+ * when the browser cannot encode WebP.) Embedding those formats unchanged
+ * would therefore give most users a document full of empty frames, so they are
+ * re-encoded to PNG on the way out.
  */
 
 export interface PreparedImage {
