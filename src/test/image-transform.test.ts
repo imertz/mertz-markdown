@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getAsset, listDocumentAssets, putAssets } from '../db/assets'
 import { putDocument } from '../db/documents'
 import {
-  canvasToWebp,
+  canvasToCropBlob,
   localizeRemoteImage,
   replaceImageWithCrop,
 } from '../images/transform'
@@ -37,11 +37,33 @@ describe('image crop assets', () => {
     )
     const canvas = { toBlob } as unknown as HTMLCanvasElement
 
-    await expect(canvasToWebp(canvas)).resolves.toBeInstanceOf(Blob)
+    await expect(canvasToCropBlob(canvas)).resolves.toBeInstanceOf(Blob)
     expect(toBlob).toHaveBeenCalledWith(
       expect.any(Function),
       'image/webp',
       0.92,
+    )
+  })
+
+  it('falls back to PNG when the browser cannot encode WebP', async () => {
+    const toBlob = vi.fn(
+      (callback: BlobCallback, type?: string) =>
+        callback(
+          type === 'image/png'
+            ? new Blob(['png'], { type: 'image/png' })
+            : new Blob(['browser fallback'], { type: 'image/png' }),
+        ),
+    )
+    const canvas = { toBlob } as unknown as HTMLCanvasElement
+
+    await expect(canvasToCropBlob(canvas)).resolves.toMatchObject({
+      type: 'image/png',
+    })
+    expect(toBlob).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Function),
+      'image/png',
+      1,
     )
   })
 
@@ -94,6 +116,55 @@ describe('image crop assets', () => {
     expect(image?.attrs.height).toBe(160)
     expect(await getAsset(original.id)).toBeDefined()
     expect(await listDocumentAssets(document_.id)).toHaveLength(2)
+  })
+
+  it('stores a PNG crop with a matching filename when WebP is unavailable', async () => {
+    const document_ = makeDocument()
+    const original = makeAsset(document_.id)
+    const src = assetMarkdownPath(original)
+    await Promise.all([putDocument(document_), putAssets([original])])
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'image',
+              attrs: { assetId: original.id, src, alt: 'Diagram' },
+            },
+          ],
+        },
+      ],
+    })
+    let position = -1
+    editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === 'image') position = pos
+    })
+    const canvas = {
+      width: 800,
+      height: 400,
+      toBlob: (callback: BlobCallback, type?: string) =>
+        callback(
+          type === 'image/png'
+            ? new Blob(['png'], { type: 'image/png' })
+            : null,
+        ),
+    } as unknown as HTMLCanvasElement
+
+    await replaceImageWithCrop(
+      editor,
+      document_.id,
+      { position, expectedSrc: src, expectedAssetId: original.id },
+      canvas,
+      320,
+    )
+
+    const image = editor.state.doc.nodeAt(position)
+    expect(image?.attrs.src).toMatch(/^images\/.+\.png$/)
+    const stored = await getAsset(image?.attrs.assetId as string)
+    expect(stored?.mimeType).toBe('image/png')
+    expect(stored?.blob.type).toBe('image/png')
   })
 
   it('does not replace a node that changed while a crop was being encoded', async () => {

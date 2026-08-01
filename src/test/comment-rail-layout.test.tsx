@@ -1,7 +1,8 @@
-import { cleanup, render } from '@testing-library/react'
+import { cleanup, render, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CommentSidebar } from '../components/comments/CommentSidebar'
 import type { ThreadWithComments } from '../types'
+import { createTestEditor, rangeOfText } from './editorHarness'
 
 /**
  * Every card, the open draft included, is absolutely positioned at its anchor's
@@ -64,7 +65,11 @@ const setup = (draftRange: { from: number; to: number } | null) => {
   return container.querySelector('.comment-rail') as HTMLElement
 }
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 describe('comment rail drafting state', () => {
   it('focuses the draft composer without scrolling to it', () => {
@@ -137,5 +142,55 @@ describe('comment rail drafting state', () => {
       ),
     ).toBe(true)
     vi.unstubAllGlobals()
+  })
+
+  it('positions a newly active card before scrolling it into view', async () => {
+    const editor = createTestEditor('encrypted credential')
+    editor.commands.setTextSelection(rangeOfText(editor, 'encrypted'))
+    editor.commands.setComment('t1')
+    vi.spyOn(editor.view, 'coordsAtPos').mockReturnValue({
+      left: 0,
+      right: 100,
+      top: 320,
+      bottom: 340,
+    })
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    )
+    const scrollPositions: string[] = []
+    const scrollIntoView = vi
+      .spyOn(HTMLElement.prototype, 'scrollIntoView')
+      .mockImplementation(function (this: HTMLElement) {
+        scrollPositions.push(this.style.top)
+      })
+
+    render(
+      <CommentSidebar
+        editor={editor}
+        threads={[thread('t1', 'encrypted')]}
+        activeId="t1"
+        draftRange={null}
+        showResolved={false}
+        onToggleResolved={vi.fn()}
+        onActivate={vi.fn()}
+        onSubmitDraft={vi.fn()}
+        onCancelDraft={vi.fn()}
+        onReply={vi.fn()}
+        onEdit={vi.fn()}
+        onResolve={vi.fn()}
+        onResolveAll={vi.fn()}
+        onDelete={vi.fn()}
+        onReanchor={vi.fn()}
+      />,
+    )
+
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())
+    expect(scrollPositions).toEqual(['320px'])
+    editor.destroy()
   })
 })

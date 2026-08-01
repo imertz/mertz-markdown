@@ -162,6 +162,16 @@
     max-width: 100%;
     vertical-align: middle;
 
+    /*
+     * A standalone image is a visual passage in the document, not a glyph in
+     * a line of text. The asymmetric rhythm leaves a touch more room for the
+     * preceding thought while keeping the following text connected.
+     */
+    &.editor-image-resize--standalone {
+      display: flex !important;
+      margin-block: 24px 20px;
+    }
+
     &.ProseMirror-selectednode .editor-image {
       outline: 2px solid var(--accent);
       outline-offset: 2px;

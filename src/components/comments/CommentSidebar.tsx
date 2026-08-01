@@ -172,13 +172,19 @@ export function CommentSidebar({
   }, [editor, bump])
 
   // Editor -> sidebar: keep the active card in view when the caret moves into
-  // a commented range.
+  // a commented range. A newly submitted card renders once without `top`
+  // while the layout effect measures its anchor. Scrolling during that frame
+  // targets its static fallback position at the top of the rail and drags the
+  // entire workspace there, so wait until anchored cards are positioned.
   useEffect(() => {
     if (!activeId) return
-    cardRefs.current
-      .get(activeId)
-      ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-  }, [activeId])
+    const card = cardRefs.current.get(activeId)
+    if (!card) return
+    const positioned =
+      card.style.top !== '' || card.closest('.orphan-section') !== null
+    if (!positioned) return
+    card.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  }, [activeId, tops])
 
   // The draft composer focuses with `preventScroll`, so nothing brings it into
   // view on its own — see CommentComposer. Do it here instead, once the layout
