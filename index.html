@@ -12,6 +12,12 @@
       two must agree on the storage key and the data-theme attribute.
     -->
     <script src="/theme-init.js"></script>
+    <!--
+      A tab left open across a deployment can still ask for an old hashed
+      module. Recover before the app bundle runs, including when the entry
+      module itself is the stale asset.
+    -->
+    <script src="/stale-build-recovery.js"></script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="YMM" />
     <meta
