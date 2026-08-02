@@ -258,6 +258,7 @@ describe('image insertion', () => {
         callback(new Blob(['first webp'], { type }))
       })
       .mockImplementationOnce(callback => callback(null))
+      .mockImplementationOnce(callback => callback(null))
     const document_ = makeDocument()
     await putDocument(document_)
     const editor = createTestEditor('hello')
@@ -271,7 +272,7 @@ describe('image insertion', () => {
           new File(['second'], 'second.png', { type: 'image/png' }),
         ],
       }),
-    ).rejects.toThrow('could not encode the imported image as WebP')
+    ).rejects.toThrow('could not encode the imported image')
 
     expect(await listDocumentAssets(document_.id)).toEqual([])
     expect(toMarkdown(editor)).toBe('hello\n')

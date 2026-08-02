@@ -164,7 +164,8 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   resize handles, exact width, alt-text and caption editing, and a free/preset
   crop dialog. Captions use Markdown's portable image-title syntax and are set
   under the picture, measured against its own width rather than the text
-  column's. Crops become new WebP assets while the
+  column's. Crops become new WebP assets (or PNG where WebP encoding is
+  unavailable) while the
   source remains available to undo and version history. Documents with local
   images export as ZIPs with clean Markdown and an `images/` directory;
   annotated HTML embeds the bytes.

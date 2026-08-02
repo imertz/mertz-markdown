@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  IMPORTED_IMAGE_FALLBACK_MIME,
   IMPORTED_IMAGE_MIME,
   IMPORTED_IMAGE_QUALITY,
   optimizeImportedImage,
@@ -118,15 +119,42 @@ describe('imported image optimization', () => {
     expect(encoding.toBlob).not.toHaveBeenCalled()
   })
 
-  it('rejects a failed WebP encoding', async () => {
+  it('falls back to PNG when the browser cannot encode WebP', async () => {
     const encoding = stubImageOptimizer()
-    encoding.toBlob.mockImplementationOnce(callback => callback(null))
+    encoding.toBlob
+      .mockImplementationOnce(callback =>
+        callback(new Blob(['automatic PNG'], { type: 'image/png' })),
+      )
+      .mockImplementationOnce((callback, type) =>
+        callback(new Blob(['PNG fallback'], { type })),
+      )
+
+    const optimized = await optimizeImportedImage(
+      new File(['png bytes'], 'diagram.png', { type: 'image/png' }),
+    )
+
+    expect(optimized.name).toBe('diagram.png')
+    expect(optimized.type).toBe(IMPORTED_IMAGE_FALLBACK_MIME)
+    expect(await optimized.text()).toBe('PNG fallback')
+    expect(encoding.toBlob).toHaveBeenNthCalledWith(
+      2,
+      expect.any(Function),
+      IMPORTED_IMAGE_FALLBACK_MIME,
+      1,
+    )
+    expect(encoding.close).toHaveBeenCalledOnce()
+  })
+
+  it('rejects when WebP and PNG encoding both fail', async () => {
+    const encoding = stubImageOptimizer()
+    encoding.toBlob.mockImplementation(callback => callback(null))
 
     await expect(
       optimizeImportedImage(
         new File(['png bytes'], 'diagram.png', { type: 'image/png' }),
       ),
-    ).rejects.toThrow('could not encode the imported image as WebP')
+    ).rejects.toThrow('could not encode the imported image')
+    expect(encoding.toBlob).toHaveBeenCalledTimes(2)
     expect(encoding.close).toHaveBeenCalledOnce()
   })
 })
