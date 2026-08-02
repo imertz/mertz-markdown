@@ -162,6 +162,28 @@ function paragraphProperties(options: BlockOptions): string {
 const paragraphElement = (options: BlockOptions, inline: string): string =>
   element('w:p', undefined, paragraphProperties(options) + inline)
 
+const imageCaption = (node: JSONContent): string =>
+  node.type === 'image' && typeof node.attrs?.title === 'string'
+    ? node.attrs.title.trim()
+    : ''
+
+function captionsAfterParagraph(
+  nodes: readonly JSONContent[],
+  context: RenderContext,
+  options: BlockOptions,
+): string {
+  return nodes
+    .map(imageCaption)
+    .filter(Boolean)
+    .map(caption =>
+      paragraphElement(
+        { ...options, style: STYLE_IDS.caption },
+        renderTextRun({ type: 'text', text: caption }, context),
+      ),
+    )
+    .join('')
+}
+
 /** Every block a node produces, in order. */
 function renderBlock(
   node: JSONContent,
@@ -169,16 +191,19 @@ function renderBlock(
   options: BlockOptions = {},
 ): string {
   switch (node.type) {
-    case 'paragraph':
-      return paragraphElement(
-        {
-          ...options,
-          // A cell's column alignment wins over nothing; an explicitly
-          // justified paragraph wins over the cell.
-          align: node.attrs?.textAlign === 'justify' ? 'justify' : options.align,
-        },
-        renderInline(node.content ?? [], context),
+    case 'paragraph': {
+      const paragraphOptions = {
+        ...options,
+        // A cell's column alignment wins over nothing; an explicitly
+        // justified paragraph wins over the cell.
+        align: node.attrs?.textAlign === 'justify' ? 'justify' : options.align,
+      }
+      const content = node.content ?? []
+      return (
+        paragraphElement(paragraphOptions, renderInline(content, context)) +
+        captionsAfterParagraph(content, context, paragraphOptions)
       )
+    }
 
     case 'heading': {
       const level = Math.min(6, Math.max(1, Number(node.attrs?.level) || 1))

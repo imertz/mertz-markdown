@@ -161,10 +161,12 @@ Everything below is built on the same rule: nothing reaches the `.md`.
 - **Images.** Drop or paste a PNG, JPEG, GIF, WebP or AVIF, choose files from
   the toolbar, or insert an HTTP(S) URL. URL images can remain remote or be
   copied into IndexedDB for offline use. Selected images have aspect-locked
-  resize handles, an exact width field, alt-text editing and a free/preset crop
-  dialog. Crops become new WebP assets while the source remains available to
-  undo and version history. Documents with local images export as ZIPs with
-  clean Markdown and an `images/` directory; annotated HTML embeds the bytes.
+  resize handles, exact width, alt-text and caption editing, and a free/preset
+  crop dialog. Captions use Markdown's portable image-title syntax and render
+  visibly below the image in the editor. Crops become new WebP assets while the
+  source remains available to undo and version history. Documents with local
+  images export as ZIPs with clean Markdown and an `images/` directory;
+  annotated HTML embeds the bytes.
 - **Table editing.** A bar floats over the table the caret is in: add and delete
   rows and columns, set column alignment, toggle the header row, delete the
   table. Only operations GFM can actually express are offered — merged cells and
@@ -216,6 +218,9 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   plain Markdown reader chooses its own display size. Cropping is portable
   because it changes the exported asset bytes. GIF cropping is disabled to
   avoid silently flattening an animation.
+- **Captions use Markdown image titles.** The app renders an image title as a
+  visible caption; readers that do not implement captions still retain it as
+  the image's standard title metadata.
 - **Find is literal and case-insensitive.** No regular expressions, no
   whole-word, and a match never spans a block boundary. Cross-document search
   (`⌘⇧F`) is the opposite: stemmed and ranked, so it matches *running* for

@@ -219,4 +219,34 @@ describe('annotated HTML export', () => {
     expect(html).toContain('width="320"')
     expect(html).toContain('height="180"')
   })
+
+  it('renders an image title as a visible caption', async () => {
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/chart.png',
+                alt: 'Chart',
+                title: 'Quarterly results',
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    const html = await toAnnotatedHtml(editor, {
+      title: 'Images',
+      threads: [],
+    })
+
+    expect(html).toContain('<figure class="image-figure">')
+    expect(html).toContain('<figcaption>Quarterly results</figcaption>')
+    expect(html).not.toContain('title="Quarterly results"')
+  })
 })

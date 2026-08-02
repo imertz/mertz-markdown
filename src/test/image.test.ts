@@ -30,6 +30,21 @@ describe('image Markdown', () => {
     )
   })
 
+  it('round-trips an image title used as its caption', () => {
+    const editor = createTestEditor(
+      '![A chart](https://example.com/chart.png "Quarterly results")',
+    )
+    let title = ''
+    editor.state.doc.descendants(node => {
+      if (node.type.name === 'image') title = node.attrs.title
+    })
+
+    expect(title).toBe('Quarterly results')
+    expect(toMarkdown(editor)).toBe(
+      '![A chart](https://example.com/chart.png "Quarterly results")\n',
+    )
+  })
+
   it('keeps the local asset id out of Markdown', () => {
     const editor = createTestEditorFromJSON({
       type: 'doc',
@@ -111,6 +126,24 @@ describe('image Markdown', () => {
     const captioned = createTestEditor(
       '![chart](https://example.com/captioned.png)\nThis is the caption.',
     )
+    const titled = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/titled.png',
+                alt: 'Titled',
+                title: 'A visible caption',
+              },
+            },
+          ],
+        },
+      ],
+    })
 
     expect(
       standalone.view.dom.querySelector(
@@ -123,10 +156,17 @@ describe('image Markdown', () => {
     expect(
       captioned.view.dom.querySelector('.editor-image-resize--standalone'),
     ).not.toBeNull()
+    expect(
+      titled.view.dom.querySelector('.editor-image-resize--standalone'),
+    ).not.toBeNull()
+    expect(
+      titled.view.dom.querySelector('.editor-image__caption')?.textContent,
+    ).toBe('A visible caption')
 
     standalone.destroy()
     inline.destroy()
     captioned.destroy()
+    titled.destroy()
   })
 })
 

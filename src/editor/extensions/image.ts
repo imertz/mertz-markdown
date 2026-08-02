@@ -54,6 +54,9 @@ export const LocalImage = Image.extend<LocalImageOptions>({
       const status = document.createElement('span')
       status.className = 'editor-image__status'
       status.setAttribute('aria-hidden', 'true')
+
+      const caption = document.createElement('div')
+      caption.className = 'editor-image__caption'
       content.append(image, status)
 
       let objectUrl: string | null = null
@@ -83,6 +86,8 @@ export const LocalImage = Image.extend<LocalImageOptions>({
         image.alt = alt
         if (title) image.title = title
         else image.removeAttribute('title')
+        caption.textContent = title.trim()
+        caption.hidden = !title.trim()
 
         const width =
           typeof next.attrs.width === 'number' && next.attrs.width > 0
@@ -182,6 +187,7 @@ export const LocalImage = Image.extend<LocalImageOptions>({
           },
         },
       })
+      resizable.dom.append(caption)
       // TipTap 3.29's resizer listens for touchmove but not touchend. Bridge
       // that missing end event so a phone resize commits instead of remaining
       // in its active state indefinitely.
@@ -200,14 +206,19 @@ export const LocalImage = Image.extend<LocalImageOptions>({
        * Images remain inline schema nodes so ordinary Markdown such as
        * `Before ![chart](chart.png) after` keeps working. An image at the start
        * of a top-level paragraph is block-like in the editor, which also keeps
-       * a caption written on the next source line below it. Images that follow
-       * text remain inline.
+       * a caption written on the next source line below it. An image with a
+       * caption is block-like wherever it appears; images that follow text
+       * without a caption remain inline.
        */
       const syncStandaloneState = () => {
         const position = getPos()
         if (position === undefined) return
         const resolved = editor.state.doc.resolve(position)
         const parent = resolved.parent
+        const current = editor.state.doc.nodeAt(position)
+        const hasCaption =
+          typeof current?.attrs.title === 'string' &&
+          current.attrs.title.trim().length > 0
         const standalone =
           resolved.depth === 1 &&
           parent.type.name === 'paragraph' &&
@@ -215,7 +226,11 @@ export const LocalImage = Image.extend<LocalImageOptions>({
           parent.firstChild?.type === node.type
         resizable.dom.classList.toggle(
           'editor-image-resize--standalone',
-          standalone,
+          standalone || hasCaption,
+        )
+        resizable.dom.classList.toggle(
+          'editor-image-resize--captioned',
+          hasCaption,
         )
       }
       editor.on('transaction', syncStandaloneState)

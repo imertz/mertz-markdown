@@ -49,6 +49,34 @@ describe('image controls', () => {
     expect(alt).toBe('New description')
   })
 
+  it('edits and renders an image caption', async () => {
+    const { editor, user } = setup()
+    const input = screen.getByRole('textbox', { name: 'Caption' })
+    await user.type(input, 'A useful caption')
+    await user.tab()
+
+    let title = ''
+    editor.state.doc.descendants(node => {
+      if (node.type.name === 'image') title = node.attrs.title
+    })
+    expect(title).toBe('A useful caption')
+    expect(
+      editor.view.dom.querySelector('.editor-image__caption')?.textContent,
+    ).toBe('A useful caption')
+  })
+
+  it('loads an existing caption into the image controls', () => {
+    const { editor } = setup({ title: 'Existing caption' })
+
+    expect(
+      (screen.getByRole('textbox', { name: 'Caption' }) as HTMLInputElement)
+        .value,
+    ).toBe('Existing caption')
+    expect(
+      editor.view.dom.querySelector('.editor-image__caption')?.textContent,
+    ).toBe('Existing caption')
+  })
+
   it('deletes the selected image', async () => {
     const { editor, user } = setup()
     await user.click(screen.getByRole('button', { name: 'Delete image' }))

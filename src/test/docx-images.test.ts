@@ -134,6 +134,20 @@ describe('docx images', () => {
     )
   })
 
+  it('writes an image caption as a Caption paragraph', async () => {
+    const editor = createTestEditorFromJSON(
+      docWithImage({
+        src: 'https://example.com/photo.png',
+        alt: 'Photo',
+        title: 'A field study',
+      }),
+    )
+    const body = (await exportDocx(editor)).text('word/document.xml')
+
+    expect(body).toContain('<w:pStyle w:val="Caption"/>')
+    expect(documentText(body)).toContain('A field study')
+  })
+
   it('refuses to export when a referenced asset is gone', async () => {
     const editor = createTestEditorFromJSON(
       docWithImage({ assetId: 'missing', src: 'images/missing.png' }),

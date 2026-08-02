@@ -34,6 +34,9 @@ pre code { background: none; }
 table { border-collapse: collapse; width: 100%; }
 td, th { border: 1px solid #e6e2da; padding: 6px 10px; text-align: start; }
 img { display: block; max-width: 100%; height: auto; margin: 1em 0; }
+.image-figure { margin: 1em 0; text-align: center; }
+.image-figure img { margin: 0 auto; }
+.image-figure figcaption { margin-top: 0.5em; color: #6d675f; font-size: 0.875em; line-height: 1.35; }
 .comment-anchor { background: rgba(179, 81, 47, 0.14); border-bottom: 1px solid rgba(179, 81, 47, 0.5); }
 .annex-ref { text-decoration: none; color: #b3512f; font-weight: 600; padding-inline: 2px; }
 .annex { margin-top: 48px; padding-top: 20px; border-top: 1px solid #e6e2da; }
@@ -45,7 +48,7 @@ img { display: block; max-width: 100%; height: auto; margin: 1em 0; }
 .annex__comment time { font-size: 12px; color: #6d675f; }
 @media (prefers-color-scheme: dark) {
   body { color: #f5f2ec; background: #1a1917; }
-  blockquote, .annex__head, .annex__comment time { color: #a8a29a; }
+  blockquote, .annex__head, .annex__comment time, .image-figure figcaption { color: #a8a29a; }
   pre { background: #24221f; border-color: #35322d; }
   td, th, .annex { border-color: #35322d; }
   .comment-anchor { background: rgba(224, 129, 89, 0.2); border-bottom-color: rgba(224, 129, 89, 0.5); }
@@ -81,6 +84,37 @@ const blobDataUrl = (blob: Blob): Promise<string> =>
     reader.onload = () => resolve(String(reader.result))
     reader.readAsDataURL(blob)
   })
+
+/** Turn Markdown's portable image title into the visible caption used by the app. */
+function renderImageCaptions(body: HTMLElement): void {
+  for (const image of body.querySelectorAll<HTMLImageElement>('img[title]')) {
+    const text = image.getAttribute('title')?.trim() ?? ''
+    if (!text) continue
+
+    const figure = document.createElement('figure')
+    figure.className = 'image-figure'
+
+    const caption = document.createElement('figcaption')
+    caption.textContent = text
+    image.removeAttribute('title')
+    figure.append(caption)
+
+    const parent = image.parentElement
+    const isImageOnlyParagraph =
+      parent?.tagName === 'P' &&
+      Array.from(parent.childNodes).every(
+        child => child === image || (child.nodeType === Node.TEXT_NODE && !child.textContent?.trim()),
+      )
+
+    if (isImageOnlyParagraph) {
+      parent.replaceWith(figure)
+      figure.prepend(image)
+    } else {
+      image.replaceWith(figure)
+      figure.prepend(image)
+    }
+  }
+}
 
 export async function toAnnotatedHtml(
   editor: Editor,
@@ -124,6 +158,8 @@ export async function toAnnotatedHtml(
     image.src = await blobDataUrl(blob)
     image.removeAttribute('data-local-asset-id')
   }
+
+  renderImageCaptions(body)
 
   // A thread's mark is split across every text node it covers; only its first
   // span gets the reference number.
