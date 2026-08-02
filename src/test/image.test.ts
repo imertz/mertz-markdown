@@ -90,7 +90,7 @@ describe('image Markdown', () => {
     )
   })
 
-  it('marks only top-level standalone images for block spacing', () => {
+  it('keeps image-leading paragraphs and standalone images block-spaced', () => {
     const standalone = createTestEditorFromJSON({
       type: 'doc',
       content: [
@@ -108,6 +108,9 @@ describe('image Markdown', () => {
     const inline = createTestEditor(
       'Before ![chart](https://example.com/inline.png) after',
     )
+    const captioned = createTestEditor(
+      '![chart](https://example.com/captioned.png)\nThis is the caption.',
+    )
 
     expect(
       standalone.view.dom.querySelector(
@@ -117,9 +120,13 @@ describe('image Markdown', () => {
     expect(
       inline.view.dom.querySelector('.editor-image-resize--standalone'),
     ).toBeNull()
+    expect(
+      captioned.view.dom.querySelector('.editor-image-resize--standalone'),
+    ).not.toBeNull()
 
     standalone.destroy()
     inline.destroy()
+    captioned.destroy()
   })
 })
 

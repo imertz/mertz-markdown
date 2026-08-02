@@ -198,8 +198,10 @@ export const LocalImage = Image.extend<LocalImageOptions>({
 
       /*
        * Images remain inline schema nodes so ordinary Markdown such as
-       * `Before ![chart](chart.png) after` keeps working. Give only an image
-       * that occupies its own top-level paragraph the document-block rhythm.
+       * `Before ![chart](chart.png) after` keeps working. An image at the start
+       * of a top-level paragraph is block-like in the editor, which also keeps
+       * a caption written on the next source line below it. Images that follow
+       * text remain inline.
        */
       const syncStandaloneState = () => {
         const position = getPos()
@@ -209,7 +211,7 @@ export const LocalImage = Image.extend<LocalImageOptions>({
         const standalone =
           resolved.depth === 1 &&
           parent.type.name === 'paragraph' &&
-          parent.childCount === 1 &&
+          resolved.index(resolved.depth) === 0 &&
           parent.firstChild?.type === node.type
         resizable.dom.classList.toggle(
           'editor-image-resize--standalone',
