@@ -168,6 +168,56 @@ describe('image Markdown', () => {
     captioned.destroy()
     titled.destroy()
   })
+
+  it('makes a captioned image block-like even where it follows text', () => {
+    const editor = createTestEditor(
+      'Before ![chart](https://example.com/inline.png "A caption") after',
+    )
+
+    expect(
+      editor.view.dom.querySelector('.editor-image-resize--standalone'),
+    ).not.toBeNull()
+    expect(
+      editor.view.dom.querySelector<HTMLElement>('.editor-image__caption')
+        ?.hidden,
+    ).toBe(false)
+
+    editor.destroy()
+  })
+
+  it('leaves a title in a heading as the tooltip Markdown calls it', () => {
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/mark.png',
+                alt: 'Mark',
+                title: 'Not a caption here',
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    // Neither export can put a caption in a heading, so the editor does not
+    // draw one there either.
+    expect(
+      editor.view.dom.querySelector<HTMLElement>('.editor-image__caption')
+        ?.hidden,
+    ).toBe(true)
+    expect(editor.view.dom.querySelector('img')?.title).toBe(
+      'Not a caption here',
+    )
+
+    editor.destroy()
+  })
 })
 
 describe('image insertion', () => {

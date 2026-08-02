@@ -54,14 +54,18 @@ export const LocalImage = Image.extend<LocalImageOptions>({
       const status = document.createElement('span')
       status.className = 'editor-image__status'
       status.setAttribute('aria-hidden', 'true')
+      content.append(image, status)
 
+      // Outside `content` on purpose: the resizer measures that element and
+      // commits what it measures, so a caption inside it would be dragged into
+      // the image's own height attribute.
       const caption = document.createElement('div')
       caption.className = 'editor-image__caption'
-      content.append(image, status)
 
       let objectUrl: string | null = null
       let generation = 0
       let sourceKey: string | null = null
+      let captionText = ''
 
       const revoke = () => {
         if (!objectUrl) return
@@ -84,10 +88,8 @@ export const LocalImage = Image.extend<LocalImageOptions>({
         const title =
           typeof next.attrs.title === 'string' ? next.attrs.title : ''
         image.alt = alt
-        if (title) image.title = title
-        else image.removeAttribute('title')
-        caption.textContent = title.trim()
-        caption.hidden = !title.trim()
+        captionText = title.trim()
+        applyLayout()
 
         const width =
           typeof next.attrs.width === 'number' && next.attrs.width > 0
@@ -206,35 +208,40 @@ export const LocalImage = Image.extend<LocalImageOptions>({
        * Images remain inline schema nodes so ordinary Markdown such as
        * `Before ![chart](chart.png) after` keeps working. An image at the start
        * of a top-level paragraph is block-like in the editor, which also keeps
-       * a caption written on the next source line below it. An image with a
-       * caption is block-like wherever it appears; images that follow text
-       * without a caption remain inline.
+       * a caption written on the next source line below it. A caption makes an
+       * image block-like wherever it sits, because a picture with a line of
+       * text under it is a figure rather than a glyph in a sentence — and
+       * because that is the shape both exports have to give it anyway; images
+       * that follow text without a caption remain inline.
+       *
+       * A caption is drawn only inside a paragraph. A heading is the other
+       * block that can hold an image, and neither export can express a caption
+       * there, so the title stays what Markdown calls it: the tooltip.
        */
-      const syncStandaloneState = () => {
+      const applyLayout = () => {
         const position = getPos()
         if (position === undefined) return
         const resolved = editor.state.doc.resolve(position)
         const parent = resolved.parent
-        const current = editor.state.doc.nodeAt(position)
-        const hasCaption =
-          typeof current?.attrs.title === 'string' &&
-          current.attrs.title.trim().length > 0
+        const captioned = captionText !== '' && parent.type.name === 'paragraph'
         const standalone =
           resolved.depth === 1 &&
           parent.type.name === 'paragraph' &&
           resolved.index(resolved.depth) === 0 &&
           parent.firstChild?.type === node.type
+
+        caption.textContent = captionText
+        caption.hidden = !captioned
+        if (captionText && !captioned) image.title = captionText
+        else image.removeAttribute('title')
+
         resizable.dom.classList.toggle(
           'editor-image-resize--standalone',
-          standalone || hasCaption,
-        )
-        resizable.dom.classList.toggle(
-          'editor-image-resize--captioned',
-          hasCaption,
+          standalone || captioned,
         )
       }
-      editor.on('transaction', syncStandaloneState)
-      syncStandaloneState()
+      editor.on('transaction', applyLayout)
+      applyLayout()
 
       void sync(node)
 
@@ -247,7 +254,7 @@ export const LocalImage = Image.extend<LocalImageOptions>({
           document.removeEventListener('touchend', finishTouchResize)
           document.removeEventListener('touchcancel', finishTouchResize)
           document.removeEventListener('touchmove', resizableTouch.handleTouchMove)
-          editor.off('transaction', syncStandaloneState)
+          editor.off('transaction', applyLayout)
           resizable.destroy()
         },
       }

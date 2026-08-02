@@ -139,11 +139,8 @@
 
   .editor-image {
     display: inline-flex;
-    flex-direction: column;
-    align-items: center;
     position: relative;
     max-width: 100%;
-    margin: 0;
     vertical-align: middle;
     border-radius: var(--radius);
 
@@ -161,19 +158,22 @@
 
   }
 
+  /*
+   * The caption belongs to the picture's box, not to the text column. Zero
+   * width keeps it out of the figure's max-content measurement — otherwise a
+   * caption longer than the image would stretch the figure and pull the
+   * picture's own alignment with it — and `min-width` then fills whatever
+   * width the image settled on, which is what the text centres against.
+   */
   .editor-image__caption {
-    display: block;
-    width: 100%;
+    width: 0;
+    min-width: 100%;
     box-sizing: border-box;
     margin-top: 8px;
     color: var(--text);
     font-size: 0.82em;
     line-height: 1.35;
     text-align: center;
-  }
-
-  .editor-image__caption[hidden] {
-    display: none;
   }
 
   .editor-image-resize {
@@ -184,17 +184,19 @@
      * A standalone image is a visual passage in the document, not a glyph in
      * a line of text. The asymmetric rhythm leaves a touch more room for the
      * preceding thought while keeping the following text connected.
+     *
+     * The box is the picture's own — `width: max-content` rather than the
+     * block's full width — so the caption under it is measured against the
+     * image instead of drifting to the middle of the text column, and so a
+     * click beside the picture lands in the paragraph rather than on it.
      */
     &.editor-image-resize--standalone {
       display: flex !important;
       flex-direction: column;
       align-items: flex-start;
+      width: max-content;
+      max-width: 100%;
       margin-block: 24px 20px;
-    }
-
-    &.editor-image-resize--captioned {
-      flex-direction: column;
-      align-items: flex-start;
     }
 
     &.ProseMirror-selectednode .editor-image {

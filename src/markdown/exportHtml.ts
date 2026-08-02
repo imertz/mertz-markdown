@@ -34,9 +34,14 @@ pre code { background: none; }
 table { border-collapse: collapse; width: 100%; }
 td, th { border: 1px solid #e6e2da; padding: 6px 10px; text-align: start; }
 img { display: block; max-width: 100%; height: auto; margin: 1em 0; }
-.image-figure { margin: 1em 0; text-align: center; }
-.image-figure img { margin: 0 auto; }
-.image-figure figcaption { margin-top: 0.5em; color: #6d675f; font-size: 0.875em; line-height: 1.35; }
+/* A table box shrinks to the picture, so the caption is measured against the
+   image rather than against the page. */
+.image-figure { display: table; margin: 1em 0; max-width: 100%; }
+.image-figure img { margin: 0; }
+.image-figure figcaption {
+  display: table-caption; caption-side: bottom; padding-top: 0.5em;
+  color: #6d675f; font-size: 0.875em; line-height: 1.35; text-align: center;
+}
 .comment-anchor { background: rgba(179, 81, 47, 0.14); border-bottom: 1px solid rgba(179, 81, 47, 0.5); }
 .annex-ref { text-decoration: none; color: #b3512f; font-weight: 600; padding-inline: 2px; }
 .annex { margin-top: 48px; padding-top: 20px; border-top: 1px solid #e6e2da; }
@@ -85,34 +90,64 @@ const blobDataUrl = (blob: Blob): Promise<string> =>
     reader.readAsDataURL(blob)
   })
 
-/** Turn Markdown's portable image title into the visible caption used by the app. */
+const isBlank = (fragment: DocumentFragment): boolean =>
+  fragment.childElementCount === 0 && !fragment.textContent?.trim()
+
+/**
+ * Markdown's portable image title, drawn as the caption the app shows.
+ *
+ * A `<figure>` is a block, and a block inside a `<p>` is not something a
+ * browser will keep: the parser closes the paragraph in front of it and leaves
+ * whatever followed the image stranded outside any block. So the paragraph is
+ * split around the picture — the same three pieces the editor draws, and the
+ * same ones the .docx gets.
+ */
 function renderImageCaptions(body: HTMLElement): void {
   for (const image of body.querySelectorAll<HTMLImageElement>('img[title]')) {
     const text = image.getAttribute('title')?.trim() ?? ''
     if (!text) continue
 
-    const figure = document.createElement('figure')
-    figure.className = 'image-figure'
+    // Only a paragraph can be broken into blocks. Anywhere else — a heading is
+    // the one other place an image can sit — the title stays the tooltip
+    // Markdown says it is.
+    const paragraph = image.closest('p')
+    if (!paragraph) continue
+
+    image.removeAttribute('title')
+
+    /*
+     * Ranges rather than plain child moves: an image can sit inside a link or
+     * a comment anchor, and extractContents() reproduces that inline markup on
+     * whichever side of the split needs it, leaving the image wrapped in its
+     * own copy.
+     */
+    const trailing = document.createRange()
+    trailing.setStartAfter(image)
+    trailing.setEnd(paragraph, paragraph.childNodes.length)
+    const after = trailing.extractContents()
+
+    const leading = document.createRange()
+    leading.setStart(paragraph, 0)
+    leading.setEndBefore(image)
+    const before = leading.extractContents()
 
     const caption = document.createElement('figcaption')
     caption.textContent = text
-    image.removeAttribute('title')
-    figure.append(caption)
 
-    const parent = image.parentElement
-    const isImageOnlyParagraph =
-      parent?.tagName === 'P' &&
-      Array.from(parent.childNodes).every(
-        child => child === image || (child.nodeType === Node.TEXT_NODE && !child.textContent?.trim()),
-      )
+    const figure = document.createElement('figure')
+    figure.className = 'image-figure'
+    figure.append(...paragraph.childNodes, caption)
 
-    if (isImageOnlyParagraph) {
-      parent.replaceWith(figure)
-      figure.prepend(image)
-    } else {
-      image.replaceWith(figure)
-      figure.prepend(image)
+    // Each half is a shallow clone, so it keeps the paragraph's own attributes
+    // — which is where an alignment lives.
+    const half = (fragment: DocumentFragment): Element[] => {
+      if (isBlank(fragment)) return []
+      const block = paragraph.cloneNode(false) as HTMLElement
+      block.append(fragment)
+      return [block]
     }
+
+    paragraph.replaceWith(...half(before), figure, ...half(after))
   }
 }
 
