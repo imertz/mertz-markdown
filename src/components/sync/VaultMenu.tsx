@@ -108,8 +108,14 @@ export function VaultMenu({ sync }: VaultMenuProps) {
         title={STATUS_LABEL[sync.status]}
         onClick={() => setOpen(value => !value)}
       >
-        <span className="vault-menu__mark" data-status={sync.status} aria-hidden="true" />
-        Sync
+        <span className="vault-menu__trigger-content">
+          <span
+            className="vault-menu__mark"
+            data-status={sync.status}
+            aria-hidden="true"
+          />
+          Sync
+        </span>
       </button>
 
       {open ? (

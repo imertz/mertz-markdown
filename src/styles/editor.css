@@ -428,7 +428,7 @@
   display: flex;
   align-items: center;
   gap: 2px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .toolbar__group {
@@ -674,10 +674,11 @@
 }
 
 /*
- * On a phone the toolbar gets its own full-width row and scrolls sideways.
- * Wrapping (the default above) stacked it into four rows and ate the viewport.
+ * Until the entire desktop header fits on one line, formatting gets its own
+ * full-width row. At narrower widths that row scrolls sideways instead of
+ * growing vertically; at laptop widths it simply has unused room at the end.
  */
-@media (max-width: 900px) {
+@media (max-width: 1680px) {
   .toolbar {
     order: 3;
     width: 100%;
@@ -688,9 +689,8 @@
      * to honour `width: 100%`, widened the header past the viewport, and took
      * the whole #root grid column with it. Everything then sat on a surface
      * wider than the screen and drifted sideways as the caret moved.
-     */
+    */
     min-width: 0;
-    flex-wrap: nowrap;
     justify-content: flex-start;
     overflow-x: auto;
     overscroll-behavior-x: contain;

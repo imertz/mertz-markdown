@@ -241,25 +241,26 @@ body {
   flex: 1;
 }
 
+/* File actions, then the app-level theme control. */
+.app-header__tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
 /*
- * Narrow screens: the header becomes two rows — controls on top, formatting
- * below on its own horizontally-scrollable strip. Letting the toolbar wrap
- * instead (the default) stacked it into four rows and pushed the status text
- * off the edge.
+ * The full desktop row only fits when all 18 formatting controls, the document
+ * picker and the app actions have room at once. Until then, use two deliberate
+ * rows: document controls on top and formatting below. The toolbar's paired
+ * rules live in editor.css because that stylesheet owns its base layout.
  */
-@media (max-width: 900px) {
+@media (max-width: 1680px) {
   .app-header {
     flex-wrap: wrap;
     gap: 8px;
     padding: 8px 12px;
     min-height: 0;
-  }
-
-  /* The row already wraps and the doc picker is capped at 42vw — the mark must
-     not take width back off it. */
-  .app-header__brand {
-    width: 20px;
-    height: 20px;
   }
 
   .app-header__spacer {
@@ -270,14 +271,19 @@ body {
     margin-inline-start: auto;
     gap: 8px;
   }
+}
+
+@media (max-width: 900px) {
+  /* The row already wraps and the doc picker is capped at 42vw — the mark must
+     not take width back off it. */
+  .app-header__brand {
+    width: 20px;
+    height: 20px;
+  }
 
   .save-indicator {
     font-size: 11px;
   }
-
-  /* The toolbar's own mobile rules live in editor.css, next to its base
-     styles — that file loads after this one, so putting them here would lose
-     the cascade at equal specificity. */
 
   .doc-picker__trigger {
     max-width: 42vw;
@@ -291,14 +297,6 @@ body {
      base rules is declared below this block, so at equal specificity the base
      would win and the override would silently do nothing. They live in nested
      @media blocks inside each rule instead, the way .workspace does. */
-}
-
-/* File actions, then the app-level theme control. */
-.app-header__tools {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 0 0 auto;
 }
 
 /* --- Status bar --- */
@@ -662,6 +660,8 @@ body {
    generic settings icon: it changes how the text reads, not how the app runs. */
 .font-menu {
   position: relative;
+  display: flex;
+  align-items: center;
   flex: 0 0 auto;
 }
 
@@ -746,6 +746,8 @@ body {
    setting. The panel uses the same quiet menu language as the font picker. */
 .text-size-menu {
   position: relative;
+  display: flex;
+  align-items: center;
   flex: 0 0 auto;
 }
 
@@ -768,7 +770,7 @@ body {
   align-items: center;
   gap: 2px;
   font-family: Georgia, serif;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -1px;
   line-height: 1;
@@ -777,8 +779,8 @@ body {
 .text-size-menu__glyph > svg {
   display: block;
   width: 8px;
-  height: 13px;
-  margin-top: 1px;
+  height: 12px;
+  transform: translateY(-1px);
 }
 
 .text-size-menu__panel {
@@ -883,13 +885,14 @@ body {
 /* --- Encrypted vault sync --- */
 .vault-menu {
   position: relative;
+  display: flex;
+  align-items: center;
   flex: 0 0 auto;
 }
 
 .vault-menu__trigger {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   height: 30px;
   padding: 0 9px;
   color: var(--text);
@@ -898,6 +901,13 @@ body {
   &:hover:not(:disabled) {
     color: var(--text-h);
   }
+}
+
+.vault-menu__trigger-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transform: translateY(-1px);
 }
 
 /* Hollow while sync is off, filled once a vault exists. An unfilled dot has to
@@ -909,6 +919,7 @@ body {
   border-radius: 50%;
   background: transparent;
   box-shadow: inset 0 0 0 1.5px var(--text);
+  transform: translateY(1.5px);
 }
 
 .vault-menu__mark[data-status='idle'] {
