@@ -765,21 +765,20 @@ body {
 
 .text-size-menu__glyph {
   display: inline-flex;
-  align-items: flex-end;
-  gap: 1px;
+  align-items: center;
+  gap: 2px;
   font-family: Georgia, serif;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -1px;
   line-height: 1;
 }
 
-.text-size-menu__glyph small {
-  margin-bottom: -1px;
-  font-family: var(--sans);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0;
+.text-size-menu__glyph > svg {
+  display: block;
+  width: 8px;
+  height: 13px;
+  margin-top: 1px;
 }
 
 .text-size-menu__panel {

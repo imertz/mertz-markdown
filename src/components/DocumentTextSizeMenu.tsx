@@ -4,7 +4,7 @@ import {
   type DocumentTextSizeId,
 } from '../hooks/useDocumentTextSize'
 import { useDismissable } from '../hooks/useDismissable'
-import { CheckIcon } from './icons'
+import { CheckIcon, TextSizeArrowsIcon } from './icons'
 
 interface DocumentTextSizeMenuProps {
   size: DocumentTextSizeId
@@ -32,7 +32,8 @@ export function DocumentTextSizeMenu({
         onClick={() => setOpen(value => !value)}
       >
         <span className="text-size-menu__glyph" aria-hidden="true">
-          A<small>↕</small>
+          A
+          <TextSizeArrowsIcon />
         </span>
       </button>
 

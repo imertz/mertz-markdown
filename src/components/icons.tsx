@@ -225,6 +225,15 @@ export function SearchIcon(props: IconProps) {
   )
 }
 
+/** Platform-independent arrows for the document text-size glyph. */
+export function TextSizeArrowsIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4" />
+    </svg>
+  )
+}
+
 export function CloseIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>
