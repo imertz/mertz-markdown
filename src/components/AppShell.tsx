@@ -34,6 +34,8 @@ import { usePersistentStorage } from '../hooks/usePersistentStorage'
 import { usePwaUpdate } from '../hooks/usePwaUpdate'
 import { useRailHidden } from '../hooks/useRailHidden'
 import { useStorageEstimate } from '../hooks/useStorageEstimate'
+import { CommentEndnotes } from './CommentEndnotes'
+import { useFocusMode } from '../hooks/useFocusMode'
 import { useTheme } from '../hooks/useTheme'
 import { useThreads } from '../hooks/useThreads'
 import { useVaultSync } from '../hooks/useVaultSync'
@@ -142,6 +144,7 @@ export function AppShell() {
   const threads = useThreads(documents.activeId, documents.contentRevision)
   const pwa = usePwaUpdate()
   const theme = useTheme()
+  const focus = useFocusMode()
   const documentFont = useDocumentFont()
   const documentTextSize = useDocumentTextSize()
   const online = useOnline()
@@ -884,6 +887,7 @@ export function AppShell() {
       threads,
       rail,
       theme,
+      focus,
       ui: {
         openPalette: () => setPaletteOpen(true),
         openSearch: () => setSearchOpen(true),
@@ -1070,6 +1074,13 @@ export function AppShell() {
             }}
           />
         )}
+
+        {/*
+          Print only, and mounted unconditionally — unlike the rail above,
+          which is unmounted when collapsed. Printing with the comments hidden
+          is the normal case, not an edge one, and the notes have to survive it.
+        */}
+        <CommentEndnotes editor={editor} threads={threads.threads} />
       </div>
 
       <StatusBar
@@ -1154,6 +1165,7 @@ export function AppShell() {
           onOpenHit={openHit}
           flushPendingWrites={flush}
           storageRevision={documents.contentRevision}
+          corpusCount={documents.documents.length}
         />
       ) : null}
 

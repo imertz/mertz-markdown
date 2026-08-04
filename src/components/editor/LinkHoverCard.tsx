@@ -1,7 +1,12 @@
 import type { Editor } from '@tiptap/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { LinkRange } from '../../editor/linkActions'
-import { linkRangeAt, unlinkRange } from '../../editor/linkActions'
+import {
+  isSectionLink,
+  linkRangeAt,
+  scrollToSection,
+  unlinkRange,
+} from '../../editor/linkActions'
 import { ExternalLinkIcon, PencilIcon, TrashIcon } from '../icons'
 
 interface LinkHoverCardProps {
@@ -180,15 +185,37 @@ export function LinkHoverCard({ editor, suppressed, onEdit }: LinkHoverCardProps
         <PencilIcon />
       </button>
 
-      <button
-        type="button"
-        className="link-hover-card__action"
-        aria-label="Open link in a new tab"
-        title="Open in a new tab"
-        onClick={() => window.open(target.href, '_blank', 'noopener,noreferrer')}
-      >
-        <ExternalLinkIcon />
-      </button>
+      {/*
+        A section link points inside this document, so opening a tab is the one
+        thing it must not do — that would reload the app at a fragment nothing
+        resolves. It scrolls instead.
+      */}
+      {isSectionLink(target.href) ? (
+        <button
+          type="button"
+          className="link-hover-card__action link-hover-card__action--section"
+          aria-label="Go to this section"
+          title="Go to this section"
+          onClick={() => {
+            scrollToSection(editor, target.href)
+            hide()
+          }}
+        >
+          §
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="link-hover-card__action"
+          aria-label="Open link in a new tab"
+          title="Open in a new tab"
+          onClick={() =>
+            window.open(target.href, '_blank', 'noopener,noreferrer')
+          }
+        >
+          <ExternalLinkIcon />
+        </button>
+      )}
 
       <button
         type="button"

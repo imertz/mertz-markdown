@@ -51,6 +51,8 @@ const setup = async () => {
       onOpenHit={onOpenHit}
       flushPendingWrites={flushPendingWrites}
       storageRevision={storageRevision}
+      /* Both documents `seed` writes. */
+      corpusCount={2}
     />
   )
   const view = render(panel(0))

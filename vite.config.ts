@@ -34,8 +34,8 @@ export default defineConfig({
         // Splash screen only — the live address bar is driven by the
         // theme-color meta in index.html, which useTheme swaps per theme.
         // Both sides use the app's own page colour so the launch is seamless.
-        background_color: '#faf9f7',
-        theme_color: '#faf9f7',
+        background_color: '#f7f6f4',
+        theme_color: '#f7f6f4',
         categories: ['productivity', 'utilities'],
         // Enables "Open with Yiannis Mertzanis' Markdown" from the OS file
         // manager — that string is the manifest `name` above.

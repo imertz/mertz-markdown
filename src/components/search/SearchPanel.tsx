@@ -21,6 +21,8 @@ interface SearchPanelProps {
   flushPendingWrites: () => Promise<void>
   /** Changes when vault sync replaces IndexedDB records. */
   storageRevision: number
+  /** Live documents, so the panel can say how much "every document" is. */
+  corpusCount: number
 }
 
 const SCOPES: { value: SearchScope; label: string }[] = [
@@ -67,6 +69,7 @@ export function SearchPanel({
   onOpenHit,
   flushPendingWrites,
   storageRevision,
+  corpusCount,
 }: SearchPanelProps) {
   const panel = useSearchPanel(flushPendingWrites, storageRevision)
   const { query, scope, results, searching } = panel
@@ -217,6 +220,15 @@ export function SearchPanel({
           {!query.trim() ? (
             <p className="search-panel__empty">
               Search the text of every document, its comments and its trash.
+              {/*
+                How much "every" is. The panel used to describe what it would
+                search and then sit blank until you typed — an instrument with
+                its needle at rest still tells you what scale it is on.
+              */}
+              <span className="search-panel__corpus">
+                {corpusCount.toLocaleString()}{' '}
+                {corpusCount === 1 ? 'document' : 'documents'} indexed
+              </span>
             </p>
           ) : searching && !results ? (
             <p className="search-panel__empty">Searching…</p>

@@ -21,7 +21,7 @@
     if (theme === 'dark') {
       document
         .querySelector('meta[name="theme-color"]')
-        .setAttribute('content', '#1a1917')
+        .setAttribute('content', '#171716')
     }
   } catch {
     // Storage can be unavailable in a locked-down browser; CSS defaults win.

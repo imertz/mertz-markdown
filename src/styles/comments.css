@@ -84,6 +84,34 @@
 }
 
 /*
+ * The ruled margin of a ledger.
+ *
+ * The rail's own border-left is the edge of the pane — structure. This is the
+ * other kind of line a margin has: the one you write beside, set in from the
+ * edge rather than on it. It says the empty column is a margin waiting for
+ * notes, which is the one thing the sentence above it cannot show.
+ *
+ * Only while the rail is empty. Once cards are in it they are what the column
+ * is for, and a rule behind them is just a line through the notes.
+ */
+.comment-rail--empty::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--rail-gutter) - 5px);
+  width: 1px;
+  background: var(--border);
+  pointer-events: none;
+
+  /* The sheet on a phone is a horizontal panel, not a margin — a vertical rule
+     down it would describe a shape that is not there. */
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
+/*
  * Cards are absolutely positioned so they can track their anchor's y-offset.
  * The transform is what animates when the collision pass shifts one down.
  */
@@ -326,10 +354,10 @@
 }
 
 .orphan-section__heading {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--label-track);
   color: var(--text);
   opacity: 0.7;
   margin: 0 0 4px;

@@ -25,6 +25,7 @@ function realCommands() {
     threads: { resolveAll: noop } as never,
     rail: { hidden: false, toggle: noop, show: noop },
     theme: { theme: 'light', toggle: noop },
+    focus: { on: false, toggle: noop },
     ui: new Proxy({}, { get: () => noop }) as never,
   }
   return buildCommands(deps)
