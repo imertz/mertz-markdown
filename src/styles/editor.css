@@ -737,17 +737,53 @@
  * --control square, including the H1/H2/H3 text keys. One key wider than the
  * others and the whole thing stops reading as a machined part.
  */
+/*
+ * The plate keeps its place in the header row beside the document title at every
+ * width — it is never reordered and never wraps onto a line of its own. Instead
+ * it is the one header item that gives ground: `width: max-content` sizes it to
+ * its keys while there is room, and the shrink rules below let the row take that
+ * room back, at which point the keys scroll sideways inside a plate that stays
+ * put. (The one exception is the phone layout at the bottom of this file.)
+ */
 .toolbar {
   display: flex;
   align-items: center;
   gap: 0;
   flex-wrap: nowrap;
   width: max-content;
+  /*
+   * A cap, not a width. The plate keeps the `max-content` size above, so it
+   * stays a housing that fits its keys instead of a bar stretched across the
+   * header with dead space in it — but it can never exceed the row.
+   */
+  max-width: 100%;
+  /*
+   * Without this the sideways scroll never engages. A flex item's automatic
+   * minimum size is its min-content width, which for a nowrap row of
+   * non-shrinking buttons is the full ~545px of them — so the toolbar refused to
+   * shrink, widened the header past the viewport, and took the whole #root grid
+   * column with it. Everything then sat on a surface wider than the screen and
+   * drifted sideways as the caret moved.
+   */
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
   padding: 2px;
   box-sizing: border-box;
   background: var(--bg-inset);
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+.toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* The plate absorbs the header's overflow; the keys never do. */
+.toolbar button,
+.toolbar__sep {
+  flex: 0 0 auto;
 }
 
 .toolbar__group {
@@ -1021,49 +1057,25 @@
 }
 
 /*
- * Until the entire desktop header fits on one line, formatting gets its own
- * full-width row. At narrower widths that row scrolls sideways instead of
- * growing vertically; at laptop widths it simply has unused room at the end.
+ * The phone exception to the inline rule at the top of this section. Here the
+ * document picker and the app actions already fill the row on their own, so an
+ * inline plate would be squeezed to nothing; formatting takes a full-width row
+ * of its own instead and scrolls sideways within it.
+ *
+ * `flex-basis: 100%` is what makes that row deterministic — without it the plate
+ * can trail the actions on the first line whenever the row happens to have slack
+ * left. `order: 3` keeps the actions on the first line rather than pushed to a
+ * third. The paired `flex-wrap` on the header lives in index.css.
+ *
+ * Touch targets: the 28px key module is a pointer dimension; a finger needs
+ * more, and the row has the height to give once it is the only thing on it.
  */
-@media (max-width: 1680px) {
+@media (max-width: 900px) {
   .toolbar {
     order: 3;
-    /*
-     * A cap, not a width. The plate keeps the `max-content` size the base rule
-     * gives it, so it stays a housing that fits its keys instead of a bar
-     * stretched across the header with dead space in it — but it can never
-     * exceed the row, and once the keys stop fitting the overflow below takes
-     * over and they scroll inside a plate that stays put.
-     */
-    max-width: 100%;
-    /*
-     * Without this the sideways scroll never engages. A flex item's automatic
-     * minimum size is its min-content width, which for a nowrap row of
-     * non-shrinking buttons is the full ~660px of them — so the toolbar refused
-     * to honour `width: 100%`, widened the header past the viewport, and took
-     * the whole #root grid column with it. Everything then sat on a surface
-     * wider than the screen and drifted sideways as the caret moved.
-    */
-    min-width: 0;
-    justify-content: flex-start;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
+    flex-basis: 100%;
   }
 
-  .toolbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .toolbar button,
-  .toolbar__sep {
-    flex: 0 0 auto;
-  }
-}
-
-/* Touch targets. The 28px key module is a pointer dimension; a finger needs
-   more, and the row has the height to give once it is the only thing on it. */
-@media (max-width: 900px) {
   .toolbar button {
     width: 32px;
     min-width: 32px;

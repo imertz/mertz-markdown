@@ -304,14 +304,15 @@ body {
 }
 
 /*
- * The full desktop row only fits when all 18 formatting controls, the document
- * picker and the app actions have room at once. Until then, use two deliberate
- * rows: document controls on top and formatting below. The toolbar's paired
- * rules live in editor.css because that stylesheet owns its base layout.
+ * One row, always. Below the full desktop width the header tightens rather than
+ * reflows: everything keeps its place and the formatting toolbar — the only item
+ * here that is allowed to shrink — gives up width and scrolls its keys inside
+ * its plate. The toolbar's paired rules live in editor.css because that
+ * stylesheet owns its base layout.
  */
 @media (max-width: 1680px) {
   .app-header {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
     padding: 8px 12px;
     min-height: 0;
@@ -328,8 +329,17 @@ body {
 }
 
 @media (max-width: 900px) {
-  /* The row already wraps and the doc picker is capped at 42vw — the mark must
-     not take width back off it. */
+  /*
+   * The phone exception to the single-row rule above: the doc picker and the app
+   * actions fill the line on their own here, so formatting drops to a row of its
+   * own. Its paired rules live in editor.css.
+   */
+  .app-header {
+    flex-wrap: wrap;
+  }
+
+  /* The row wraps again here and the doc picker is capped at 42vw — the mark
+     must not take width back off it. */
   .app-header__brand {
     width: 20px;
     height: 20px;
