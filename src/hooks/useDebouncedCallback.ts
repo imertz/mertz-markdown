@@ -23,6 +23,8 @@ export function useDebouncedCallback<A extends unknown[]>(
   const callbackRef = useRef(callback)
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingArgs = useRef<A | null>(null)
+  const mounted = useRef(true)
+  const flushRef = useRef<() => Promise<void>>(async () => undefined)
 
   // Keep the latest closure without resubscribing anything.
   useEffect(() => {
@@ -39,9 +41,23 @@ export function useDebouncedCallback<A extends unknown[]>(
   const flush = useCallback(async () => {
     clear()
     const args = pendingArgs.current
-    pendingArgs.current = null
-    if (args) await callbackRef.current(...args)
-  }, [clear])
+    if (!args) return
+    try {
+      await callbackRef.current(...args)
+      if (pendingArgs.current === args) pendingArgs.current = null
+    } catch (error) {
+      // A failed IndexedDB write is still pending work. Keep the exact latest
+      // arguments and retry after the normal debounce delay; callers that
+      // explicitly flush also receive the error and can abort destructive work.
+      if (mounted.current && pendingArgs.current === args) {
+        timer.current = setTimeout(() => {
+          void flushRef.current().catch(() => undefined)
+        }, delay)
+      }
+      throw error
+    }
+  }, [clear, delay])
+  flushRef.current = flush
 
   const cancel = useCallback(() => {
     clear()
@@ -53,14 +69,23 @@ export function useDebouncedCallback<A extends unknown[]>(
       pendingArgs.current = args
       clear()
       timer.current = setTimeout(() => {
-        void flush()
+        void flush().catch(() => undefined)
       }, delay)
     },
     [clear, delay, flush],
   )
 
   // Unmount must not silently discard a pending save.
-  useEffect(() => () => void flush(), [flush])
+  useEffect(
+    () => {
+      mounted.current = true
+      return () => {
+        mounted.current = false
+        void flush().catch(() => undefined)
+      }
+    },
+    [flush],
+  )
 
   return { schedule, flush, cancel }
 }

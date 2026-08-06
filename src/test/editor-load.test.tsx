@@ -119,4 +119,53 @@ describe('markdown editor document loads', () => {
     expect(view.result.current?.getText()).toBe('Remote version')
     expect(onDocumentLoaded).toHaveBeenLastCalledWith('doc-1')
   })
+
+  /**
+   * The hook deliberately does not preserve an unflushed buffer — it has no way
+   * to know one exists. Committing it is the caller's job, which AppShell does
+   * by flushing inside its remote-change callback; `sync-remote-reload*.test`
+   * covers that. This case pins down the hook half of the contract so a change
+   * to the reload path cannot quietly move the responsibility.
+   */
+  it('replaces the buffer on reload without emitting an update', async () => {
+    const onDocChanged = vi.fn()
+    const onDocumentLoaded = vi.fn()
+    const first = paragraph('Draft')
+    const remote = paragraph('Remote version')
+
+    const view = renderHook(
+      ({ initialDoc, reloadToken }) =>
+        useMarkdownEditor({
+          activeId: 'doc-1',
+          initialDoc,
+          reloadToken,
+          onDocChanged,
+          onDocumentLoaded,
+        }),
+      { initialProps: { initialDoc: first, reloadToken: 0 } },
+    )
+
+    await waitFor(() => expect(onDocumentLoaded).toHaveBeenCalledTimes(1))
+
+    const editor = view.result.current
+    expect(editor?.getText()).toBe('Draft')
+
+    // The user keeps typing; the debounced autosave has not flushed yet.
+    editor?.commands.insertContent(' + unsaved keystrokes')
+    expect(editor?.getText()).toBe('Draft + unsaved keystrokes')
+    const updatesBeforeReload = onDocChanged.mock.calls.length
+
+    // A remote pull replaces the document in storage and advances the token.
+    view.rerender({ initialDoc: remote, reloadToken: 1 })
+
+    await waitFor(() => expect(onDocumentLoaded).toHaveBeenCalledTimes(2))
+    expect(editor?.getText()).toBe('Remote version')
+
+    // emitUpdate:false, so the reload itself schedules no save. Whatever was in
+    // the buffer has to have been committed before this point.
+    expect(onDocChanged.mock.calls.length).toBe(updatesBeforeReload)
+    expect(editor?.getText()).not.toContain('unsaved keystrokes')
+
+    view.unmount()
+  })
 })

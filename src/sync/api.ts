@@ -13,6 +13,23 @@ interface ClientOptions {
   token?: string
 }
 
+/**
+ * A sync request that the server refused.
+ *
+ * Carries the status so callers can tell a permanent answer about one object
+ * (404: the revision has no body) from a transient failure that must not be
+ * treated as a verdict.
+ */
+export class SyncRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+    this.name = 'SyncRequestError'
+  }
+}
+
 export class SyncApiClient {
   private readonly apiUrl: string
   private readonly vaultId?: string
@@ -34,7 +51,10 @@ export class SyncApiClient {
     })
     if (!response.ok) {
       const message = await response.text().catch(() => '')
-      throw new Error(message || `Sync request failed (${response.status})`)
+      throw new SyncRequestError(
+        message || `Sync request failed (${response.status})`,
+        response.status,
+      )
     }
     if (response.status === 204) return undefined as T
     return response.json() as Promise<T>
@@ -78,7 +98,13 @@ export class SyncApiClient {
       `${this.apiUrl}/v1${this.vaultPath(`/objects/${kind}/${encodeURIComponent(objectId)}${suffix}`)}`,
       { headers, cache: 'no-store' },
     )
-    if (!response.ok) throw new Error(await response.text())
+    if (!response.ok) {
+      const message = await response.text().catch(() => '')
+      throw new SyncRequestError(
+        message || `Sync request failed (${response.status})`,
+        response.status,
+      )
+    }
     return new Uint8Array(await response.arrayBuffer())
   }
 

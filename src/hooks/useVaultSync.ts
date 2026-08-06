@@ -20,11 +20,14 @@ import {
 } from '../sync/local'
 import {
   DEFAULT_SYNC_API,
-  VAULT_ROUTE,
   type SyncStatus,
   type VaultDevice,
   type VaultUsage,
 } from '../sync/types'
+import {
+  hasPendingPairingLocation,
+  takePendingPairingLocation,
+} from '../sync/pairingLocation'
 
 const PAIRING_TTL_MS = 10 * 60 * 1000
 
@@ -87,6 +90,7 @@ export interface VaultSyncApi {
   devices: VaultDevice[]
   usage: VaultUsage | null
   pendingPairing: boolean
+  hasPendingPairingClaim: boolean
   syncNow: () => Promise<void>
   enable: (apiUrl?: string) => Promise<void>
   createPairingLink: () => Promise<string>
@@ -96,20 +100,22 @@ export interface VaultSyncApi {
   disableOnDevice: () => Promise<void>
 }
 
-export function useVaultSync(
-  onRemoteChange?: () => void | Promise<void>,
-  beforeSync?: () => void | Promise<void>,
-): VaultSyncApi {
+export interface VaultSyncLifecycle {
+  beforeSync?: () => void | Promise<void>
+  beforeRemoteBatch?: () => void | Promise<void>
+  onRemoteChange?: () => void | Promise<void>
+  afterRemoteBatch?: () => void | Promise<void>
+}
+
+export function useVaultSync(lifecycle: VaultSyncLifecycle = {}): VaultSyncApi {
   const [status, setStatus] = useState<SyncStatus>('disabled')
   const [error, setError] = useState<string | null>(null)
   const [config, setConfig] = useState<VaultConfigRecord | null>(null)
   const [devices, setDevices] = useState<VaultDevice[]>([])
   const [usage, setUsage] = useState<VaultUsage | null>(null)
   const [pendingPairing, setPendingPairing] = useState(false)
-  const remoteRef = useRef(onRemoteChange)
-  remoteRef.current = onRemoteChange
-  const beforeRef = useRef(beforeSync)
-  beforeRef.current = beforeSync
+  const lifecycleRef = useRef(lifecycle)
+  lifecycleRef.current = lifecycle
 
   const engine = useMemo(
     () =>
@@ -118,13 +124,15 @@ export function useVaultSync(
           setStatus(next)
           setError(message ?? null)
         },
-        onRemoteChange: () => remoteRef.current?.(),
+        onBeforeRemoteBatch: () => lifecycleRef.current.beforeRemoteBatch?.(),
+        onRemoteChange: () => lifecycleRef.current.onRemoteChange?.(),
+        onAfterRemoteBatch: () => lifecycleRef.current.afterRemoteBatch?.(),
       }),
     [],
   )
 
   const syncNow = useCallback(async () => {
-    await beforeRef.current?.()
+    await lifecycleRef.current.beforeSync?.()
     await engine.sync()
   }, [engine])
 
@@ -212,17 +220,14 @@ export function useVaultSync(
   }, [config])
 
   const claimPairingFromLocation = useCallback(async () => {
-    const match = VAULT_ROUTE.exec(window.location.pathname)
-    const fragment = new URLSearchParams(window.location.hash.slice(1))
-    const pair = fragment.get('p')
-    const wrap = fragment.get('w')
-    if (!match?.[1] || !pair || !wrap) return false
+    const location = takePendingPairingLocation()
+    if (!location) return false
+    const { vaultId, pair, wrap } = location
     if (await getVaultConfig()) throw new Error('This browser is already paired with a vault')
     const separator = pair.indexOf('.')
     if (separator < 1) throw new Error('Invalid pairing link')
     const pairingId = pair.slice(0, separator)
     const token = pair.slice(separator + 1)
-    const vaultId = match[1]
     if (!(await prepareLocalLibraryForPairing())) return false
     setPendingPairing(true)
     try {
@@ -251,7 +256,6 @@ export function useVaultSync(
       }
       await putVaultConfig(next)
       await queueWholeLibrary()
-      history.replaceState(null, '', `/v/${vaultId}`)
       setConfig(next)
       await syncNow()
       return true
@@ -304,6 +308,7 @@ export function useVaultSync(
     devices,
     usage,
     pendingPairing,
+    hasPendingPairingClaim: hasPendingPairingLocation(),
     syncNow,
     enable,
     createPairingLink,

@@ -187,6 +187,10 @@ export function AppShell() {
   // this tab writes from here on will land.
   const [dbOutdated, setDbOutdated] = useState(false)
   const pairingAttempted = useRef(false)
+  const editorRef = useRef<Editor | null>(null)
+  const remoteEditorState = useRef<{ editor: Editor; editable: boolean } | null>(
+    null,
+  )
 
   // Owned here rather than inside the sidebar so the status bar's orphan chip,
   // its sibling, can scroll the section into view.
@@ -199,7 +203,12 @@ export function AppShell() {
   const { activeId, save } = documents
   const activeDocument = useRef(activeId)
   activeDocument.current = activeId
-  const { getKnownIds, onAnchorsChanged, setActiveId } = threads
+  const {
+    getKnownIds,
+    knownIdsRevision,
+    onAnchorsChanged,
+    setActiveId,
+  } = threads
   // Destructured because the hook returns a fresh object each render; the
   // callbacks inside it are stable, the wrapper is not.
   const { show: showRail, toggle: toggleRail } = rail
@@ -258,10 +267,31 @@ export function AppShell() {
     AUTOSAVE_DELAY_MS,
   )
   const { schedule, flush } = autosave
-  const vaultSync = useVaultSync(documents.refreshFromStorage, flush)
+  const vaultSync = useVaultSync({
+    beforeSync: flush,
+    beforeRemoteBatch: async () => {
+      const instance = editorRef.current
+      if (instance && !instance.isDestroyed) {
+        remoteEditorState.current = {
+          editor: instance,
+          editable: instance.isEditable,
+        }
+        instance.setEditable(false)
+      }
+      await flush()
+    },
+    onRemoteChange: documents.refreshFromStorage,
+    afterRemoteBatch: () => {
+      const state = remoteEditorState.current
+      remoteEditorState.current = null
+      if (state && !state.editor.isDestroyed) {
+        state.editor.setEditable(state.editable)
+      }
+    },
+  })
 
   useEffect(() => {
-    if (pairingAttempted.current || !window.location.hash) return
+    if (pairingAttempted.current || !vaultSync.hasPendingPairingClaim) return
     pairingAttempted.current = true
     void vaultSync
       .claimPairingFromLocation()
@@ -287,10 +317,12 @@ export function AppShell() {
     onDocChanged,
     onAnchorsChanged,
     getKnownThreadIds: getKnownIds,
+    commentThreadRevision: knownIdsRevision,
     resolveImageAsset,
     onImageFiles: addImageFiles,
     onDocumentLoaded: docId => documentLoaded.current(docId),
   })
+  editorRef.current = editor
 
   const insertImagesAt = useCallback(
     (files: File[], position: number) => {
@@ -833,14 +865,17 @@ export function AppShell() {
 
   const restoreSyncConflict = useCallback(
     async (conflict: SyncConflictRecord) => {
+      // Flush so the restore point covers the last keystroke. The snapshot
+      // itself is taken by restoreConflict, which refuses to overwrite the
+      // document if it cannot write one — taking a second one here would only
+      // add a duplicate entry to the history list.
       await flush()
-      await takeSnapshot('restore')
       await restoreConflict(conflict)
       await documents.refreshFromStorage()
       setHistoryOpen(false)
       setNotice('The conflict version was restored and queued for sync')
     },
-    [documents, flush, takeSnapshot],
+    [documents, flush],
   )
 
   const closeSheet = useCallback(() => {

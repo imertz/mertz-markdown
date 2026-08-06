@@ -330,10 +330,13 @@ uploaded separately.
 
 The vault id in `/v/<id>` is an address, not a credential. A new computer is
 admitted with a ten-minute, single-use QR/link whose secrets live in the URL
-fragment and are removed from browser history after pairing. Each computer then
-uses its own revocable random credential. The server stores credential hashes,
-object sizes and timing metadata, but never receives the vault key or document
-plaintext.
+fragment. The fragment is consumed into one-shot memory and removed from the
+address before the app mounts or makes a network request. Each computer then
+uses its own revocable random credential. A vault accepts at most eight active
+computers and eight pending pairing links by default, and each device credential
+has a rolling authenticated-request allowance of 600 requests per minute. The
+server stores credential hashes, object sizes and timing metadata, but never
+receives the vault key or document plaintext.
 
 There is deliberately **no recovery key or server escrow**. If every paired
 browser profile is lost, the ciphertext cannot be recovered. Revoking a device

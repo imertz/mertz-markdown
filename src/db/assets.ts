@@ -61,6 +61,16 @@ export async function putRemoteAsset(record: AssetRecord): Promise<void> {
   await (await getDB()).put('assets', await toStoredAsset(record))
 }
 
+/** Drop assets the vault reports as deleted, without echoing the delete back. */
+export async function deleteRemoteAssets(
+  assetIds: readonly string[],
+): Promise<void> {
+  if (!assetIds.length) return
+  const db = await getDB()
+  const tx = db.transaction('assets', 'readwrite')
+  await Promise.all([...assetIds.map(id => tx.store.delete(id)), tx.done])
+}
+
 export async function deleteAssets(assetIds: readonly string[]): Promise<void> {
   if (!assetIds.length) return
   const db = await getDB()

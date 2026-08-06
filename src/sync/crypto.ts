@@ -1,10 +1,16 @@
-import { gunzipSync, gzipSync } from 'fflate'
+import { Gunzip, gzipSync } from 'fflate'
 import type { SyncObjectKind } from '../types'
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 const FORMAT_VERSION = 1
 const NONCE_BYTES = 12
+/**
+ * Cap on a decrypted document package. The server bounds the ciphertext but
+ * not the gzip ratio, so without this an attacker who can write to a vault
+ * could ship a tiny object that inflates to gigabytes on every other device.
+ */
+const MAX_DECOMPRESSED_BYTES = 64 * 1024 * 1024
 
 export function ownedBytes(bytes: Uint8Array): Uint8Array<ArrayBuffer> {
   const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength))
@@ -117,6 +123,86 @@ export async function encryptJson(
   return encryptBytes(ownedBytes(compressed), masterKey, vaultId, kind, objectId)
 }
 
+function joinChunks(chunks: Uint8Array[], total: number): Uint8Array {
+  const out = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) {
+    out.set(chunk, offset)
+    offset += chunk.byteLength
+  }
+  return out
+}
+
+export async function inflateWithLimit(
+  compressed: Uint8Array,
+  limit = MAX_DECOMPRESSED_BYTES,
+): Promise<Uint8Array> {
+  // Streaming decompression lets us bail as soon as the cap is crossed rather
+  // than holding the whole bomb in memory first. The slice produces an
+  // ArrayBuffer-backed view, which Blob's type accepts.
+  if (typeof DecompressionStream !== 'undefined') {
+    const stream = new Blob([compressed.slice()]).stream().pipeThrough(
+      new DecompressionStream('gzip'),
+    )
+    const reader = stream.getReader()
+    const chunks: Uint8Array[] = []
+    let total = 0
+    try {
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) return joinChunks(chunks, total)
+        total += value.byteLength
+        if (total > limit) {
+          await reader.cancel().catch(() => undefined)
+          throw new Error('The encrypted object expands beyond the safe limit')
+        }
+        chunks.push(value)
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  }
+
+  // Older Safari has no DecompressionStream. fflate's streaming decoder keeps
+  // this path bounded too; feeding small compressed chunks prevents a fallback
+  // from allocating the complete inflated payload before the cap is checked.
+  return await new Promise((resolve, reject) => {
+    const chunks: Uint8Array[] = []
+    let total = 0
+    let settled = false
+    const gunzip = new Gunzip((chunk, final) => {
+      if (settled) return
+      total += chunk.byteLength
+      if (total > limit) {
+        settled = true
+        reject(new Error('The encrypted object expands beyond the safe limit'))
+        return
+      }
+      if (chunk.byteLength) chunks.push(chunk)
+      if (final) {
+        settled = true
+        resolve(joinChunks(chunks, total))
+      }
+    })
+
+    try {
+      // Limit the largest temporary expansion produced by one synchronous
+      // decoder call, independently of the browser's source chunking.
+      const chunkSize = 16 * 1024
+      for (let offset = 0; offset < compressed.byteLength && !settled; offset += chunkSize) {
+        const end = Math.min(offset + chunkSize, compressed.byteLength)
+        gunzip.push(compressed.subarray(offset, end), end === compressed.byteLength)
+      }
+      if (compressed.byteLength === 0) gunzip.push(compressed, true)
+    } catch (error) {
+      if (!settled) {
+        settled = true
+        reject(error)
+      }
+    }
+  })
+}
+
 export async function decryptJson<T>(
   framed: Uint8Array,
   masterKey: ArrayBuffer | Uint8Array<ArrayBuffer>,
@@ -125,7 +211,8 @@ export async function decryptJson<T>(
   objectId: string,
 ): Promise<T> {
   const compressed = await decryptBytes(framed, masterKey, vaultId, kind, objectId)
-  return JSON.parse(decoder.decode(gunzipSync(compressed))) as T
+  const inflated = await inflateWithLimit(compressed)
+  return JSON.parse(decoder.decode(inflated)) as T
 }
 
 export async function sha256Base64Url(value: Uint8Array): Promise<string> {

@@ -15,6 +15,7 @@ function syncApi(overrides: Partial<VaultSyncApi> = {}): VaultSyncApi {
     devices: [],
     usage: null,
     pendingPairing: false,
+    hasPendingPairingClaim: false,
     syncNow: vi.fn(),
     enable: vi.fn(),
     createPairingLink: vi.fn(),

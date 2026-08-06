@@ -5,6 +5,9 @@ import type {
   SyncOutboxRecord,
   VaultConfigRecord,
 } from '../types'
+import { addSnapshot, pruneSnapshots } from '../db/snapshots'
+import { createId } from '../lib/id'
+import { SNAPSHOT_LIMIT } from '../lib/snapshotPolicy'
 import { applyDocumentPackage } from './package'
 
 export const SYNC_DIRTY_EVENT = 'mertz:sync-dirty'
@@ -88,6 +91,26 @@ export async function listConflicts(docId: string): Promise<SyncConflictRecord[]
 
 export async function restoreConflict(record: SyncConflictRecord): Promise<void> {
   const db = await getDB()
+
+  // Preserve the state being replaced before overwriting it. This is the only
+  // restore point that matters: a caller-side snapshot swallows its own write
+  // errors, so relying on one would let a failed snapshot pass for a taken one
+  // and the overwrite would proceed with nothing to go back to. Failing here
+  // aborts the restore instead, which is the safe direction.
+  const current = await db.get('documents', record.docId)
+  if (current) {
+    await addSnapshot({
+      id: createId(),
+      docId: record.docId,
+      doc: current.doc,
+      markdown: current.markdown,
+      title: current.title,
+      createdAt: Date.now(),
+      cause: 'restore',
+    })
+    await pruneSnapshots(record.docId, SNAPSHOT_LIMIT)
+  }
+
   const currentSnapshots = await db.getAllFromIndex(
     'snapshots',
     'by-docId',

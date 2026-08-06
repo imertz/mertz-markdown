@@ -2,6 +2,7 @@ import type { Editor, JSONContent } from '@tiptap/core'
 import { useEditor } from '@tiptap/react'
 import { useEffect, useRef } from 'react'
 import { buildExtensions } from './extensions'
+import { COMMENT_SANITIZER_RECHECK } from './extensions/commentSanitizer'
 
 export interface UseMarkdownEditorOptions {
   /** Id of the document currently open. `null` until the store has loaded. */
@@ -15,7 +16,9 @@ export interface UseMarkdownEditorOptions {
   /** Fired when the set of threads holding a live anchor changes. */
   onAnchorsChanged?: (threadIds: Set<string>) => void
   /** Threads belonging to the open document; anything else is foreign paste. */
-  getKnownThreadIds?: () => ReadonlySet<string>
+  getKnownThreadIds?: () => ReadonlySet<string> | null
+  /** Advances when the authoritative thread-id set finishes loading. */
+  commentThreadRevision?: number
   resolveImageAsset?: (assetId: string) => Promise<Blob | undefined>
   onImageFiles?: (editor: Editor, files: File[], position?: number) => void
   /**
@@ -48,6 +51,7 @@ export function useMarkdownEditor({
   onDocChanged,
   onAnchorsChanged,
   getKnownThreadIds,
+  commentThreadRevision = 0,
   resolveImageAsset,
   onImageFiles,
   onDocumentLoaded,
@@ -75,7 +79,7 @@ export function useMarkdownEditor({
     extensions: buildExtensions({
       onAnchorsChanged: ids => handlers.current.onAnchorsChanged?.(ids),
       getKnownThreadIds: () =>
-        handlers.current.getKnownThreadIds?.() ?? new Set<string>(),
+        handlers.current.getKnownThreadIds?.() ?? null,
       resolveImageAsset: assetId =>
         handlers.current.resolveImageAsset?.(assetId) ??
         Promise.resolve(undefined),
@@ -109,6 +113,13 @@ export function useMarkdownEditor({
     editor.commands.setContent(initialDoc, { emitUpdate: false })
     handlers.current.onDocumentLoaded?.(activeId)
   }, [editor, activeId, initialDoc, reloadToken])
+
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return
+    editor.view.dispatch(
+      editor.state.tr.setMeta(COMMENT_SANITIZER_RECHECK, true),
+    )
+  }, [editor, commentThreadRevision])
 
   return editor
 }

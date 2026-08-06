@@ -6,6 +6,7 @@ import { assetMarkdownPath } from '../images/files'
 import {
   buildDocumentExport,
   readDocumentBundle,
+  unzipBundleWithLimits,
 } from '../markdown/bundle'
 import { createTestEditor, createTestEditorFromJSON } from './editorHarness'
 import { makeAsset, makeDocument, resetDatabase } from './dbHarness'
@@ -185,5 +186,46 @@ describe('portable image bundles', () => {
     await expect(readDocumentBundle(file, 'doc')).rejects.toThrow(
       'missing images/missing.png',
     )
+  })
+
+  it('stops streaming when actual inflation exceeds the total cap', async () => {
+    const zipped = zipSync({
+      'notes.md': strToU8('x'.repeat(16 * 1024)),
+    })
+    // Under-report the local-header size so the check must observe emitted
+    // bytes rather than trusting attacker-controlled ZIP metadata.
+    const disguised = zipped.slice()
+    new DataView(
+      disguised.buffer,
+      disguised.byteOffset,
+      disguised.byteLength,
+    ).setUint32(22, 1, true)
+    const file = new File([disguised], 'bomb.zip', {
+      type: 'application/zip',
+    })
+
+    await expect(
+      unzipBundleWithLimits(file, {
+        inputBytes: 1024 * 1024,
+        inflatedBytes: 1024,
+        entries: 10,
+      }),
+    ).rejects.toThrow('safe size limit')
+  })
+
+  it('rejects excessive entry counts before extracting their contents', async () => {
+    const zipped = zipSync({
+      'notes.md': strToU8('hello'),
+      'one.txt': strToU8('one'),
+      'two.txt': strToU8('two'),
+    })
+
+    await expect(
+      unzipBundleWithLimits(new File([zipped], 'many.zip'), {
+        inputBytes: 1024 * 1024,
+        inflatedBytes: 1024,
+        entries: 2,
+      }),
+    ).rejects.toThrow('too many files')
   })
 })

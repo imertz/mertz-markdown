@@ -1,5 +1,5 @@
 import { getDB } from '../db/client'
-import { getAsset, putRemoteAsset } from '../db/assets'
+import { deleteRemoteAssets, getAsset, putRemoteAsset } from '../db/assets'
 import type {
   SyncConflictRecord,
   SyncObjectStateRecord,
@@ -7,7 +7,7 @@ import type {
   SyncedDocumentPackage,
   VaultConfigRecord,
 } from '../types'
-import { SyncApiClient } from './api'
+import { SyncApiClient, SyncRequestError } from './api'
 import { decryptBytes, decryptJson, encryptBytes, encryptJson } from './crypto'
 import {
   announceDirty,
@@ -26,10 +26,33 @@ import {
 import type { RemoteChange, SyncStatus } from './types'
 
 const CONFLICT_LIMIT = 50
+const VAULT_FORGOTTEN = 'VAULT_FORGOTTEN'
+
+/**
+ * One remote object this device refuses to apply, and never will.
+ *
+ * Kept separate from ordinary failures because the two need opposite handling.
+ * A transient failure must leave the cursor where it is so the change is
+ * retried; a permanently unusable object must be stepped over, or a single
+ * bad envelope from a compromised device would stall every later change in
+ * the vault forever.
+ */
+export class RejectedRemoteObject extends Error {
+  constructor(
+    message: string,
+    readonly kind: string,
+    readonly objectId: string,
+  ) {
+    super(message)
+    this.name = 'RejectedRemoteObject'
+  }
+}
 
 export interface SyncEngineEvents {
   onStatus?: (status: SyncStatus, error?: string) => void
+  onBeforeRemoteBatch?: () => void | Promise<void>
   onRemoteChange?: () => void | Promise<void>
+  onAfterRemoteBatch?: () => void | Promise<void>
 }
 
 export class VaultSyncEngine {
@@ -82,19 +105,37 @@ export class VaultSyncEngine {
         token: config.deviceToken,
       })
       await this.refreshClock(config, api)
-      await this.push(config, api)
-      const changed = await this.pull(config, api)
-      this.events.onStatus?.('idle')
-      if (changed) {
-        window.dispatchEvent(new Event(SYNC_REMOTE_EVENT))
-        await this.events.onRemoteChange?.()
+      if (!(await this.configStillCurrent(config))) {
+        this.events.onStatus?.('disabled')
+        return
       }
+      await this.push(config, api)
+      await this.pull(config, api)
+      this.events.onStatus?.('idle')
     } catch (error) {
+      if (error instanceof Error && error.message === VAULT_FORGOTTEN) {
+        this.events.onStatus?.('disabled')
+        return
+      }
       const message = error instanceof Error ? error.message : 'Sync failed'
       console.error('[sync] failed', error)
       this.events.onStatus?.('error', message)
       throw error
     }
+  }
+
+  /**
+   * Whether the config captured at the start of a run is still the config in
+   * storage. A "forget this computer" clears vaultConfig while a sync is in
+   * flight; without this check the run would re-persist the wiped credentials.
+   */
+  private async configStillCurrent(config: VaultConfigRecord): Promise<boolean> {
+    const latest = await getVaultConfig()
+    return Boolean(
+      latest &&
+        latest.vaultId === config.vaultId &&
+        latest.deviceToken === config.deviceToken,
+    )
   }
 
   private async refreshClock(
@@ -105,7 +146,11 @@ export class VaultSyncEngine {
     const { serverTime } = await api.time()
     const midpoint = started + (Date.now() - started) / 2
     config.clockOffsetMs = Math.round(serverTime - midpoint)
-    await putVaultConfig(config)
+    if (await this.configStillCurrent(config)) {
+      await putVaultConfig(config)
+    } else {
+      throw new Error(VAULT_FORGOTTEN)
+    }
   }
 
   private async push(
@@ -176,8 +221,25 @@ export class VaultSyncEngine {
         config.deviceLabel,
       )
 
+      // A delete of an object the server has never seen is intentionally a
+      // successful no-op. Do not manufacture revision-zero local state or try
+      // to fetch a revision-zero winner; just retire the matching outbox item.
+      if (result.noOp || result.headRevision === 0) {
+        const latest = await db.get('syncOutbox', record.id)
+        if (latest?.changedAt === record.changedAt) {
+          await db.delete('syncOutbox', record.id)
+        }
+        await db.delete('syncObjects', stateId)
+        return
+      }
+
       if (record.kind === 'document' && result.conflictRevision !== null) {
-        await this.cacheConflict(config, api, record.docId, result.conflictRevision)
+        await this.cacheConflictSafely(
+          config,
+          api,
+          record.objectId,
+          result.conflictRevision,
+        )
       }
 
       const objectState: SyncObjectStateRecord = {
@@ -228,24 +290,73 @@ export class VaultSyncEngine {
       return a.seq - b.seq
     })
 
-    for (const remote of ordered) {
-      const pending = await db.get('syncOutbox', objectStateId(remote.kind, remote.objectId))
-      if (pending) continue
-      const local = await db.get('syncObjects', objectStateId(remote.kind, remote.objectId))
-      if ((local?.revision ?? 0) >= remote.revision) continue
-      await this.applyRemoteObject(config, api, remote)
-      const conflicts = remote.conflictRevisions ??
-        (remote.conflictRevision ? [remote.conflictRevision] : [])
-      for (const revision of conflicts) {
-        await this.cacheConflict(config, api, remote.docId, revision)
-      }
-      changed = true
-    }
+    const hasRemoteBatch = ordered.length > 0
+    try {
+      if (hasRemoteBatch) await this.events.onBeforeRemoteBatch?.()
 
-    config.cursor = response.cursor
-    config.clockOffsetMs = response.serverTime - Date.now()
-    await putVaultConfig(config)
-    return changed
+      for (const remote of ordered) {
+        try {
+          // The compacted feed can add a losing conflict while leaving the
+          // winning head revision unchanged. Cache conflicts before the local
+          // revision short-circuit so that information is never skipped.
+          if (remote.kind === 'document') {
+            const conflicts = remote.conflictRevisions ??
+              (remote.conflictRevision ? [remote.conflictRevision] : [])
+            for (const revision of new Set(conflicts)) {
+              await this.cacheConflictSafely(
+                config,
+                api,
+                remote.objectId,
+                revision,
+              )
+            }
+          }
+
+          // onBeforeRemoteBatch flushes the live editor. Re-read the outbox
+          // only afterwards so keystrokes that landed during the request are
+          // treated as pending local work and cannot be overwritten.
+          const pending = await db.get(
+            'syncOutbox',
+            objectStateId(remote.kind, remote.objectId),
+          )
+          if (pending) continue
+          const local = await db.get(
+            'syncObjects',
+            objectStateId(remote.kind, remote.objectId),
+          )
+          if ((local?.revision ?? 0) >= remote.revision) continue
+
+          await this.applyRemoteObject(config, api, remote)
+        } catch (error) {
+          // Step over an object this device will never be able to apply and keep
+          // draining the feed. Deliberately no `syncObjects` write: the cursor
+          // moves past this revision, so a later legitimate one still applies.
+          if (error instanceof RejectedRemoteObject) {
+            console.warn('[sync] skipped an unusable remote object', {
+              kind: error.kind,
+              objectId: error.objectId,
+              reason: error.message,
+            })
+            continue
+          }
+          throw error
+        }
+        changed = true
+      }
+
+      config.cursor = response.cursor
+      config.clockOffsetMs = response.serverTime - Date.now()
+      if (await this.configStillCurrent(config)) {
+        await putVaultConfig(config)
+      }
+      if (changed) {
+        window.dispatchEvent(new Event(SYNC_REMOTE_EVENT))
+        await this.events.onRemoteChange?.()
+      }
+      return changed
+    } finally {
+      if (hasRemoteBatch) await this.events.onAfterRemoteBatch?.()
+    }
   }
 
   private async applyRemoteObject(
@@ -254,10 +365,22 @@ export class VaultSyncEngine {
     remote: RemoteChange,
   ): Promise<void> {
     const db = await getDB()
-    if (remote.deleted && remote.kind === 'document') {
-      await applyRemoteDelete(remote.docId)
+    if (remote.kind === 'document' && remote.docId !== remote.objectId) {
+      throw new RejectedRemoteObject(
+        'The document metadata identity does not match its storage key',
+        remote.kind,
+        remote.objectId,
+      )
+    }
+    if (remote.deleted) {
+      // A tombstone has no body to fetch. Assets need this branch as much as
+      // documents do: asking the server for a deleted revision answers 404,
+      // and before this every asset tombstone aborted the pull and pinned the
+      // cursor, taking the whole vault's sync down with it.
+      if (remote.kind === 'document') await applyRemoteDelete(remote.docId)
+      else await deleteRemoteAssets([remote.objectId])
     } else {
-      const ciphertext = await api.getObject(remote.kind, remote.objectId, remote.revision)
+      const ciphertext = await this.fetchObject(api, remote)
       if (remote.kind === 'asset') {
         const bytes = await decryptBytes(
           ciphertext,
@@ -266,7 +389,18 @@ export class VaultSyncEngine {
           'asset',
           remote.objectId,
         )
-        await putRemoteAsset(deserializeAsset(bytes))
+        const asset = deserializeAsset(bytes)
+        // The envelope carries its own identity; it must match the object key
+        // it was stored and encrypted under, or one device's sync state and
+        // another's local records would diverge on the same object.
+        if (asset.id !== remote.objectId || asset.docId !== remote.docId) {
+          throw new RejectedRemoteObject(
+            'The encrypted asset identity does not match its storage key',
+            remote.kind,
+            remote.objectId,
+          )
+        }
+        await putRemoteAsset(asset)
       } else {
         const package_ = await decryptJson<SyncedDocumentPackage>(
           ciphertext,
@@ -275,6 +409,13 @@ export class VaultSyncEngine {
           'document',
           remote.objectId,
         )
+        if (package_.document.id !== remote.objectId) {
+          throw new RejectedRemoteObject(
+            'The encrypted document identity does not match its storage key',
+            remote.kind,
+            remote.objectId,
+          )
+        }
         await applyDocumentPackage(package_)
       }
     }
@@ -289,21 +430,43 @@ export class VaultSyncEngine {
     })
   }
 
+  /**
+   * Download one object's ciphertext.
+   *
+   * A 404 is the server's final answer about this revision: the body was
+   * pruned, or the change feed named something the object store never held.
+   * Any other failure may well succeed on the next attempt, so it stays an
+   * ordinary error and leaves the cursor where it is.
+   */
+  private async fetchObject(
+    api: SyncApiClient,
+    remote: RemoteChange,
+  ): Promise<Uint8Array> {
+    try {
+      return await api.getObject(remote.kind, remote.objectId, remote.revision)
+    } catch (error) {
+      if (error instanceof SyncRequestError && error.status === 404) {
+        throw new RejectedRemoteObject(error.message, remote.kind, remote.objectId)
+      }
+      throw error
+    }
+  }
+
   private async cacheConflict(
     config: VaultConfigRecord,
     api: SyncApiClient,
-    docId: string,
+    objectId: string,
     revision: number,
   ): Promise<void> {
     const db = await getDB()
-    const id = `${docId}:${revision}`
+    const id = `${objectId}:${revision}`
     if (await db.get('syncConflicts', id)) return
     let ciphertext: Uint8Array
     try {
-      ciphertext = await api.getObject('document', docId, revision)
+      ciphertext = await api.getObject('document', objectId, revision)
     } catch (error) {
       // A losing permanent tombstone has no plaintext package to restore.
-      if (error instanceof Error && error.message.includes('has no body')) return
+      if (error instanceof SyncRequestError && error.status === 404) return
       throw error
     }
     const package_ = await decryptJson<SyncedDocumentPackage>(
@@ -311,11 +474,18 @@ export class VaultSyncEngine {
       config.masterKey,
       config.vaultId,
       'document',
-      docId,
+      objectId,
     )
+    if (package_.document.id !== objectId) {
+      throw new RejectedRemoteObject(
+        'The conflicting document identity does not match its storage key',
+        'document',
+        objectId,
+      )
+    }
     const record: SyncConflictRecord = {
       id,
-      docId,
+      docId: objectId,
       revision,
       changedAt: package_.changedAt,
       deviceLabel: package_.deviceLabel,
@@ -324,7 +494,7 @@ export class VaultSyncEngine {
     }
     await db.put('syncConflicts', record)
 
-    const range = IDBKeyRange.bound([docId], [docId, []])
+    const range = IDBKeyRange.bound([objectId], [objectId, []])
     const conflicts = await db.getAllKeysFromIndex(
       'syncConflicts',
       'by-doc-createdAt',
@@ -335,6 +505,26 @@ export class VaultSyncEngine {
         db.delete('syncConflicts', key),
       ),
     )
+  }
+
+  /** Ignore permanently malformed/pruned conflicts, but retry transient I/O. */
+  private async cacheConflictSafely(
+    config: VaultConfigRecord,
+    api: SyncApiClient,
+    objectId: string,
+    revision: number,
+  ): Promise<void> {
+    try {
+      await this.cacheConflict(config, api, objectId, revision)
+    } catch (error) {
+      if (!(error instanceof RejectedRemoteObject)) throw error
+      console.warn('[sync] skipped an unusable conflict', {
+        kind: error.kind,
+        objectId: error.objectId,
+        revision,
+        reason: error.message,
+      })
+    }
   }
 }
 

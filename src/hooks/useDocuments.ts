@@ -338,6 +338,7 @@ export function useDocuments(): DocumentsApi {
       } catch (error) {
         console.error('[documents] save failed', error)
         setStatus('error')
+        throw error
       }
     },
     [reindex, snapshot],

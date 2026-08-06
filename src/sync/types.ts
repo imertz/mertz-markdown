@@ -28,6 +28,8 @@ export interface UploadResponse {
   winner: 'submitted' | 'existing'
   conflictRevision: number | null
   seq: number
+  /** The submitted delete named an object that has never existed. */
+  noOp?: boolean
 }
 
 export interface PairingClaimResponse {
