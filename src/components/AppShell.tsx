@@ -36,7 +36,10 @@ import { useRailHidden } from '../hooks/useRailHidden'
 import { useStorageEstimate } from '../hooks/useStorageEstimate'
 import { CommentEndnotes } from './CommentEndnotes'
 import { useFocusMode } from '../hooks/useFocusMode'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useTheme } from '../hooks/useTheme'
+import { useVisualViewport } from '../hooks/useVisualViewport'
+import { MobileActionsMenu } from './MobileActionsMenu'
 import { useThreads } from '../hooks/useThreads'
 import { useVaultSync } from '../hooks/useVaultSync'
 import { insertImageFiles } from '../images/insert'
@@ -149,6 +152,15 @@ export function AppShell() {
   const documentTextSize = useDocumentTextSize()
   const online = useOnline()
   const rail = useRailHidden()
+
+  // Keeps the shell the size of what is actually on screen when the phone
+  // keyboard opens, instead of the size of the layout viewport.
+  useVisualViewport()
+  /* The one responsive decision that cannot be made in CSS: on a phone the app
+     actions become a single sheet rather than a row, and rendering both to hide
+     one would mean two copies of the same open/closed state. Matches the 900px
+     breakpoint every stylesheet here uses for "phone". */
+  const phone = useMediaQuery('(max-width: 900px)')
 
   const [draftRange, setDraftRange] = useState<{
     from: number
@@ -1023,39 +1035,69 @@ export function AppShell() {
             <SearchIcon />
           </button>
 
-          <ExportMenu
-            disabled={!editor}
-            onExport={exportMarkdown}
-            onExportDocx={exportDocx}
-            onExportDocxAnnotated={exportDocxAnnotated}
-            onExportAnnotated={exportAnnotated}
-            onImport={importFile}
-          />
+          {/*
+            Search and sync stay in the row on a phone — one is the way back to
+            everything else, the other is a status light you want to be able to
+            glance at. The rest of the actions collapse into the sheet, which is
+            what gets the row inside a 390px screen.
+          */}
+          {phone ? (
+            <MobileActionsMenu
+              disabled={!editor}
+              exports={{
+                onExport: exportMarkdown,
+                onExportDocx: exportDocx,
+                onExportDocxAnnotated: exportDocxAnnotated,
+                onExportAnnotated: exportAnnotated,
+              }}
+              onImport={importFile}
+              onOpenHistory={() => setHistoryOpen(true)}
+              font={documentFont.font}
+              onSelectFont={documentFont.selectFont}
+              textSize={documentTextSize.size}
+              onSelectTextSize={documentTextSize.selectSize}
+              theme={theme.theme}
+              onToggleTheme={theme.toggle}
+            />
+          ) : (
+            <>
+              <ExportMenu
+                disabled={!editor}
+                onExport={exportMarkdown}
+                onExportDocx={exportDocx}
+                onExportDocxAnnotated={exportDocxAnnotated}
+                onExportAnnotated={exportAnnotated}
+                onImport={importFile}
+              />
 
-          <button
-            type="button"
-            className="app-header__icon"
-            disabled={!editor}
-            aria-label="Version history"
-            title="Version history"
-            onClick={() => setHistoryOpen(true)}
-          >
-            <HistoryIcon />
-          </button>
+              <button
+                type="button"
+                className="app-header__icon"
+                disabled={!editor}
+                aria-label="Version history"
+                title="Version history"
+                onClick={() => setHistoryOpen(true)}
+              >
+                <HistoryIcon />
+              </button>
 
-          <DocumentFontMenu
-            font={documentFont.font}
-            onSelect={documentFont.selectFont}
-          />
+              <DocumentFontMenu
+                font={documentFont.font}
+                onSelect={documentFont.selectFont}
+              />
 
-          <DocumentTextSizeMenu
-            size={documentTextSize.size}
-            onSelect={documentTextSize.selectSize}
-          />
+              <DocumentTextSizeMenu
+                size={documentTextSize.size}
+                onSelect={documentTextSize.selectSize}
+              />
+            </>
+          )}
 
           <VaultMenu sync={vaultSync} />
 
-          <ThemeToggle theme={theme.theme} onToggle={theme.toggle} />
+          {phone ? null : (
+            <ThemeToggle theme={theme.theme} onToggle={theme.toggle} />
+          )}
         </div>
       </header>
 

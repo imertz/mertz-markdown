@@ -28,6 +28,31 @@ export const documentFonts = [
     label: 'GFS Neohellenic',
     family: "'GFS Neohellenic', Georgia, serif",
   },
+  {
+    id: 'source-sans-3',
+    label: 'Source Sans 3',
+    family: "'Source Sans 3 Variable', system-ui, sans-serif",
+  },
+  {
+    id: 'eb-garamond',
+    label: 'EB Garamond',
+    family: "'EB Garamond Variable', Georgia, serif",
+  },
+  {
+    id: 'alegreya',
+    label: 'Alegreya',
+    family: "'Alegreya Variable', Georgia, serif",
+  },
+  {
+    /*
+     * The only fixed-pitch option. Its fallbacks stay monospaced so polytonic
+     * Greek — the one range this family does not draw — lands on another
+     * fixed-pitch face rather than breaking the column's rhythm.
+     */
+    id: 'jetbrains-mono',
+    label: 'JetBrains Mono',
+    family: "'JetBrains Mono Variable', ui-monospace, Consolas, monospace",
+  },
 ] as const
 
 export type DocumentFontId = (typeof documentFonts)[number]['id']

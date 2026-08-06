@@ -211,9 +211,11 @@
 }
 
 /*
- * Oldstyle figures, for the serif document faces only. Literata draws them;
- * they sit on the x-height with ascenders and descenders, so a date in running
- * prose stops shouting the way lining figures do in a book.
+ * Oldstyle figures, for the serif document faces only. Each of these draws
+ * them; they sit on the x-height with ascenders and descenders, so a date in
+ * running prose stops shouting the way lining figures do in a book. A face
+ * without the feature simply ignores the declaration, so listing one costs
+ * nothing — but the sans and mono options are left out on purpose.
  *
  * Body text only. Code needs its digits monospaced and aligned, tables need
  * theirs comparable down a column, and the chrome is an instrument panel where
@@ -221,7 +223,9 @@
  * in index.css.
  */
 :root[data-document-font='literata'] .ProseMirror,
-:root[data-document-font='gfs-neohellenic'] .ProseMirror {
+:root[data-document-font='gfs-neohellenic'] .ProseMirror,
+:root[data-document-font='eb-garamond'] .ProseMirror,
+:root[data-document-font='alegreya'] .ProseMirror {
   font-variant-numeric: oldstyle-nums;
 
   code,
@@ -593,6 +597,30 @@
     /* The last column's resize handle sits at `right: -2px`; without this it
        puts every table into a two-pixel horizontal scroll of its own. */
     padding-inline-end: 2px;
+
+    /*
+     * On a phone the wrapper was ready to scroll and never got the chance:
+     * `table { width: 100% }` under `table-layout: fixed` sizes the table to
+     * the pane, so three columns split ~340px between them and every cell set
+     * one word per line. Giving the table a floor wider than the pane is what
+     * makes the overflow — and therefore the scroll — happen.
+     *
+     * It has to be `width`, not `min-width`. TableView writes an inline
+     * `min-width` on *every* table it renders, not only resized ones, and
+     * inline style beats any selector — a `min-width` here is simply ignored.
+     * Setting `width` instead leaves that inline value alone to do its own job,
+     * which is the right precedence twice over: the table widens by default,
+     * and a table the user has deliberately resized wider keeps its size,
+     * because its larger inline `min-width` then raises this width.
+     */
+    @media (max-width: 900px) {
+      /* A sideways swipe across a table must not become a back gesture. */
+      overscroll-behavior-x: contain;
+
+      table {
+        width: max(100%, 34rem);
+      }
+    }
   }
 
   table {

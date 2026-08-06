@@ -64,7 +64,30 @@ export function Toolbar({
   })
 
   return (
-    <div className="toolbar" role="toolbar" aria-label="Formatting">
+    <div
+      className="toolbar"
+      role="toolbar"
+      aria-label="Formatting"
+      /*
+       * Keep the editor focused when a key is pressed. Without this the tap
+       * blurs the document first, which on a phone collapses the keyboard and
+       * reopens it on every single formatting tap.
+       *
+       * One handler on the plate rather than a prop on all sixteen keys, so a
+       * key added later cannot forget it. Scoped to buttons because the image
+       * popover renders inside this element and its text inputs do need the
+       * focus this would otherwise deny them; the image button opts itself out
+       * further up by stopping propagation, since it opens that popover.
+       *
+       * The action stays on click — Enter and Space fire click without ever
+       * firing mousedown, so keyboard users are untouched by this.
+       */
+      onMouseDown={event => {
+        if ((event.target as HTMLElement).closest('button')) {
+          event.preventDefault()
+        }
+      }}
+    >
       <div className="toolbar__group">
         <button
           type="button"

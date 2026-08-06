@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { DocumentFontMenu } from '../components/DocumentFontMenu'
 import {
   DOCUMENT_FONT_KEY,
+  documentFonts,
+  isDocumentFontId,
   useDocumentFont,
 } from '../hooks/useDocumentFont'
 
@@ -42,6 +44,18 @@ describe('document font preference', () => {
     expect(document.documentElement.dataset.documentFont).toBe('fira-sans')
   })
 
+  it('restores every registered font, including the Greek-capable ones', () => {
+    for (const option of documentFonts) {
+      expect(isDocumentFontId(option.id)).toBe(true)
+      expect(option.family).toBeTruthy()
+
+      localStorage.setItem(DOCUMENT_FONT_KEY, option.id)
+      const { unmount } = render(<PreferenceProbe />)
+      expect(document.documentElement.dataset.documentFont).toBe(option.id)
+      unmount()
+    }
+  })
+
   it('applies and persists a selection', async () => {
     const user = userEvent.setup()
     render(<PreferenceProbe />)
@@ -55,7 +69,7 @@ describe('document font preference', () => {
 })
 
 describe('document font menu', () => {
-  it('previews Greek options, selects one, and closes', async () => {
+  it('offers every family, selects one, and closes', async () => {
     const user = userEvent.setup()
     const onSelect = vi.fn()
     const { rerender } = render(
@@ -63,8 +77,17 @@ describe('document font menu', () => {
     )
 
     await user.click(screen.getByRole('button', { name: /reading font/i }))
-    expect(screen.getAllByRole('menuitemradio')).toHaveLength(5)
-    expect(screen.getAllByText('Καλημέρα · Greek notes')).toHaveLength(5)
+    expect(screen.getAllByRole('menuitemradio')).toHaveLength(
+      documentFonts.length,
+    )
+    /* The name is the only specimen now, so each one has to be there and has to
+       be set in the face it names. The DOM re-serialises the stack with double
+       quotes, so compare on normalised quoting rather than the raw string. */
+    const quotes = (stack: string) => stack.replaceAll("'", '"')
+    for (const option of documentFonts) {
+      const item = screen.getByRole('menuitemradio', { name: option.label })
+      expect(quotes(item.style.fontFamily)).toBe(quotes(option.family))
+    }
 
     await user.click(screen.getByRole('menuitemradio', { name: /literata/i }))
     expect(onSelect).toHaveBeenCalledWith('literata')

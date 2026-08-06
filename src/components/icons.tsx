@@ -225,6 +225,15 @@ export function SearchIcon(props: IconProps) {
   )
 }
 
+/* Three dots, drawn with round caps like the bullet-list markers above. */
+export function MoreIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 12h.01M12 12h.01M19 12h.01" />
+    </svg>
+  )
+}
+
 /** Platform-independent arrows for the document text-size glyph. */
 export function TextSizeArrowsIcon(props: IconProps) {
   return (

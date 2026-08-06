@@ -114,7 +114,9 @@ export function VaultMenu({ sync }: VaultMenuProps) {
             data-status={sync.status}
             aria-hidden="true"
           />
-          Sync
+          {/* The word goes away on a phone; the coloured mark is the status and
+              the button keeps its accessible name from the title attribute. */}
+          <span className="vault-menu__trigger-label">Sync</span>
         </span>
       </button>
 

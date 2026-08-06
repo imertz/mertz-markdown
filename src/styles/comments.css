@@ -48,7 +48,7 @@
     position: fixed;
     /* Stops at the top of the status bar — the sheet is fixed to the viewport
        and would otherwise cover a row that is never meant to be occluded. */
-    inset: auto 0 var(--statusbar-h) 0;
+    inset: auto 0 var(--statusbar-total) 0;
     z-index: 30;
     min-height: 0;
     max-height: 45svh;
@@ -70,8 +70,18 @@
     margin-bottom: 8px;
   }
 
-  .editor-pane {
+  /*
+   * Runway for the sheet, which is fixed and would otherwise cover the last
+   * half-screen of text. Only when the rail is actually mounted — the workspace
+   * carries --no-rail when it is not, and a phone user who has hidden the rail
+   * was scrolling half a viewport of nothing to reach the end of the document.
+   */
+  .workspace:not(.workspace--no-rail) .editor-pane {
     padding-bottom: 50svh;
+  }
+
+  .workspace--no-rail .editor-pane {
+    padding-bottom: 24svh;
   }
 }
 
@@ -398,6 +408,14 @@
   white-space: nowrap;
   color: var(--text);
 
+  /* This bar only ever appears over a selection, which on a phone means it was
+     reached by touch. The desktop 24px row is not a touch target. */
+  @media (max-width: 900px) {
+    min-height: 44px;
+    padding-inline: 12px;
+    font-size: 15px;
+  }
+
   & > svg {
     display: block;
     opacity: 0.75;
@@ -416,7 +434,7 @@
 .toast {
   position: fixed;
   /* Clears the status bar rather than floating over it. */
-  bottom: calc(20px + var(--statusbar-h));
+  bottom: calc(20px + var(--statusbar-total));
   left: 50%;
   translate: -50% 0;
   z-index: 50;

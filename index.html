@@ -3,7 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      viewport-fit=cover is what makes env(safe-area-inset-*) resolve to real
+      numbers; without it they are 0px and the installed PWA sits under the
+      notch and the home indicator. interactive-widget is honoured by Chrome,
+      which then resizes the layout viewport for the soft keyboard by itself;
+      Safari ignores it, which is what useVisualViewport is for.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
     <meta name="theme-color" content="#f7f6f4" />
 
     <!--

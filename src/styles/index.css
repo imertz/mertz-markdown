@@ -127,6 +127,21 @@
      bar exactly. The header's height stays a literal — nothing offsets it. */
   --statusbar-h: 30px;
 
+  /*
+   * Named once here so nothing else has to spell out env(). These are 0px in a
+   * browser tab, where the browser's own chrome already covers the notch and
+   * the home indicator, and become real numbers in the installed PWA — which
+   * is the only place the app draws to the physical screen edge. They need
+   * viewport-fit=cover in index.html to resolve to anything at all.
+   */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+
+  /* What everything pinned above the status bar has to clear. */
+  --statusbar-total: calc(var(--statusbar-h) + var(--safe-b));
+
   /* Inter is drawn on a wider fitting than system-ui and does not want the
      extra tracking system-ui needed here. Set flush. */
   font: 18px/145% var(--sans);
@@ -158,6 +173,27 @@
 
 :root[data-document-font='gfs-neohellenic'] {
   --document-font: 'GFS Neohellenic', Georgia, serif;
+}
+
+:root[data-document-font='source-sans-3'] {
+  --document-font: 'Source Sans 3 Variable', system-ui, sans-serif;
+}
+
+:root[data-document-font='eb-garamond'] {
+  --document-font: 'EB Garamond Variable', Georgia, serif;
+}
+
+:root[data-document-font='alegreya'] {
+  --document-font: 'Alegreya Variable', Georgia, serif;
+}
+
+/*
+ * The one document face that is not a text face. Its fallbacks stay monospaced
+ * so a missing glyph — polytonic Greek, which this family does not draw — lands
+ * on another fixed-pitch face instead of collapsing the column's rhythm.
+ */
+:root[data-document-font='jetbrains-mono'] {
+  --document-font: 'JetBrains Mono Variable', ui-monospace, Consolas, monospace;
 }
 
 :root[data-document-text-size='small'] {
@@ -238,7 +274,13 @@ body {
  */
 #root {
   width: 100%;
-  height: 100svh;
+  /*
+   * useVisualViewport writes --app-height from the *visual* viewport, which is
+   * the only measure that shrinks for a phone keyboard. The 100svh fallback is
+   * what desktop and any browser without visualViewport get, and is what this
+   * was before the hook existed.
+   */
+  height: var(--app-height, 100svh);
   margin: 0;
   text-align: start;
   box-sizing: border-box;
@@ -258,7 +300,11 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
+  /* The top inset is a max(), not an addition: in a browser tab it is 0px and
+     the row still needs its normal padding. The side insets are additions —
+     they are only non-zero in landscape, where they are pure encroachment. */
+  padding: max(10px, var(--safe-t)) calc(16px + var(--safe-r)) 10px
+    calc(16px + var(--safe-l));
   border-bottom: 1px solid var(--border);
   background: var(--bg);
   min-height: 52px;
@@ -314,7 +360,8 @@ body {
   .app-header {
     flex-wrap: nowrap;
     gap: 8px;
-    padding: 8px 12px;
+    padding: max(8px, var(--safe-t)) calc(12px + var(--safe-r)) 8px
+      calc(12px + var(--safe-l));
     min-height: 0;
   }
 
@@ -336,6 +383,16 @@ body {
    */
   .app-header {
     flex-wrap: wrap;
+  }
+
+  /*
+   * While the keyboard is up the screen is worth more than the file actions
+   * are. Typing needs the formatting toolbar and nothing else in this row, so
+   * the rest of it stands down and the document gets the height back. The
+   * attribute is set by useVisualViewport.
+   */
+  :root[data-keyboard='open'] .app-header__tools {
+    display: none;
   }
 
   /* The row wraps again here and the doc picker is capped at 42vw — the mark
@@ -373,8 +430,12 @@ body {
   display: flex;
   align-items: center;
   gap: var(--s3);
-  height: var(--statusbar-h);
-  padding: 0 var(--s4);
+  /* The bar keeps its 30px of content and grows by the home-indicator inset
+     underneath it, so the readout clears the indicator instead of sitting
+     beneath it. In a browser tab the inset is 0 and this is just --statusbar-h. */
+  height: var(--statusbar-total);
+  padding: 0 calc(var(--s4) + var(--safe-r)) var(--safe-b)
+    calc(var(--s4) + var(--safe-l));
   box-sizing: border-box;
   border-top: 1px solid var(--border);
   background: var(--bg);
@@ -385,7 +446,8 @@ body {
 
   @media (max-width: 900px) {
     gap: var(--s2);
-    padding: 0 var(--s3);
+    padding: 0 calc(var(--s3) + var(--safe-r)) var(--safe-b)
+      calc(var(--s3) + var(--safe-l));
   }
 }
 
@@ -852,6 +914,15 @@ body {
   top: calc(100% + 6px);
   right: 0;
   width: min(264px, calc(100vw - 24px));
+  /*
+   * Nine 52px options overrun a short viewport, and an absolutely positioned
+   * panel cannot be scrolled into view by the page — the options past the fold
+   * would simply be unreachable. Cap it against the space below the trigger and
+   * let the list scroll inside itself instead.
+   */
+  max-height: calc(100svh - 60px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
   box-sizing: border-box;
   background: var(--bg-raised);
@@ -860,12 +931,15 @@ body {
   box-shadow: var(--shadow);
 }
 
+/* Single-line rows, sized to match .text-size-menu__option — the two panels sit
+   side by side in the header and should read as one piece of menu language. The
+   45px floor is a touch target, not a typographic measure: do not shrink it. */
 .font-menu__option {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 52px;
-  padding: 7px 8px;
+  min-height: 45px;
+  padding: 6px 8px;
   text-align: start;
 }
 
@@ -874,23 +948,11 @@ body {
   background: var(--accent-bg);
 }
 
-.font-menu__option-copy {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
 .font-menu__option-name {
+  min-width: 0;
   font-size: 15px;
   font-weight: 600;
   line-height: 1.15;
-}
-
-.font-menu__option-preview {
-  color: var(--text);
-  font-size: 13px;
-  line-height: 1.2;
-  white-space: nowrap;
 }
 
 .font-menu__check {
@@ -1065,6 +1127,18 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* On a phone the mark carries the status by itself and the row needs the ~40px
+   the word costs. The button keeps its name from `title`. */
+@media (max-width: 900px) {
+  .vault-menu__trigger-label {
+    display: none;
+  }
+
+  .vault-menu__trigger-content {
+    gap: 0;
+  }
 }
 
 /* Hollow while sync is off, filled once a vault exists. An unfilled dot has to
@@ -1699,6 +1773,13 @@ body {
   min-width: 0;
   padding: 32px 24px 45svh;
   box-sizing: border-box;
+
+  /* 24px a side costs ~12% of a 390px screen. The measure is the scarce thing
+     on a phone; the gutter is not what makes the page feel composed there. */
+  @media (max-width: 900px) {
+    padding-inline: calc(16px + var(--safe-l)) calc(16px + var(--safe-r));
+    padding-top: 24px;
+  }
 }
 
 .editor-pane__inner {
@@ -2536,7 +2617,7 @@ button {
  */
 .peek {
   position: fixed;
-  bottom: calc(20px + var(--statusbar-h));
+  bottom: calc(20px + var(--statusbar-total));
   left: 50%;
   translate: -50% 0;
   /* Above the toasts, which share this corner. Safe because the panel takes no
@@ -2603,4 +2684,103 @@ button {
   .peek {
     animation: none;
   }
+}
+
+/* --- Text entry on touch --- */
+/*
+ * iOS zooms the page whenever a focused field is under 16px, and then leaves it
+ * zoomed — the whole layout jumps sideways on the first tap into find, rename,
+ * or a comment. 16px is the threshold, so this is a fix with exactly one legal
+ * value; the fields all read a little larger on a phone as a consequence, which
+ * a field being typed into can afford.
+ *
+ * Listed by class rather than as a bare `input` rule: every one of these sets
+ * its own size through a class selector, which would outrank the element.
+ * The `:root` prefix wins over the same classes in editor.css and comments.css,
+ * which are imported after this file.
+ */
+@media (max-width: 900px) {
+  :root .composer textarea,
+  :root .doc-picker__rename-input,
+  :root .sheet__input,
+  :root .find-bar__input,
+  :root .link-popover__input,
+  :root .image-bar__label input,
+  :root .image-bar__size input,
+  :root .image-insert-popover > label:not(.image-insert-popover__check) input,
+  :root .crop-dialog__zoom input {
+    font-size: 16px;
+  }
+}
+
+/* --- Phone actions sheet --- */
+/*
+ * The header's file and reading controls, collapsed into one panel because the
+ * row that holds them measures 428px and a phone screen is 390px. Deliberately
+ * flat: Export, reading font and text size are each a menu of their own on
+ * desktop, and a menu that opens a menu is not something to operate with a
+ * thumb. Sections instead, in one scroller.
+ */
+.actions-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.actions-menu__panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(300px, calc(100vw - 24px));
+  /* Six sections is more than a phone can show at once, so it scrolls itself
+     rather than running off the bottom of a screen it cannot scroll. */
+  max-height: calc(100svh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  box-sizing: border-box;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.actions-menu__heading {
+  margin: 8px 0 2px;
+  padding: 0 9px;
+  color: var(--text);
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-track);
+  text-transform: uppercase;
+
+  &:first-child {
+    margin-top: 2px;
+  }
+}
+
+.actions-menu__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  /* A thumb target, not a pointer one — this panel only exists on phones. */
+  min-height: 44px;
+  padding: 6px 9px;
+  text-align: start;
+  font-size: 15px;
+
+  &[aria-checked='true'] {
+    color: var(--accent);
+    background: var(--accent-bg);
+  }
+}
+
+.actions-menu__check {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }
