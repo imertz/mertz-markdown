@@ -28,6 +28,7 @@ const MAX_ACTIVE_DEVICES = Number(Bun.env.SYNC_MAX_ACTIVE_DEVICES || 8)
 const DEVICE_REQUESTS_PER_MINUTE = Number(
   Bun.env.SYNC_DEVICE_REQUESTS_PER_MINUTE || 600,
 )
+const RECENT_NON_CONFLICT_REVISIONS = 1
 const TOMBSTONE_BODY_TTL_MS = 30 * 24 * 60 * 60 * 1000
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
@@ -334,14 +335,21 @@ async function pruneRevisions(
     .get(vaultId, kind, objectId) as Row | null
   if (!object) return
   const headRevision = Number(object.head_revision)
-  const disposable = db
+  const superseded = db
     .query(
       `SELECT * FROM revisions
        WHERE vault_id = ? AND kind = ? AND object_id = ?
-         AND revision != ? AND is_conflict = 0`,
+         AND revision != ? AND is_conflict = 0
+       ORDER BY received_at DESC, revision DESC`,
     )
     .all(vaultId, kind, objectId, headRevision) as Row[]
-  for (const row of disposable) await removeRevision(row)
+  // Keep one immediately previous ordinary head. A client first reads the
+  // change feed and then fetches that exact revision; without this short
+  // window, one autosave landing between those requests makes a valid feed
+  // entry answer 404. Conflicts have their own bounded retention below.
+  for (const row of superseded.slice(RECENT_NON_CONFLICT_REVISIONS)) {
+    await removeRevision(row)
+  }
 
   if (kind !== 'document') return
   const conflicts = db

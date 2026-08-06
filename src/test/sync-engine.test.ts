@@ -121,18 +121,35 @@ describe('vault sync engine', () => {
       const url = String(input)
       if (url.endsWith('/v1/time')) return json({ serverTime: Date.now() })
       if (url.includes('/changes')) {
-        return json({ changes: [], cursor: 0, serverTime: Date.now() })
+        return json({
+          changes: [
+            {
+              seq: 1,
+              kind: 'document',
+              objectId: document.id,
+              docId: document.id,
+              revision: 1,
+              changedAt: 10,
+              deleted: false,
+              conflictRevision: 2,
+              conflictRevisions: [2],
+              deviceLabel: 'Laptop',
+            },
+          ],
+          cursor: 1,
+          serverTime: Date.now(),
+        })
       }
       if (init?.method === 'PUT' && url.includes('/objects/document/')) {
         return json({
           revision: 2,
-          headRevision: 2,
+          headRevision: 1,
           winner: 'existing',
-          conflictRevision: 1,
+          conflictRevision: 2,
           seq: 1,
         })
       }
-      if (url.includes('/objects/document/')) {
+      if (url.includes('/objects/document/') && url.includes('revision=1')) {
         return octet(ciphertext)
       }
       throw new Error(`unexpected request: ${url}`)
@@ -145,7 +162,73 @@ describe('vault sync engine', () => {
     // The locally authored thread vanished from the live document.
     expect((await loadThreadsForDoc(document.id)).length).toBe(0)
     const db = await getDB()
-    expect(await db.count('syncConflicts')).toBeGreaterThan(0)
+    expect(await db.get('syncConflicts', `${document.id}:2`)).toMatchObject({
+      package: { threads: [{ id: thread.id }] },
+    })
+    const changesCall = fetch_.mock.calls.findIndex(([input]) =>
+      String(input).includes('/changes'),
+    )
+    const headCall = fetch_.mock.calls.findIndex(([input]) =>
+      String(input).includes('revision=1'),
+    )
+    expect(changesCall).toBeGreaterThan(-1)
+    expect(headCall).toBeGreaterThan(changesCall)
+  })
+
+  it('applies an existing winning tombstone through pull without fetching a body', async () => {
+    const config = makeVaultConfig()
+    await putVaultConfig(config)
+    const document = makeDocument({ markdown: 'local draft\n' })
+    await putDocument(document)
+
+    const fetch_ = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/v1/time')) return json({ serverTime: Date.now() })
+      if (init?.method === 'PUT') {
+        return json({
+          revision: 2,
+          headRevision: 1,
+          winner: 'existing',
+          conflictRevision: 2,
+          seq: 5,
+        })
+      }
+      if (url.includes('/changes')) {
+        return json({
+          changes: [
+            {
+              seq: 5,
+              kind: 'document',
+              objectId: document.id,
+              docId: document.id,
+              revision: 1,
+              changedAt: 20,
+              deleted: true,
+              conflictRevision: 2,
+              conflictRevisions: [2],
+              deviceLabel: 'Laptop',
+            },
+          ],
+          cursor: 5,
+          serverTime: Date.now(),
+        })
+      }
+      throw new Error(`unexpected request: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetch_)
+
+    await new VaultSyncEngine().sync()
+
+    const db = await getDB()
+    expect(await db.get('documents', document.id)).toBeUndefined()
+    expect(await db.get('syncOutbox', `document:${document.id}`)).toBeUndefined()
+    expect(await db.get('syncConflicts', `${document.id}:2`)).toBeTruthy()
+    expect(
+      fetch_.mock.calls.some(
+        ([input, init]) =>
+          !init?.method && String(input).includes('/objects/document/'),
+      ),
+    ).toBe(false)
   })
 
   it('skips a remote document whose envelope id does not match its storage key', async () => {

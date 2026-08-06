@@ -174,6 +174,7 @@ export class VaultSyncEngine {
     const stateId = objectStateId(record.kind, record.objectId)
     const state = await db.get('syncObjects', stateId)
     let ciphertext: Uint8Array<ArrayBuffer> = new Uint8Array()
+    let documentPackage: SyncedDocumentPackage | null = null
 
     if (record.operation === 'put') {
       if (record.kind === 'asset') {
@@ -198,6 +199,7 @@ export class VaultSyncEngine {
         if (!package_) {
           record.operation = 'delete'
         } else {
+          documentPackage = package_
           ciphertext = await encryptJson(
             package_,
             config.masterKey,
@@ -233,13 +235,33 @@ export class VaultSyncEngine {
         return
       }
 
-      if (record.kind === 'document' && result.conflictRevision !== null) {
-        await this.cacheConflictSafely(
-          config,
-          api,
+      // When this exact submitted document loses, preserve the package already
+      // in memory instead of racing a GET for a revision the server may prune.
+      if (
+        record.kind === 'document' &&
+        documentPackage &&
+        result.winner === 'existing' &&
+        result.conflictRevision === result.revision
+      ) {
+        await this.storeConflictPackage(
           record.objectId,
-          result.conflictRevision,
+          result.revision,
+          documentPackage,
         )
+      }
+
+      const latest = await db.get('syncOutbox', record.id)
+      const submittedWorkIsCurrent = latest?.changedAt === record.changedAt
+      if (submittedWorkIsCurrent) await db.delete('syncOutbox', record.id)
+
+      // A PUT response is metadata, not an atomic snapshot of the head body:
+      // another writer can supersede and prune that revision before a follow-up
+      // GET. Let the immediately following changes pull apply the authoritative
+      // head (including tombstones) instead of fabricating deleted:false and
+      // turning a harmless race into a permanently retried upload storm.
+      if (result.winner === 'existing' && record.kind === 'document') {
+        if (submittedWorkIsCurrent) await db.delete('syncObjects', stateId)
+        return
       }
 
       const objectState: SyncObjectStateRecord = {
@@ -251,22 +273,6 @@ export class VaultSyncEngine {
         deleted: record.operation === 'delete' && result.winner === 'submitted',
       }
       await db.put('syncObjects', objectState)
-
-      const latest = await db.get('syncOutbox', record.id)
-      if (latest?.changedAt === record.changedAt) await db.delete('syncOutbox', record.id)
-
-      if (result.winner === 'existing' && record.kind === 'document') {
-        await this.applyRemoteObject(config, api, {
-          seq: result.seq,
-          kind: 'document',
-          objectId: record.objectId,
-          docId: record.docId,
-          revision: result.headRevision,
-          changedAt: record.changedAt,
-          deleted: false,
-          deviceLabel: 'Another device',
-        })
-      }
     } catch (error) {
       const current = await db.get('syncOutbox', record.id)
       if (current?.changedAt === record.changedAt) {
@@ -483,6 +489,24 @@ export class VaultSyncEngine {
         objectId,
       )
     }
+    await this.storeConflictPackage(objectId, revision, package_)
+  }
+
+  private async storeConflictPackage(
+    objectId: string,
+    revision: number,
+    package_: SyncedDocumentPackage,
+  ): Promise<void> {
+    if (package_.document.id !== objectId) {
+      throw new RejectedRemoteObject(
+        'The conflicting document identity does not match its storage key',
+        'document',
+        objectId,
+      )
+    }
+    const db = await getDB()
+    const id = `${objectId}:${revision}`
+    if (await db.get('syncConflicts', id)) return
     const record: SyncConflictRecord = {
       id,
       docId: objectId,

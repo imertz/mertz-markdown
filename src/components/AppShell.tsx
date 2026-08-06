@@ -276,7 +276,7 @@ export function AppShell() {
           editor: instance,
           editable: instance.isEditable,
         }
-        instance.setEditable(false)
+        instance.setEditable(false, false)
       }
       await flush()
     },
@@ -285,7 +285,7 @@ export function AppShell() {
       const state = remoteEditorState.current
       remoteEditorState.current = null
       if (state && !state.editor.isDestroyed) {
-        state.editor.setEditable(state.editable)
+        state.editor.setEditable(state.editable, false)
       }
     },
   })

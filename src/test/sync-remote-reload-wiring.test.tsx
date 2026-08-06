@@ -16,6 +16,7 @@ vi.mock('../hooks/usePwaUpdate', () => ({
 
 /** Every flush that ran, in order, across the whole render. */
 const flushes: string[] = []
+const schedules: string[] = []
 
 vi.mock('../hooks/useDebouncedCallback', async importOriginal => {
   const actual =
@@ -29,6 +30,10 @@ vi.mock('../hooks/useDebouncedCallback', async importOriginal => {
       const api = actual.useDebouncedCallback(callback, delay)
       return {
         ...api,
+        schedule: (...args: never[]) => {
+          schedules.push('schedule')
+          api.schedule(...args)
+        },
         flush: async () => {
           flushes.push('flush')
           await api.flush()
@@ -75,6 +80,7 @@ const { AppShell } = await import('../components/AppShell')
 
 beforeEach(() => {
   flushes.length = 0
+  schedules.length = 0
   lifecycle = null
 })
 
@@ -100,6 +106,7 @@ describe('AppShell vault sync wiring', () => {
     })
 
     flushes.length = 0
+    schedules.length = 0
     expect(editor.getAttribute('contenteditable')).toBe('true')
 
     await lifecycle!.beforeRemoteBatch!()
@@ -110,5 +117,6 @@ describe('AppShell vault sync wiring', () => {
     await lifecycle!.onRemoteChange?.()
     await lifecycle!.afterRemoteBatch?.()
     expect(editor.getAttribute('contenteditable')).toBe('true')
+    expect(schedules).toEqual([])
   })
 })

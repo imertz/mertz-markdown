@@ -89,6 +89,17 @@ const usage = async (vaultId: string, token: string): Promise<{ bytes: number }>
   return { bytes: body.usage?.bytes ?? 0 }
 }
 
+const uploadJson = async (...args: Parameters<typeof putObject>) => {
+  const response = await putObject(...args)
+  return {
+    response,
+    body: (await response.clone().json()) as {
+      revision: number
+      headRevision: number
+    },
+  }
+}
+
 const vault = await register('Validation')
 
 // #5 — concurrent uploads must not exceed the vault quota.
@@ -106,6 +117,42 @@ const vault = await register('Validation')
     '#5 concurrent quota',
     bytes <= quota,
     `${accepted}/${uploads.length} concurrent puts accepted, ${bytes} bytes stored (quota ${quota})`,
+  )
+}
+
+// The feed and body fetch are separate requests. Preserve the immediately
+// previous ordinary head so one intervening autosave cannot invalidate a
+// revision a client has just learned from the feed.
+{
+  const retentionVault = await register('Revision fetch window')
+  const first = await uploadJson(
+    retentionVault.vaultId,
+    retentionVault.deviceToken,
+    'document',
+    'retained-head',
+    'put',
+    new TextEncoder().encode('first'),
+    0,
+    Date.now(),
+  )
+  const second = await uploadJson(
+    retentionVault.vaultId,
+    retentionVault.deviceToken,
+    'document',
+    'retained-head',
+    'put',
+    new TextEncoder().encode('second'),
+    first.body.headRevision,
+    Date.now() + 1,
+  )
+  const previous = await fetch(
+    `${base}/v1/vaults/${retentionVault.vaultId}/objects/document/retained-head?revision=${first.body.revision}`,
+    { headers: { Authorization: `Bearer ${retentionVault.deviceToken}` } },
+  )
+  record(
+    'previous-head fetch window',
+    first.response.ok && second.response.ok && previous.status === 200,
+    `revision ${first.body.revision} remained fetchable after revision ${second.body.revision} (${previous.status})`,
   )
 }
 

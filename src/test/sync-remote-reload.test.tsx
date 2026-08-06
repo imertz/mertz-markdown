@@ -40,13 +40,13 @@ function useSyncedEditor() {
     autosave,
     editor,
     beforeRemoteBatch: async () => {
-      editor?.setEditable(false)
+      editor?.setEditable(false, false)
       await autosave.flush()
     },
     onRemoteChange: async () => {
       await documents.refreshFromStorage()
     },
-    afterRemoteBatch: () => editor?.setEditable(true),
+    afterRemoteBatch: () => editor?.setEditable(true, false),
   }
 }
 
