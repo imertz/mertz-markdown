@@ -7,10 +7,16 @@ import { buildExtensions } from '../editor/extensions'
  * Commands like setComment go through the full ProseMirror transaction
  * pipeline, so tests exercise the same code path the app does rather than
  * poking at JSON by hand.
+ *
+ * `element` is for the few tests that need the editor to sit inside a bit of
+ * the app's shell — the scroll container, for one — rather than nowhere.
  */
-export function createTestEditor(markdown = ''): Editor {
+export function createTestEditor(
+  markdown = '',
+  element: HTMLElement = document.createElement('div'),
+): Editor {
   return new Editor({
-    element: document.createElement('div'),
+    element,
     extensions: buildExtensions(),
     content: markdown,
     // Without this the string is parsed as HTML and `**bold**` survives as

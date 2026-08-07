@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import {
   findMatches,
   getSearchState,
+  revealOffset,
 } from '../editor/extensions/search'
 import { toMarkdown } from '../markdown/export'
 import { createTestEditor, rangeOfText } from './editorHarness'
@@ -148,5 +149,144 @@ describe('replace', () => {
     expect(editor.commands.replaceSearchMatch('x')).toBe(false)
     expect(editor.commands.replaceAllSearchMatches('x')).toBe(false)
     expect(textAt(editor)).toBe('nothing here')
+  })
+})
+
+interface Band {
+  top: number
+  bottom: number
+}
+
+describe('revealOffset', () => {
+  const band: Band = { top: 100, bottom: 500 }
+
+  it('is zero for a match already inside the band', () => {
+    expect(revealOffset({ top: 200, bottom: 220 }, band)).toBe(0)
+  })
+
+  it('scrolls up by just enough to clear the top edge', () => {
+    expect(revealOffset({ top: 60, bottom: 80 }, band)).toBe(-40)
+  })
+
+  it('scrolls down by just enough to clear the bottom edge', () => {
+    expect(revealOffset({ top: 520, bottom: 540 }, band)).toBe(40)
+  })
+
+  it('aligns the top of a match too tall to fit', () => {
+    // Pushing it up until its bottom cleared the band would take its start off
+    // the screen, which is the part worth looking at.
+    expect(revealOffset({ top: 200, bottom: 900 }, band)).toBe(100)
+  })
+})
+
+/*
+ * happy-dom lays nothing out, so the two rects a reveal reads are stubbed: the
+ * scroll container is a fixed band, and the active highlight sits wherever the
+ * test puts it.
+ */
+const SCROLLER: Band = { top: 0, bottom: 600 }
+let activeMatch: Band = { top: 0, bottom: 0 }
+const nativeRect = Element.prototype.getBoundingClientRect
+
+const asRect = (band: Band): DOMRect =>
+  ({
+    ...band,
+    height: band.bottom - band.top,
+    left: 0,
+    right: 0,
+    width: 0,
+    x: 0,
+    y: band.top,
+    toJSON: () => ({}),
+  }) as DOMRect
+
+/** The editor inside a stand-in for the app's scroll container. */
+function mountInScroller(markdown: string) {
+  const scroller = document.createElement('div')
+  scroller.className = 'workspace'
+  const host = document.createElement('div')
+  scroller.append(host)
+  document.body.append(scroller)
+
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    if (this.classList.contains('workspace')) return asRect(SCROLLER)
+    if (this.classList.contains('search-match--active')) {
+      return asRect(activeMatch)
+    }
+    return asRect({ top: 0, bottom: 0 })
+  }
+
+  return { editor: createTestEditor(markdown, host), scroller }
+}
+
+afterEach(() => {
+  Element.prototype.getBoundingClientRect = nativeRect
+  document.body.replaceChildren()
+})
+
+/*
+ * ProseMirror's own scrollIntoView is measured from the DOM selection, which
+ * lives in the find bar's input for the whole time the bar is open — so it
+ * silently does nothing, and stepping through matches used to leave the reader
+ * looking at the same screenful. These cover the reveal that replaces it.
+ */
+describe('revealing the active match', () => {
+  it('scrolls to the first hit when a query is set', () => {
+    activeMatch = { top: 900, bottom: 920 }
+    const { editor, scroller } = mountInScroller('needle in a stack')
+
+    editor.commands.setSearchQuery('needle')
+
+    // Bottom of the band is 600, less the 24px gap kept clear.
+    expect(scroller.scrollTop).toBe(920 - 600 + 24)
+  })
+
+  it('scrolls to the next hit when stepping', () => {
+    activeMatch = { top: 100, bottom: 120 }
+    const { editor, scroller } = mountInScroller('go and go and go')
+    editor.commands.setSearchQuery('go')
+    expect(scroller.scrollTop).toBe(0)
+
+    activeMatch = { top: 1400, bottom: 1420 }
+    editor.commands.stepSearchMatch(1)
+
+    expect(scroller.scrollTop).toBe(1420 - 600 + 24)
+  })
+
+  it('holds the page still for a hit that is already on screen', () => {
+    activeMatch = { top: 100, bottom: 120 }
+    const { editor, scroller } = mountInScroller('go and go and go')
+    editor.commands.setSearchQuery('go')
+
+    activeMatch = { top: 300, bottom: 320 }
+    editor.commands.stepSearchMatch(1)
+
+    expect(scroller.scrollTop).toBe(0)
+  })
+
+  it('scrolls back to a lone hit that has been scrolled away from', () => {
+    activeMatch = { top: 100, bottom: 120 }
+    const { editor, scroller } = mountInScroller('one needle only')
+    editor.commands.setSearchQuery('needle')
+
+    // Stepping with a single match lands on the same match, and Enter still
+    // has to bring it back.
+    activeMatch = { top: 900, bottom: 920 }
+    editor.commands.stepSearchMatch(1)
+
+    expect(scroller.scrollTop).toBe(920 - 600 + 24)
+  })
+
+  it('does not scroll when the document changes under an open search', () => {
+    activeMatch = { top: 100, bottom: 120 }
+    const { editor, scroller } = mountInScroller('needle and thread')
+    editor.commands.setSearchQuery('needle')
+
+    // Typing moves the caret, and the caret's own scroll is the one that
+    // should answer for where the page goes.
+    activeMatch = { top: 900, bottom: 920 }
+    editor.commands.insertContentAt(editor.state.doc.content.size, ' more')
+
+    expect(scroller.scrollTop).toBe(0)
   })
 })
