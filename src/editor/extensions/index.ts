@@ -31,6 +31,7 @@ import {
 import { TableColumn } from './tableColumn'
 import { TaskListShortcut } from './taskListShortcut'
 import { TabNavigation } from './tabNavigation'
+import { registeredEditorExtensions } from '../../extensions/editorRegistry'
 
 export interface EditorExtensionOptions {
   /** Called whenever the set of threads with a live anchor changes. */
@@ -173,6 +174,10 @@ export function buildExtensions(
     TextAlign,
     FocusBlock,
     SectionMarks,
+
+    // Statically compiled application extensions may contribute schema or
+    // editor behaviour here. They are never downloaded or evaluated remotely.
+    ...registeredEditorExtensions,
 
     // Keep the first empty paragraph decorated even if startup or a document
     // reload leaves the selection in another empty block. Every empty block

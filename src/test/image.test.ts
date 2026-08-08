@@ -30,7 +30,7 @@ describe('image Markdown', () => {
     )
   })
 
-  it('round-trips an image title used as its caption', () => {
+  it('round-trips a portable image title without treating it as a caption', () => {
     const editor = createTestEditor(
       '![A chart](https://example.com/chart.png "Quarterly results")',
     )
@@ -42,6 +42,13 @@ describe('image Markdown', () => {
     expect(title).toBe('Quarterly results')
     expect(toMarkdown(editor)).toBe(
       '![A chart](https://example.com/chart.png "Quarterly results")\n',
+    )
+    expect(
+      editor.view.dom.querySelector<HTMLElement>('.editor-image__caption')
+        ?.hidden,
+    ).toBe(true)
+    expect(editor.view.dom.querySelector('img')?.title).toBe(
+      'Quarterly results',
     )
   })
 
@@ -105,6 +112,58 @@ describe('image Markdown', () => {
     )
   })
 
+  it('keeps captions byte-clean in portable Markdown', () => {
+    const withoutCaption = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                src: 'images/architecture.webp',
+                alt: 'Architecture diagram',
+                assetId: 'local-only',
+                width: 640,
+                height: 360,
+              },
+            },
+          ],
+        },
+      ],
+    })
+    const withCaption = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                src: 'images/architecture.webp',
+                alt: 'Architecture diagram',
+                assetId: 'local-only',
+                width: 640,
+                height: 360,
+                caption: 'Figure 1 — Request processing architecture',
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(toMarkdown(withCaption)).toBe(toMarkdown(withoutCaption))
+    expect(toMarkdown(withCaption)).toBe(
+      '![Architecture diagram](images/architecture.webp)\n',
+    )
+
+    withoutCaption.destroy()
+    withCaption.destroy()
+  })
+
   it('keeps image-leading paragraphs and standalone images block-spaced', () => {
     const standalone = createTestEditorFromJSON({
       type: 'doc',
@@ -126,7 +185,7 @@ describe('image Markdown', () => {
     const captioned = createTestEditor(
       '![chart](https://example.com/captioned.png)\nThis is the caption.',
     )
-    const titled = createTestEditorFromJSON({
+    const captionedImage = createTestEditorFromJSON({
       type: 'doc',
       content: [
         {
@@ -137,7 +196,7 @@ describe('image Markdown', () => {
               attrs: {
                 src: 'https://example.com/titled.png',
                 alt: 'Titled',
-                title: 'A visible caption',
+                caption: 'A visible caption',
               },
             },
           ],
@@ -157,22 +216,39 @@ describe('image Markdown', () => {
       captioned.view.dom.querySelector('.editor-image-resize--standalone'),
     ).not.toBeNull()
     expect(
-      titled.view.dom.querySelector('.editor-image-resize--standalone'),
+      captionedImage.view.dom.querySelector('.editor-image-resize--standalone'),
     ).not.toBeNull()
     expect(
-      titled.view.dom.querySelector('.editor-image__caption')?.textContent,
+      captionedImage.view.dom.querySelector('.editor-image__caption')?.textContent,
     ).toBe('A visible caption')
 
     standalone.destroy()
     inline.destroy()
     captioned.destroy()
-    titled.destroy()
+    captionedImage.destroy()
   })
 
   it('makes a captioned image block-like even where it follows text', () => {
-    const editor = createTestEditor(
-      'Before ![chart](https://example.com/inline.png "A caption") after',
-    )
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Before ' },
+            {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/inline.png',
+                alt: 'chart',
+                caption: 'A caption',
+              },
+            },
+            { type: 'text', text: ' after' },
+          ],
+        },
+      ],
+    })
 
     expect(
       editor.view.dom.querySelector('.editor-image-resize--standalone'),
@@ -198,7 +274,8 @@ describe('image Markdown', () => {
               attrs: {
                 src: 'https://example.com/mark.png',
                 alt: 'Mark',
-                title: 'Not a caption here',
+                title: 'A tooltip',
+                caption: 'Not representable here',
               },
             },
           ],
@@ -213,7 +290,7 @@ describe('image Markdown', () => {
         ?.hidden,
     ).toBe(true)
     expect(editor.view.dom.querySelector('img')?.title).toBe(
-      'Not a caption here',
+      'A tooltip',
     )
 
     editor.destroy()

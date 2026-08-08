@@ -50,7 +50,15 @@ export function getDB(): Promise<IDBPDatabase<MertzDB>> {
           })
           conflicts.createIndex('by-doc-createdAt', ['docId', 'createdAt'])
         }
-        // case 4: … future migrations go here, with no `break` above.
+        case 4: {
+          db.createObjectStore('extensionSettings', { keyPath: 'extensionId' })
+          const extensionState = db.createObjectStore(
+            'extensionDocumentState',
+            { keyPath: ['extensionId', 'documentId'] },
+          )
+          extensionState.createIndex('by-documentId', 'documentId')
+        }
+        // case 5: … future migrations go here, with no `break` above.
       }
     },
 

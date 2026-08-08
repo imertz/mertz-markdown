@@ -42,6 +42,12 @@ import { useVisualViewport } from '../hooks/useVisualViewport'
 import { MobileActionsMenu } from './MobileActionsMenu'
 import { useThreads } from '../hooks/useThreads'
 import { useVaultSync } from '../hooks/useVaultSync'
+import { useExtensionHost } from '../extensions/context'
+import {
+  ExtensionDocumentActions,
+  ExtensionDocumentPanel,
+  ExtensionsDialog,
+} from '../extensions/components'
 import { insertImageFiles } from '../images/insert'
 import {
   localizeRemoteImage,
@@ -78,7 +84,7 @@ import { CommentSidebar } from './comments/CommentSidebar'
 import { HistoryPanel } from './history/HistoryPanel'
 import type { SearchHit } from './search/SearchPanel'
 import { SearchPanel } from './search/SearchPanel'
-import { BrandMark, HistoryIcon, SearchIcon } from './icons'
+import { BrandMark, ExtensionsIcon, HistoryIcon, SearchIcon } from './icons'
 import { DocumentList } from './documents/DocumentList'
 import { DocumentFontMenu } from './DocumentFontMenu'
 import { DocumentTextSizeMenu } from './DocumentTextSizeMenu'
@@ -152,6 +158,7 @@ export function AppShell() {
   const documentTextSize = useDocumentTextSize()
   const online = useOnline()
   const rail = useRailHidden()
+  const extensionHost = useExtensionHost()
 
   // Keeps the shell the size of what is actually on screen when the phone
   // keyboard opens, instead of the size of the layout viewport.
@@ -174,6 +181,8 @@ export function AppShell() {
   const [historyOpen, setHistoryOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [extensionsOpen, setExtensionsOpen] = useState(false)
+  const [extensionPanel, setExtensionPanel] = useState<string | null>(null)
   /*
    * A quiet confirmation, distinct from `notice`.
    *
@@ -744,6 +753,9 @@ export function AppShell() {
   /** Fired by useMarkdownEditor once the new content is actually in the view. */
   const onDocumentLoaded = useCallback(
     (docId: string) => {
+      if (editor && !editor.isDestroyed) {
+        extensionHost.documentLoaded({ documentId: docId, editor })
+      }
       const hit = pendingJump.current
       if (!hit || hit.passage.docId !== docId) return
       // Cleared first: a jump that throws must not strand the intent and fire
@@ -751,7 +763,7 @@ export function AppShell() {
       pendingJump.current = null
       jumpToHit(hit)
     },
-    [jumpToHit],
+    [editor, extensionHost, jumpToHit],
   )
 
   documentLoaded.current = onDocumentLoaded
@@ -917,7 +929,11 @@ export function AppShell() {
           ? 'cheatsheet'
           : cropSession
             ? 'crop'
-            : null
+            : extensionsOpen
+              ? 'extensions'
+              : extensionPanel
+                ? 'extension-document'
+                : null
 
   /**
    * The keyboard, wired.
@@ -1052,6 +1068,16 @@ export function AppShell() {
               }}
               onImport={importFile}
               onOpenHistory={() => setHistoryOpen(true)}
+              onOpenExtensions={() => setExtensionsOpen(true)}
+              renderExtensionActions={close => (
+                <ExtensionDocumentActions
+                  host={extensionHost}
+                  surface="menu"
+                  disabled={!editor}
+                  beforeOpen={close}
+                  openPanel={setExtensionPanel}
+                />
+              )}
               font={documentFont.font}
               onSelectFont={documentFont.selectFont}
               textSize={documentTextSize.size}
@@ -1061,6 +1087,12 @@ export function AppShell() {
             />
           ) : (
             <>
+              <ExtensionDocumentActions
+                host={extensionHost}
+                surface="header"
+                disabled={!editor}
+                openPanel={setExtensionPanel}
+              />
               <ExportMenu
                 disabled={!editor}
                 onExport={exportMarkdown}
@@ -1090,6 +1122,16 @@ export function AppShell() {
                 size={documentTextSize.size}
                 onSelect={documentTextSize.selectSize}
               />
+
+              <button
+                type="button"
+                className="app-header__icon"
+                aria-label="Extensions"
+                title="Extensions"
+                onClick={() => setExtensionsOpen(true)}
+              >
+                <ExtensionsIcon />
+              </button>
             </>
           )}
 
@@ -1281,6 +1323,23 @@ export function AppShell() {
           onClose={() => setLinkTarget(null)}
         />
       ) : null}
+
+      {extensionsOpen ? (
+        <ExtensionsDialog
+          host={extensionHost}
+          close={() => setExtensionsOpen(false)}
+        />
+      ) : null}
+
+      <ExtensionDocumentPanel
+        extensionId={extensionPanel}
+        host={extensionHost}
+        documentId={documents.activeId}
+        editor={editor}
+        flushPendingWrites={flush}
+        close={() => setExtensionPanel(null)}
+        notify={setNotice}
+      />
 
       {dropping ? <DropOverlay /> : null}
 

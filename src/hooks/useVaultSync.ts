@@ -60,7 +60,15 @@ async function prepareLocalLibraryForPairing(): Promise<boolean> {
 
   if (untouched) {
     const tx = db.transaction(
-      ['documents', 'threads', 'comments', 'snapshots', 'assets', 'syncOutbox'],
+      [
+        'documents',
+        'threads',
+        'comments',
+        'snapshots',
+        'assets',
+        'extensionDocumentState',
+        'syncOutbox',
+      ],
       'readwrite',
     )
     await Promise.all([
@@ -69,6 +77,7 @@ async function prepareLocalLibraryForPairing(): Promise<boolean> {
       tx.objectStore('comments').clear(),
       tx.objectStore('snapshots').clear(),
       tx.objectStore('assets').clear(),
+      tx.objectStore('extensionDocumentState').clear(),
       tx.objectStore('syncOutbox').clear(),
       tx.done,
     ])

@@ -139,7 +139,7 @@ describe('docx images', () => {
       docWithImage({
         src: 'https://example.com/photo.png',
         alt: 'Photo',
-        title: 'A field study',
+        caption: 'A field study',
       }),
     )
     const body = (await exportDocx(editor)).text('word/document.xml')
@@ -164,7 +164,7 @@ describe('docx images', () => {
                 assetId: asset.id,
                 src: assetMarkdownPath(asset),
                 alt: 'Photo',
-                title: 'A field study',
+                caption: 'A field study',
               },
             },
             { type: 'text', text: 'The sentence that followed it.' },
@@ -207,7 +207,7 @@ describe('docx images', () => {
                         assetId: asset.id,
                         src: assetMarkdownPath(asset),
                         alt: 'Photo',
-                        title: 'A field study',
+                        caption: 'A field study',
                       },
                     },
                   ],

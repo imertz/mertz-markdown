@@ -228,7 +228,7 @@ describe('annotated HTML export', () => {
     expect(html).toContain('height="180"')
   })
 
-  it('renders an image title as a visible caption', async () => {
+  it('renders a canonical image caption while retaining its title', async () => {
     const editor = createTestEditorFromJSON({
       type: 'doc',
       content: [
@@ -240,7 +240,8 @@ describe('annotated HTML export', () => {
               attrs: {
                 src: 'https://example.com/chart.png',
                 alt: 'Chart',
-                title: 'Quarterly results',
+                title: 'Tooltip text',
+                caption: 'Quarterly results',
               },
             },
           ],
@@ -255,7 +256,8 @@ describe('annotated HTML export', () => {
 
     expect(html).toContain('<figure class="image-figure">')
     expect(html).toContain('<figcaption>Quarterly results</figcaption>')
-    expect(html).not.toContain('title="Quarterly results"')
+    expect(html).toContain('title="Tooltip text"')
+    expect(html).not.toContain('data-image-caption')
     expect(figureInsideParagraph(html)).toBe(false)
   })
 
@@ -272,7 +274,7 @@ describe('annotated HTML export', () => {
               attrs: {
                 src: 'https://example.com/chart.png',
                 alt: 'Chart',
-                title: 'Quarterly results',
+                caption: 'Quarterly results',
               },
             },
             { type: 'text', text: ' after.' },
@@ -303,7 +305,7 @@ describe('annotated HTML export', () => {
               attrs: {
                 src: 'https://example.com/chart.png',
                 alt: 'Chart',
-                title: 'Quarterly results',
+                caption: 'Quarterly results',
               },
             },
             { type: 'text', text: ' here' },

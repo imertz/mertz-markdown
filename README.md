@@ -19,7 +19,7 @@
 ```bash
 bun install
 bun run dev        # http://localhost:5173
-bun run test       # 779 tests
+bun run test       # 873 tests
 bun run build      # tsc -b && vite build (emits the service worker)
 bun run preview    # serve the production build, service worker active
 ```
@@ -44,6 +44,7 @@ cannot be the canonical stored form — every save would destroy the anchors.
 | Markdown string | **Derived** on every save. Zero comment traces. | IndexedDB `documents.markdown` |
 | Threads + comments | **Sidecar**, never touches the `.md`. | IndexedDB `threads` / `comments` |
 | Image blobs | **Sidecar.** Nodes keep a lightweight id and standard relative path. | IndexedDB `assets` |
+| Extension document state | **Sidecar.** Publication ids, status and article settings live here. | IndexedDB `extensionDocumentState` |
 
 The comment mark (`src/editor/extensions/comment.ts`) deliberately declares **no**
 `renderMarkdown`. `@tiptap/markdown`'s `getMarkOpening` returns `""` for a mark
@@ -162,9 +163,10 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   the toolbar, or insert an HTTP(S) URL. URL images can remain remote or be
   copied into IndexedDB for offline use. Selected images have aspect-locked
   resize handles, exact width, alt-text and caption editing, and a free/preset
-  crop dialog. Captions use Markdown's portable image-title syntax and are set
-  under the picture, measured against its own width rather than the text
-  column's. Crops become new WebP assets (or PNG where WebP encoding is
+  crop dialog. Captions are canonical image-node metadata and are set under the
+  picture, measured against its own width rather than the text column's; the
+  standard Markdown title remains an independent tooltip. Crops become new
+  WebP assets (or PNG where WebP encoding is
   unavailable) while the
   source remains available to undo and version history. Documents with local
   images export as ZIPs with clean Markdown and an `images/` directory;
@@ -220,13 +222,10 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   plain Markdown reader chooses its own display size. Cropping is portable
   because it changes the exported asset bytes. GIF cropping is disabled to
   avoid silently flattening an animation.
-- **Captions use Markdown image titles.** The app draws an image title as a
-  visible caption, which makes that picture a figure: it takes a block of its
-  own in the editor, in the annotated HTML and in Word, splitting the paragraph
-  it shared with any text. A title on an image a caption cannot belong to — in
-  a heading — stays the tooltip Markdown calls it. Readers that do not
-  implement captions still keep the text as the image's standard title
-  metadata.
+- **Captions are editor metadata.** They survive autosave, encrypted sync,
+  annotated HTML, Word export and blog publication, but never enter plain GFM.
+  A caption makes the picture a figure in rich exports. Markdown image titles
+  remain portable tooltip metadata and are not repurposed as captions.
 - **Find is literal and case-insensitive.** No regular expressions, no
   whole-word, and a match never spans a block boundary. Cross-document search
   (`⌘⇧F`) is the opposite: stemmed and ranked, so it matches *running* for
@@ -294,6 +293,7 @@ Everything below is built on the same rule: nothing reaches the `.md`.
 ```
 src/
 ├── db/          IndexedDB (idb): schema, client, documents, threads, snapshots
+├── extensions/  static application host · generic sidecars · Blog Publisher
 ├── markdown/    config (allowlists) · export · exportHtml · import · anchors
 ├── editor/      extensions/ (comment mark, search, plugins) · useMarkdownEditor
 ├── images/      file/URL validation · durable insertion · crop transforms
@@ -319,6 +319,20 @@ files from the OS file manager, and works with the network off.
 
 Storage requests `navigator.storage.persist()` on first use; without it Safari
 evicts IndexedDB after 7 days of inactivity.
+
+## Optional blog publishing
+
+The Blog Publisher is a statically registered application extension, disabled
+by default. Enabling it adds explicit Publish/Update controls; autosave and
+vault sync never publish. The browser derives clean GFM and an image metadata
+manifest from the canonical document, then sends only that selected document
+and its referenced local image bytes to `mertz-publish-server` over HTTPS.
+
+The Dockerized server is the blog backend and stores only material explicitly
+published to it. MySolon is used solely for allowlisted administrator login;
+credentials never enter Mertz or remain on the server. Mertz stores only a
+revocable publishing-device token and per-document publication state. NGINX
+serves the public blog and proxies the backend's loopback-only container port.
 
 ## Encrypted cross-device sync
 

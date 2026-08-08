@@ -108,7 +108,15 @@ export async function purgeExpiredTrash(now = Date.now()): Promise<number> {
 export async function deleteDocumentCascade(docId: string): Promise<void> {
   const db = await getDB()
   const tx = db.transaction(
-    ['documents', 'threads', 'comments', 'snapshots', 'assets', 'syncOutbox'],
+    [
+      'documents',
+      'threads',
+      'comments',
+      'snapshots',
+      'assets',
+      'extensionDocumentState',
+      'syncOutbox',
+    ],
     'readwrite',
   )
 
@@ -116,12 +124,14 @@ export async function deleteDocumentCascade(docId: string): Promise<void> {
   const commentStore = tx.objectStore('comments')
   const snapshotStore = tx.objectStore('snapshots')
   const assetStore = tx.objectStore('assets')
+  const extensionStore = tx.objectStore('extensionDocumentState')
 
-  const [threadIds, commentIds, snapshotIds, assetIds] = await Promise.all([
+  const [threadIds, commentIds, snapshotIds, assetIds, extensionStateIds] = await Promise.all([
     threadStore.index('by-docId').getAllKeys(docId),
     commentStore.index('by-docId').getAllKeys(docId),
     snapshotStore.index('by-docId').getAllKeys(docId),
     assetStore.index('by-docId').getAllKeys(docId),
+    extensionStore.index('by-documentId').getAllKeys(docId),
   ])
 
   await Promise.all([
@@ -130,6 +140,7 @@ export async function deleteDocumentCascade(docId: string): Promise<void> {
     ...commentIds.map(id => commentStore.delete(id)),
     ...snapshotIds.map(id => snapshotStore.delete(id)),
     ...assetIds.map(id => assetStore.delete(id)),
+    ...extensionStateIds.map(id => extensionStore.delete(id)),
     tx.objectStore('syncOutbox').put(
       dirtyRecord('document', docId, docId, 'delete'),
     ),

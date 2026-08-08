@@ -38,6 +38,14 @@ export const LocalImage = Image.extend<LocalImageOptions>({
             ? { 'data-local-asset-id': attributes.assetId }
             : {},
       },
+      caption: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-image-caption'),
+        renderHTML: attributes =>
+          typeof attributes.caption === 'string' && attributes.caption
+            ? { 'data-image-caption': attributes.caption }
+            : {},
+      },
     }
   },
 
@@ -85,10 +93,12 @@ export const LocalImage = Image.extend<LocalImageOptions>({
 
       const sync = async (next: typeof node) => {
         const alt = typeof next.attrs.alt === 'string' ? next.attrs.alt : ''
-        const title =
-          typeof next.attrs.title === 'string' ? next.attrs.title : ''
+        const title = typeof next.attrs.title === 'string' ? next.attrs.title : ''
         image.alt = alt
-        captionText = title.trim()
+        if (title) image.title = title
+        else image.removeAttribute('title')
+        captionText =
+          typeof next.attrs.caption === 'string' ? next.attrs.caption.trim() : ''
         applyLayout()
 
         const width =
@@ -215,8 +225,8 @@ export const LocalImage = Image.extend<LocalImageOptions>({
        * that follow text without a caption remain inline.
        *
        * A caption is drawn only inside a paragraph. A heading is the other
-       * block that can hold an image, and neither export can express a caption
-       * there, so the title stays what Markdown calls it: the tooltip.
+       * block that can hold an image, and neither block export can express a
+       * caption there. The independent Markdown title remains a tooltip.
        */
       const applyLayout = () => {
         const position = getPos()
@@ -232,8 +242,6 @@ export const LocalImage = Image.extend<LocalImageOptions>({
 
         caption.textContent = captionText
         caption.hidden = !captioned
-        if (captionText && !captioned) image.title = captionText
-        else image.removeAttribute('title')
 
         resizable.dom.classList.toggle(
           'editor-image-resize--standalone',

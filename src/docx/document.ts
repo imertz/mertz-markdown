@@ -163,8 +163,8 @@ const paragraphElement = (options: BlockOptions, inline: string): string =>
   element('w:p', undefined, paragraphProperties(options) + inline)
 
 const imageCaption = (node: JSONContent): string =>
-  node.type === 'image' && typeof node.attrs?.title === 'string'
-    ? node.attrs.title.trim()
+  node.type === 'image' && typeof node.attrs?.caption === 'string'
+    ? node.attrs.caption.trim()
     : ''
 
 /**

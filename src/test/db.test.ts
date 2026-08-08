@@ -32,6 +32,8 @@ describe('schema creation', () => {
       'assets',
       'comments',
       'documents',
+      'extensionDocumentState',
+      'extensionSettings',
       'snapshots',
       'syncConflicts',
       'syncObjects',
@@ -59,6 +61,16 @@ describe('schema creation', () => {
     ])
     expect([...tx.objectStore('assets').indexNames]).toEqual(['by-docId'])
     await tx.done
+
+    const extensionTx = db.transaction(
+      ['extensionSettings', 'extensionDocumentState'],
+      'readonly',
+    )
+    expect([...extensionTx.objectStore('extensionSettings').indexNames]).toEqual([])
+    expect([
+      ...extensionTx.objectStore('extensionDocumentState').indexNames,
+    ]).toEqual(['by-documentId'])
+    await extensionTx.done
 
     const syncTx = db.transaction(['syncOutbox', 'syncConflicts'], 'readonly')
     expect([...syncTx.objectStore('syncOutbox').indexNames]).toEqual([
@@ -91,6 +103,8 @@ describe('schema creation', () => {
       'assets',
       'comments',
       'documents',
+      'extensionDocumentState',
+      'extensionSettings',
       'snapshots',
       'syncConflicts',
       'syncObjects',

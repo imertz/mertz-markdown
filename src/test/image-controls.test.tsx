@@ -55,18 +55,18 @@ describe('image controls', () => {
     await user.type(input, 'A useful caption')
     await user.tab()
 
-    let title = ''
+    let caption = ''
     editor.state.doc.descendants(node => {
-      if (node.type.name === 'image') title = node.attrs.title
+      if (node.type.name === 'image') caption = node.attrs.caption
     })
-    expect(title).toBe('A useful caption')
+    expect(caption).toBe('A useful caption')
     expect(
       editor.view.dom.querySelector('.editor-image__caption')?.textContent,
     ).toBe('A useful caption')
   })
 
   it('loads an existing caption into the image controls', () => {
-    const { editor } = setup({ title: 'Existing caption' })
+    const { editor } = setup({ caption: 'Existing caption' })
 
     expect(
       (screen.getByRole('textbox', { name: 'Caption' }) as HTMLInputElement)

@@ -3,6 +3,8 @@ import type {
   AssetRecord,
   CommentRecord,
   DocumentRecord,
+  ExtensionDocumentStateRecord,
+  ExtensionSettingsRecord,
   SnapshotRecord,
   SyncConflictRecord,
   SyncObjectStateRecord,
@@ -13,7 +15,7 @@ import type {
 } from '../types'
 
 export const DB_NAME = 'mertz-markdown'
-export const DB_VERSION = 4
+export const DB_VERSION = 5
 
 /**
  * Safari can reject Blob/File structured clones during IndexedDB writes.
@@ -26,6 +28,15 @@ export type StoredAssetRecord = Omit<AssetRecord, 'blob'> & {
 }
 
 export interface MertzDB extends DBSchema {
+  extensionSettings: {
+    key: string
+    value: ExtensionSettingsRecord
+  }
+  extensionDocumentState: {
+    key: [string, string]
+    value: ExtensionDocumentStateRecord
+    indexes: { 'by-documentId': string }
+  }
   vaultConfig: {
     key: string
     value: VaultConfigRecord

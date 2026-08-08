@@ -7,6 +7,10 @@ import { createThread, loadThreadsForDoc } from '../db/threads'
 import { applyDocumentPackage, buildDocumentPackage } from '../sync/package'
 import { restoreConflict } from '../sync/local'
 import {
+  getExtensionDocumentState,
+  putExtensionDocumentState,
+} from '../extensions/storage'
+import {
   makeAsset,
   makeComment,
   makeDocument,
@@ -34,13 +38,92 @@ describe('sync document packages', () => {
       createdAt: 10,
       cause: 'manual',
     })
+    await putExtensionDocumentState({
+      extensionId: 'blog',
+      documentId: document.id,
+      version: 1,
+      data: { draft: true },
+      updatedAt: 12,
+    })
 
     const package_ = await buildDocumentPackage(document.id, 20, 'Laptop')
+    expect(package_?.schemaVersion).toBe(2)
     expect(package_?.document).toEqual(document)
     expect(package_?.threads).toEqual([thread])
     expect(package_?.comments).toEqual([comment])
     expect(package_?.snapshots.map(record => record.id)).toEqual(['snapshot-1'])
     expect(package_?.assetIds).toEqual([asset.id])
+    if (package_?.schemaVersion !== 2) throw new Error('Expected vault package v2')
+    expect(package_.extensionDocumentStates).toEqual([
+      expect.objectContaining({
+        extensionId: 'blog',
+        documentId: document.id,
+        data: { draft: true },
+      }),
+    ])
+  })
+
+  it('replaces extension sidecars in vault package v2', async () => {
+    const document = makeDocument()
+    await putDocument(document)
+    await putExtensionDocumentState({
+      extensionId: 'blog',
+      documentId: document.id,
+      version: 1,
+      data: { draft: true },
+      updatedAt: 10,
+    })
+
+    await applyDocumentPackage({
+      schemaVersion: 2,
+      document,
+      threads: [],
+      comments: [],
+      snapshots: [],
+      assetIds: [],
+      extensionDocumentStates: [
+        {
+          extensionId: 'blog',
+          documentId: document.id,
+          version: 1,
+          data: { draft: false, remotePostId: 'remote-1' },
+          updatedAt: 20,
+        },
+      ],
+      changedAt: 20,
+      deviceLabel: 'Desktop',
+    })
+
+    expect(await getExtensionDocumentState('blog', document.id)).toMatchObject({
+      data: { draft: false, remotePostId: 'remote-1' },
+    })
+  })
+
+  it('preserves extension sidecars when importing a vault package v1', async () => {
+    const document = makeDocument()
+    await putDocument(document)
+    await putExtensionDocumentState({
+      extensionId: 'blog',
+      documentId: document.id,
+      version: 1,
+      data: { draft: true },
+      updatedAt: 10,
+    })
+
+    await applyDocumentPackage({
+      schemaVersion: 1,
+      document: { ...document, markdown: 'older client\n' },
+      threads: [],
+      comments: [],
+      snapshots: [],
+      assetIds: [],
+      changedAt: 20,
+      deviceLabel: 'Older device',
+    })
+
+    expect(await getExtensionDocumentState('blog', document.id)).toMatchObject({
+      data: { draft: true },
+    })
   })
 
   it('replaces sidecars without creating an upload echo', async () => {

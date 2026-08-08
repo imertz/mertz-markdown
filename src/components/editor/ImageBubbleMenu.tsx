@@ -83,8 +83,8 @@ export function ImageControls({
             ? selection.node.attrs.alt
             : '',
         caption:
-          typeof selection.node.attrs.title === 'string'
-            ? selection.node.attrs.title
+          typeof selection.node.attrs.caption === 'string'
+            ? selection.node.attrs.caption
             : '',
         width:
           typeof selection.node.attrs.width === 'number'
@@ -138,7 +138,7 @@ export function ImageControls({
     editor
       .chain()
       .setNodeSelection(selected.pos)
-      .updateAttributes('image', { title: caption.trim() || null })
+      .updateAttributes('image', { caption: caption.trim() || null })
       .run()
   }
 

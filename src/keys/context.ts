@@ -3,7 +3,14 @@ import type { Theme } from '../hooks/useTheme'
 import type { CommandMeta } from './catalog'
 
 /** The overlays that take over the keyboard while they are up. */
-export type OverlayId = 'palette' | 'search' | 'history' | 'cheatsheet' | 'crop'
+export type OverlayId =
+  | 'palette'
+  | 'search'
+  | 'history'
+  | 'cheatsheet'
+  | 'crop'
+  | 'extensions'
+  | 'extension-document'
 
 /**
  * Everything a command needs to decide whether it applies right now.

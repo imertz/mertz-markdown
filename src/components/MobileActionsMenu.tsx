@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, type ReactNode } from 'react'
 import { useDismissable } from '../hooks/useDismissable'
 import {
   documentFonts,
@@ -18,6 +18,8 @@ export interface MobileActionsMenuProps {
   exports: ExportActions
   onImport: (file: File) => void
   onOpenHistory: () => void
+  onOpenExtensions?: () => void
+  renderExtensionActions?: (close: () => void) => ReactNode
   font: DocumentFontId
   onSelectFont: (font: DocumentFontId) => void
   textSize: DocumentTextSizeId
@@ -45,6 +47,8 @@ export function MobileActionsMenu(props: MobileActionsMenuProps) {
     exports,
     onImport,
     onOpenHistory,
+    onOpenExtensions,
+    renderExtensionActions,
     font,
     onSelectFont,
     textSize,
@@ -113,6 +117,20 @@ export function MobileActionsMenu(props: MobileActionsMenuProps) {
           >
             Version history
           </button>
+          {renderExtensionActions?.(close)}
+          {onOpenExtensions ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="actions-menu__option"
+              onClick={() => {
+                close()
+                onOpenExtensions()
+              }}
+            >
+              Extensions
+            </button>
+          ) : null}
 
           <p className="actions-menu__heading">Reading font</p>
           {documentFonts.map(option => (

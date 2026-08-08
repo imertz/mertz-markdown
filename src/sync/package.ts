@@ -2,6 +2,7 @@ import { getDB } from '../db/client'
 import type {
   AssetRecord,
   CommentRecord,
+  ExtensionDocumentStateRecord,
   SnapshotRecord,
   SyncedDocumentPackage,
   ThreadRecord,
@@ -17,25 +18,44 @@ export async function buildDocumentPackage(
 ): Promise<SyncedDocumentPackage | null> {
   const db = await getDB()
   const tx = db.transaction(
-    ['documents', 'threads', 'comments', 'snapshots', 'assets'],
+    [
+      'documents',
+      'threads',
+      'comments',
+      'snapshots',
+      'assets',
+      'extensionDocumentState',
+    ],
     'readonly',
   )
-  const [document, threads, comments, snapshots, assetIds] = await Promise.all([
+  const [
+    document,
+    threads,
+    comments,
+    snapshots,
+    assetIds,
+    extensionDocumentStates,
+  ] = await Promise.all([
     tx.objectStore('documents').get(docId),
     tx.objectStore('threads').index('by-docId').getAll(docId),
     tx.objectStore('comments').index('by-docId').getAll(docId),
     tx.objectStore('snapshots').index('by-docId').getAll(docId),
     tx.objectStore('assets').index('by-docId').getAllKeys(docId),
+    tx
+      .objectStore('extensionDocumentState')
+      .index('by-documentId')
+      .getAll(docId),
   ])
   await tx.done
   if (!document) return null
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     document,
     threads,
     comments,
     snapshots,
     assetIds: assetIds.map(String),
+    extensionDocumentStates,
     changedAt,
     deviceLabel,
   }
@@ -45,31 +65,54 @@ export async function buildDocumentPackage(
 export async function applyDocumentPackage(
   package_: SyncedDocumentPackage,
 ): Promise<void> {
-  if (package_.schemaVersion !== 1) throw new Error('Unsupported vault document')
+  if (package_.schemaVersion !== 1 && package_.schemaVersion !== 2) {
+    throw new Error('This vault document requires a newer version of Mertz')
+  }
   const docId = package_.document.id
   if (
     package_.threads.some(record => record.docId !== docId) ||
     package_.comments.some(record => record.docId !== docId) ||
-    package_.snapshots.some(record => record.docId !== docId)
+    package_.snapshots.some(record => record.docId !== docId) ||
+    (package_.schemaVersion === 2 &&
+      package_.extensionDocumentStates.some(
+        record => record.documentId !== docId,
+      ))
   ) {
     throw new Error('The encrypted document contains foreign sidecar records')
   }
 
   const db = await getDB()
   const tx = db.transaction(
-    ['documents', 'threads', 'comments', 'snapshots'],
+    [
+      'documents',
+      'threads',
+      'comments',
+      'snapshots',
+      'extensionDocumentState',
+    ],
     'readwrite',
   )
-  const [threadIds, commentIds, snapshotIds] = await Promise.all([
+  const [threadIds, commentIds, snapshotIds, extensionStateIds] = await Promise.all([
     tx.objectStore('threads').index('by-docId').getAllKeys(docId),
     tx.objectStore('comments').index('by-docId').getAllKeys(docId),
     tx.objectStore('snapshots').index('by-docId').getAllKeys(docId),
+    package_.schemaVersion === 2
+      ? tx
+          .objectStore('extensionDocumentState')
+          .index('by-documentId')
+          .getAllKeys(docId)
+      : Promise.resolve([]),
   ])
   await Promise.all([
     tx.objectStore('documents').put(package_.document),
     ...threadIds.map(id => tx.objectStore('threads').delete(id)),
     ...commentIds.map(id => tx.objectStore('comments').delete(id)),
     ...snapshotIds.map(id => tx.objectStore('snapshots').delete(id)),
+    ...(package_.schemaVersion === 2
+      ? extensionStateIds.map(id =>
+          tx.objectStore('extensionDocumentState').delete(id),
+        )
+      : []),
     ...package_.threads.map((record: ThreadRecord) =>
       tx.objectStore('threads').put(record),
     ),
@@ -79,6 +122,12 @@ export async function applyDocumentPackage(
     ...package_.snapshots.map((record: SnapshotRecord) =>
       tx.objectStore('snapshots').put(record),
     ),
+    ...(package_.schemaVersion === 2
+      ? package_.extensionDocumentStates.map(
+          (record: ExtensionDocumentStateRecord) =>
+            tx.objectStore('extensionDocumentState').put(record),
+        )
+      : []),
     tx.done,
   ])
 }
@@ -87,14 +136,25 @@ export async function applyDocumentPackage(
 export async function applyRemoteDelete(docId: string): Promise<void> {
   const db = await getDB()
   const tx = db.transaction(
-    ['documents', 'threads', 'comments', 'snapshots', 'assets'],
+    [
+      'documents',
+      'threads',
+      'comments',
+      'snapshots',
+      'assets',
+      'extensionDocumentState',
+    ],
     'readwrite',
   )
-  const [threadIds, commentIds, snapshotIds, assetIds] = await Promise.all([
+  const [threadIds, commentIds, snapshotIds, assetIds, extensionStateIds] = await Promise.all([
     tx.objectStore('threads').index('by-docId').getAllKeys(docId),
     tx.objectStore('comments').index('by-docId').getAllKeys(docId),
     tx.objectStore('snapshots').index('by-docId').getAllKeys(docId),
     tx.objectStore('assets').index('by-docId').getAllKeys(docId),
+    tx
+      .objectStore('extensionDocumentState')
+      .index('by-documentId')
+      .getAllKeys(docId),
   ])
   await Promise.all([
     tx.objectStore('documents').delete(docId),
@@ -102,6 +162,9 @@ export async function applyRemoteDelete(docId: string): Promise<void> {
     ...commentIds.map(id => tx.objectStore('comments').delete(id)),
     ...snapshotIds.map(id => tx.objectStore('snapshots').delete(id)),
     ...assetIds.map(id => tx.objectStore('assets').delete(id)),
+    ...extensionStateIds.map(id =>
+      tx.objectStore('extensionDocumentState').delete(id),
+    ),
     tx.done,
   ])
 }

@@ -93,7 +93,7 @@ const isBlank = (fragment: DocumentFragment): boolean =>
   fragment.childElementCount === 0 && !fragment.textContent?.trim()
 
 /**
- * Markdown's portable image title, drawn as the caption the app shows.
+ * The canonical image caption, deliberately absent from Markdown.
  *
  * A `<figure>` is a block, and a block inside a `<p>` is not something a
  * browser will keep: the parser closes the paragraph in front of it and leaves
@@ -102,17 +102,18 @@ const isBlank = (fragment: DocumentFragment): boolean =>
  * same ones the .docx gets.
  */
 function renderImageCaptions(body: HTMLElement): void {
-  for (const image of body.querySelectorAll<HTMLImageElement>('img[title]')) {
-    const text = image.getAttribute('title')?.trim() ?? ''
+  for (const image of body.querySelectorAll<HTMLImageElement>(
+    'img[data-image-caption]',
+  )) {
+    const text = image.getAttribute('data-image-caption')?.trim() ?? ''
+    image.removeAttribute('data-image-caption')
     if (!text) continue
 
     // Only a paragraph can be broken into blocks. Anywhere else — a heading is
-    // the one other place an image can sit — the title stays the tooltip
-    // Markdown says it is.
+    // the one other place an image can sit — the caption stays canonical but
+    // cannot be represented in this block export.
     const paragraph = image.closest('p')
     if (!paragraph) continue
-
-    image.removeAttribute('title')
 
     /*
      * Ranges rather than plain child moves: an image can sit inside a link or

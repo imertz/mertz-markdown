@@ -59,6 +59,24 @@ export interface DocumentRecord {
   deletedAt: number | null
 }
 
+/** Device-local configuration owned by one compile-time application extension. */
+export interface ExtensionSettingsRecord {
+  extensionId: string
+  version: number
+  enabled: boolean
+  data: unknown
+  updatedAt: number
+}
+
+/** Document-scoped extension data carried inside the encrypted document graph. */
+export interface ExtensionDocumentStateRecord {
+  extensionId: string
+  documentId: string
+  version: number
+  data: unknown
+  updatedAt: number
+}
+
 export type ThreadStatus = 'open' | 'resolved' | 'orphaned'
 
 export interface ThreadRecord {
@@ -169,7 +187,7 @@ export interface SyncConflictRecord {
 }
 
 /** Plaintext only inside AES-GCM; the server stores the resulting ciphertext. */
-export interface SyncedDocumentPackage {
+export interface SyncedDocumentPackageV1 {
   schemaVersion: 1
   document: DocumentRecord
   threads: ThreadRecord[]
@@ -179,3 +197,19 @@ export interface SyncedDocumentPackage {
   changedAt: number
   deviceLabel: string
 }
+
+export interface SyncedDocumentPackageV2 {
+  schemaVersion: 2
+  document: DocumentRecord
+  threads: ThreadRecord[]
+  comments: CommentRecord[]
+  snapshots: SnapshotRecord[]
+  assetIds: string[]
+  extensionDocumentStates: ExtensionDocumentStateRecord[]
+  changedAt: number
+  deviceLabel: string
+}
+
+export type SyncedDocumentPackage =
+  | SyncedDocumentPackageV1
+  | SyncedDocumentPackageV2

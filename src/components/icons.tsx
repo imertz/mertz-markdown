@@ -234,6 +234,20 @@ export function MoreIcon(props: IconProps) {
   )
 }
 
+export function ExtensionsIcon(props: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
+      <path
+        d="M8.5 4.5h7v3a2.5 2.5 0 1 1 0 5v7h-7v-3a2.5 2.5 0 1 1-5 0v-7h3a2.5 2.5 0 1 1 2-5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
 /** Platform-independent arrows for the document text-size glyph. */
 export function TextSizeArrowsIcon(props: IconProps) {
   return (
