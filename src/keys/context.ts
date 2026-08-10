@@ -16,7 +16,7 @@ export type OverlayId =
  * Everything a command needs to decide whether it applies right now.
  *
  * A plain object rather than a set of live lookups, so `when` is a pure
- * predicate that the cheat sheet and the peek HUD can evaluate outside a
+ * predicate that the palette and the cheat sheet can evaluate outside a
  * keypress — which is the entire reason either of them can show only the
  * commands that would actually do something.
  */

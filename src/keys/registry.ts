@@ -80,8 +80,8 @@ const hasEditor = (context: CommandContext) =>
  *
  * "Static" meaning it costs nothing to build: no document walk, no database
  * read. That is what lets this run unconditionally, which in turn is what lets
- * the cheat sheet and the peek HUD show the full picture rather than only what
- * the palette happened to assemble.
+ * the cheat sheet show the full picture rather than only what the palette
+ * happened to assemble.
  */
 export function buildCommands(deps: CommandDeps): Command[] {
   const { documents, focus, rail, theme, threads, ui } = deps
@@ -293,8 +293,9 @@ function stepDocument(documents: DocumentsApi, delta: -1 | 1): void {
  * ⌘1 … ⌘9, one per document, labelled with the document's own name.
  *
  * The label is what makes this worth expanding rather than binding a single
- * "jump to document N": holding ⌘ shows the peek HUD, and "1 Release notes"
- * is a menu where "Jump to document 1–9" would be a riddle.
+ * "jump to document N": the palette and the cheat sheet list these one per row,
+ * and "1 Release notes" is a menu where "Jump to document 1–9" would be a
+ * riddle.
  */
 function documentJumps(documents: DocumentsApi): Command[] {
   return documents.documents

@@ -4,7 +4,7 @@
  * Before this file there were three answers to "what does ⌘⇧K do": the binding
  * table, a `title=` string somewhere in a component, and — for everything Tiptap
  * ships — nothing at all. They drifted, and the README drifted from all three.
- * Now the matcher, the palette, the peek HUD, the cheat sheet and every tooltip
+ * Now the matcher, the palette, the cheat sheet and every tooltip
  * read from here, so a chord has exactly one spelling and changing it changes
  * every surface at once.
  *

@@ -2476,9 +2476,8 @@ button {
 /* --- Keyboard chords --- */
 
 /*
- * Shared by the cheat sheet and the peek HUD. Tabular numerals so a column of
- * ⌘1…⌘9 lines up, and nowrap because "Ctrl+Shift+↓" is a single token however
- * narrow the panel gets.
+ * Used by the cheat sheet. Tabular numerals so a column of ⌘1…⌘9 lines up, and
+ * nowrap because "Ctrl+Shift+↓" is a single token however narrow the panel gets.
  */
 .kbd {
   display: inline-block;
@@ -2605,85 +2604,6 @@ button {
   color: var(--text);
   font-size: 13px;
   padding: 12px 0;
-}
-
-/* --- Shortcut peek --- */
-
-/*
- * Summoned by holding a modifier, so it must never take focus or swallow a
- * click: the caret stays where it was and the next keystroke goes to the
- * matcher, which is what runs the command. This is a view of the keymap, not a
- * menu.
- */
-.peek {
-  position: fixed;
-  bottom: calc(20px + var(--statusbar-total));
-  left: 50%;
-  translate: -50% 0;
-  /* Above the toasts, which share this corner. Safe because the panel takes no
-     pointer events: a click still reaches the toast's buttons underneath. */
-  z-index: 60;
-  pointer-events: none;
-  /* A width, not just a max: the grid below auto-fills columns against the
-     space it is given, and a panel sized to its content would only ever be one
-     column wide however many commands it is listing. */
-  width: min(680px, calc(100vw - 32px));
-  max-height: 46vh;
-  overflow: hidden;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 10px 14px;
-  animation: peek-in 120ms ease-out;
-}
-
-.peek__held {
-  font-size: var(--label-size);
-  font-weight: var(--label-weight);
-  letter-spacing: var(--label-track);
-  text-transform: uppercase;
-  color: var(--text);
-  margin-bottom: 6px;
-}
-
-.peek__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 2px 20px;
-}
-
-.peek__row {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-h);
-}
-
-.peek__label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.peek__more {
-  font-size: 11px;
-  color: var(--text);
-  margin-top: 6px;
-}
-
-@keyframes peek-in {
-  from {
-    opacity: 0;
-    translate: -50% 4px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .peek {
-    animation: none;
-  }
 }
 
 /* --- Text entry on touch --- */

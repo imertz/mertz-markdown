@@ -78,15 +78,11 @@ Two upstream quirks are handled in `src/markdown/`:
 ## Keyboard
 
 Every chord in the app is declared once, in `src/keys/catalog.ts`. The window
-matcher, the command palette, the cheat sheet, the hold-a-modifier panel and
-every tooltip are views of that one table, so a chord cannot mean one thing in
-a tooltip and another in the keymap. Chords below are written in the ⌘ spelling;
-off Apple hardware they print, and bind, as Ctrl.
+matcher, the command palette, the cheat sheet and every tooltip are views of
+that one table, so a chord cannot mean one thing in a tooltip and another in the
+keymap. Chords below are written in the ⌘ spelling; off Apple hardware they
+print, and bind, as Ctrl.
 
-- **Hold ⌘ for a moment** and a panel lists what that modifier does from here —
-  filtered live as you add ⇧ or ⌥, dismissed the instant you press a key or let
-  go. It is a view of the keymap, never a second dispatcher: the key you press
-  runs through the ordinary matcher.
 - **`⌘/`, or just `?`** opens the full reference, grouped and searchable,
   including the chords Tiptap delivers (`⌘B`, `⌘Z`, Tab between table cells)
   that nothing used to mention. Context-gated groups are shown as inactive

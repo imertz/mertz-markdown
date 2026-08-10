@@ -158,8 +158,8 @@ export function heldFrom(event: KeyboardEvent): HeldModifiers {
 /**
  * Whether the chord's modifiers are *exactly* the ones held — no more, no less.
  *
- * Exactness is what keeps ⌘K and ⌘⇧K different commands, and it is also what
- * lets the peek HUD list a modifier set without having to ask the matcher.
+ * Exactness is what keeps ⌘K and ⌘⇧K different commands: a chord matches only
+ * when nothing extra is held.
  */
 export function usesExactly(chord: Chord, held: HeldModifiers): boolean {
   return (

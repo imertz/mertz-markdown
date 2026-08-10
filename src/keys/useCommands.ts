@@ -25,8 +25,8 @@ export interface CommandsApi {
  *
  * Builds the command list, works out what applies, registers the window-level
  * half of it, and shouts in development if two of them collide. Everything
- * else — the palette, the cheat sheet, the peek HUD — reads the returned lists
- * rather than assembling its own.
+ * else — the palette, the cheat sheet — reads the returned lists rather than
+ * assembling its own.
  */
 export function useCommands(
   deps: CommandDeps,

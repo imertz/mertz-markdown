@@ -61,9 +61,7 @@ import type { OverlayId } from '../keys/context'
 import { buildPaletteEntries } from '../keys/paletteEntries'
 import { toPaletteActions } from '../keys/registry'
 import { useCommands } from '../keys/useCommands'
-import { usePeek } from '../keys/usePeek'
 import { pageTitle } from '../lib/title'
-import { PeekHud } from './keys/PeekHud'
 import { ShortcutSheet } from './keys/ShortcutSheet'
 import { buildDocxExport } from '../docx'
 import { buildDocumentExport, downloadFile } from '../markdown/bundle'
@@ -938,10 +936,9 @@ export function AppShell() {
   /**
    * The keyboard, wired.
    *
-   * Everything — the bindings, the palette's command half, the cheat sheet and
-   * the peek HUD — comes out of one registry built from `keys/catalog`, so a
-   * chord has a single spelling and a command a single label no matter which
-   * surface is showing it.
+   * Everything — the bindings, the palette's command half and the cheat sheet —
+   * comes out of one registry built from `keys/catalog`, so a chord has a single
+   * spelling and a command a single label no matter which surface is showing it.
    */
   const commands = useCommands(
     {
@@ -973,8 +970,6 @@ export function AppShell() {
     },
     overlay,
   )
-
-  const peek = usePeek(overlay === null)
 
   /**
    * The palette's list: the commands, then what only it can offer.
@@ -1295,8 +1290,6 @@ export function AppShell() {
           onClose={closeSheet}
         />
       ) : null}
-
-      <PeekHud held={peek} commands={commands.live} />
 
       {historyOpen && editor && documents.activeId ? (
         <HistoryPanel
