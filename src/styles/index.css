@@ -740,6 +740,30 @@ body {
   }
 }
 
+/*
+ * The shortcuts chip, whose label is a chord rather than a word.
+ *
+ * Quieter than the readout it sits beside — it is a standing offer, not a
+ * number anyone is reading — and monospaced so "⌘/" and "Ctrl+/" both sit as
+ * keycaps rather than as prose.
+ */
+.status-bar__chip--keys {
+  font-family: var(--mono);
+  opacity: 0.6;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    opacity: 1;
+  }
+
+  /* The actions sheet carries this below 900px, and a chord is meaningless
+     without a keyboard. Same breakpoint as the `phone` query in AppShell, so
+     exactly one of the two is ever on screen. */
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
 /* The comment arrows and count are one control, so they sit tighter than the
    12px the readout puts between its separate items. */
 .status-bar__threads {

@@ -1079,6 +1079,7 @@ export function AppShell() {
               onSelectTextSize={documentTextSize.selectSize}
               theme={theme.theme}
               onToggleTheme={theme.toggle}
+              onOpenShortcuts={() => setSheetOpen(true)}
             />
           ) : (
             <>
@@ -1214,6 +1215,7 @@ export function AppShell() {
         onJumpToHeading={jumpToHeading}
         onStepSection={stepSection}
         onToggleRail={toggleRail}
+        onOpenShortcuts={() => setSheetOpen(true)}
       />
 
       {editor ? (

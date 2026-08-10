@@ -24,6 +24,7 @@ function renderMenu(overrides: Record<string, unknown> = {}) {
     onSelectTextSize: vi.fn(),
     theme: 'light' as const,
     onToggleTheme: vi.fn(),
+    onOpenShortcuts: vi.fn(),
     ...overrides,
   }
   render(<MobileActionsMenu {...props} />)
@@ -59,6 +60,22 @@ describe('mobile actions menu', () => {
       screen.getByRole('menuitem', { name: /version history/i }),
     ).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /dark theme/i })).toBeTruthy()
+    expect(
+      screen.getByRole('menuitem', { name: /keyboard shortcuts/i }),
+    ).toBeTruthy()
+  })
+
+  it('opens the shortcut reference and closes', async () => {
+    const user = userEvent.setup()
+    const props = renderMenu()
+    await openMenu(user)
+
+    await user.click(
+      screen.getByRole('menuitem', { name: /keyboard shortcuts/i }),
+    )
+
+    expect(props.onOpenShortcuts).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('menu')).toBeNull()
   })
 
   it('runs an export and closes', async () => {
