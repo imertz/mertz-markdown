@@ -6,6 +6,7 @@ import { ShortcutSheet } from '../components/keys/ShortcutSheet'
 import type { CommandContext } from '../keys/context'
 import type { CommandDeps } from '../keys/registry'
 import { buildCommands } from '../keys/registry'
+import { REPO_URL } from '../lib/repo'
 
 afterEach(cleanup)
 
@@ -129,5 +130,26 @@ describe('ShortcutSheet', () => {
     await user.keyboard('{Escape}')
 
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('links to the repository, in a new tab that cannot see this one', () => {
+    show()
+
+    const link = screen.getByRole('link', { name: /source on github/i })
+    expect(link.getAttribute('href')).toBe(REPO_URL)
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.getAttribute('rel')).toBe('noreferrer')
+  })
+
+  it('keeps the footer while the list is filtered away', async () => {
+    const user = userEvent.setup()
+    show()
+
+    // It is a sibling of the scrolling body, not its last row, so an empty
+    // result must not take it with it.
+    await user.type(screen.getByLabelText('Filter shortcuts'), 'zzzz')
+
+    expect(screen.getByText('No matching shortcuts')).toBeTruthy()
+    expect(screen.getByRole('link', { name: /source on github/i })).toBeTruthy()
   })
 })

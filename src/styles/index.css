@@ -316,6 +316,19 @@ body {
  * it — that way it shares --radius-sm with the controls beside it instead of
  * baking a second corner radius into the SVG.
  */
+/* Wraps the mark without changing its metrics — the header row was laid out
+   around a 22px square and still is. */
+.app-header__brand-link {
+  flex: none;
+  display: block;
+  border-radius: var(--radius-sm);
+
+  &:hover,
+  &:focus-visible {
+    opacity: 0.8;
+  }
+}
+
 .app-header__brand {
   flex: none;
   display: block;
@@ -2628,6 +2641,46 @@ button {
   color: var(--text);
   font-size: 13px;
   padding: 12px 0;
+}
+
+/*
+ * Sibling of the scrolling body rather than its last child, so it stays on the
+ * frame while the list moves behind it. Mirrors the head's border and padding —
+ * the sheet reads as a bounded card, not a list that trails off.
+ */
+.sheet__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.sheet__foot-name {
+  color: var(--text);
+  font-family: var(--mono);
+}
+
+.sheet__foot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--accent);
+    text-decoration: underline;
+  }
+}
+
+.sheet__foot-icon {
+  width: 13px;
+  height: 13px;
 }
 
 /* --- Text entry on touch --- */

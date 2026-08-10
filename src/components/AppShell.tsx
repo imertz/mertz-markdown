@@ -61,6 +61,7 @@ import type { OverlayId } from '../keys/context'
 import { buildPaletteEntries } from '../keys/paletteEntries'
 import { toPaletteActions } from '../keys/registry'
 import { useCommands } from '../keys/useCommands'
+import { REPO_URL } from '../lib/repo'
 import { pageTitle } from '../lib/title'
 import { ShortcutSheet } from './keys/ShortcutSheet'
 import { buildDocxExport } from '../docx'
@@ -1006,7 +1007,22 @@ export function AppShell() {
   return (
     <>
       <header className="app-header">
-        <BrandMark className="app-header__brand" />
+        {/*
+          The mark is the one thing in the header with nothing else to do, and
+          "logo goes to the source" is the settled convention for a developer
+          tool. `noreferrer` rather than merely `noopener`: the new tab has no
+          business knowing which document was open when it was opened.
+        */}
+        <a
+          className="app-header__brand-link"
+          href={REPO_URL}
+          target="_blank"
+          rel="noreferrer"
+          title="Source on GitHub"
+          aria-label="Source on GitHub"
+        >
+          <BrandMark className="app-header__brand" />
+        </a>
 
         <DocumentList
           documents={documents.documents}

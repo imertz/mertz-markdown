@@ -13,7 +13,8 @@ import { BUNDLE_ACCEPT } from '../markdown/bundle'
 import { MARKDOWN_ACCEPT } from '../markdown/import'
 import type { Theme } from '../hooks/useTheme'
 import { FORMATS, type ExportActions } from './documents/exportFormats'
-import { CheckIcon, MoonIcon, MoreIcon, SunIcon } from './icons'
+import { REPO_URL } from '../lib/repo'
+import { CheckIcon, ExternalLinkIcon, MoonIcon, MoreIcon, SunIcon } from './icons'
 
 export interface MobileActionsMenuProps {
   exports: ExportActions
@@ -213,6 +214,17 @@ export function MobileActionsMenu(props: MobileActionsMenuProps) {
             Keyboard shortcuts
             <kbd className="kbd">{hintFor('app.cheatsheet')}</kbd>
           </button>
+          <a
+            role="menuitem"
+            className="actions-menu__option"
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            onClick={close}
+          >
+            Source on GitHub
+            <ExternalLinkIcon className="actions-menu__check" />
+          </a>
         </div>
       ) : null}
 
