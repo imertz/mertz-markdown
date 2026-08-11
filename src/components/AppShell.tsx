@@ -516,8 +516,13 @@ export function AppShell() {
     if (!editor || editor.isDestroyed) return
     const { from, to } = editor.state.selection
     if (from === to) return
+    // The composer is a card in the rail, so a hidden rail swallowed the draft
+    // whole: the click appeared to do nothing at all. After the empty-selection
+    // guard, so a Comment click with nothing selected still leaves the rail as
+    // the reader left it.
+    showRail()
     setDraftRange({ from, to })
-  }, [editor])
+  }, [editor, showRail])
 
   /**
    * Open the link popover on whatever the caret is touching.
