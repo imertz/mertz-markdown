@@ -670,24 +670,65 @@
   }
 
   /*
-   * Empty-document placeholder, driven by the Placeholder extension.
+   * The resting caret. An untouched document carries no prompt, and the native
+   * caret only paints while the editor holds focus — so a page nobody has
+   * clicked into yet would be a blank rectangle with nothing to say where
+   * typing begins. This draws the caret for that one state, in the accent, on
+   * the spot the real one takes over.
    *
-   * Keyed off `is-empty`, which the extension puts on every empty block, and
-   * narrowed here to "the first block, in a document whose blocks are ALL
-   * empty" — which is the condition the prompt is meant to describe.
+   * Scoped exactly like the prompt it replaces: the first block, in a document
+   * whose blocks are ALL empty. `is-empty` comes from the Placeholder
+   * extension, which is now registered for that class alone.
    *
-   * It used to key off `is-editor-empty` instead. That class is only added
-   * when `editor.isEmpty` is true, which never happens with this extension
-   * set, so the prompt had silently stopped rendering: a new document opened
-   * to a blank page with no invitation on it at all.
+   * `:not(:focus)` is the whole handoff, and it is exact in both directions:
+   * `:focus` stops matching when the WINDOW loses focus, not just when the
+   * editor does — which is the same moment the browser stops painting the
+   * native caret. So switching to another app swaps the live caret for this
+   * one, coming back swaps it straight back, and the two are never on screen
+   * together.
+   *
+   * `float` rather than absolute positioning so it sits on the line box the
+   * text will occupy — the caret does not move when the first character lands
+   * on top of it. Nothing follows it in an empty paragraph, so the float
+   * displaces nothing.
+   *
+   * Mixed down toward the page rather than drawn in the accent outright. This
+   * caret is waiting, not working, and full-strength coral on an otherwise
+   * bare page asks for more attention than an idle window deserves. Keeping
+   * the accent's hue and only dropping its strength makes clicking in read as
+   * the same mark coming up to full — a wake, not a swap.
    */
-  &:not(:has(> :not(p.is-empty))) > p.is-empty:first-child::before {
-    content: attr(data-placeholder);
+  &:not(:focus):not(:has(> :not(p.is-empty))) > p.is-empty:first-child::before {
+    content: '';
     float: left;
-    height: 0;
+    width: 2px;
+    height: 1.2em;
+    margin-top: 0.2em;
+    background: color-mix(in oklab, var(--accent) 60%, var(--bg));
     pointer-events: none;
-    color: var(--text);
-    opacity: 0.5;
+    animation: editor-caret-blink 1.1s step-end infinite;
+  }
+}
+
+/*
+ * Hard on/off rather than a fade: a caret that eases is a pulsing UI element,
+ * and this one has to pass for the browser's.
+ */
+@keyframes editor-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/*
+ * Still drawn, just held open. The caret is the only mark on an empty page —
+ * suppressing it entirely would leave nothing at all, which is the state this
+ * rule exists to avoid.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .ProseMirror:not(:focus):not(:has(> :not(p.is-empty)))
+    > p.is-empty:first-child::before {
+    animation: none;
   }
 }
 

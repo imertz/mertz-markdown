@@ -50,7 +50,7 @@ function EditorHarness({
 }
 
 describe('markdown editor document loads', () => {
-  it('keeps the empty-document placeholder after the stored document loads', async () => {
+  it('keeps the first paragraph marked empty after the stored document loads', async () => {
     const view = render(<EditorHarness activeId={null} initialDoc={null} />)
 
     await waitFor(() =>
@@ -63,14 +63,14 @@ describe('markdown editor document loads', () => {
 
     await waitFor(() =>
       expect(
-        view.container.querySelector('p')?.getAttribute('data-placeholder'),
-      ).toBe('Start writing…'),
+        view.container.querySelector('p')?.classList.contains('is-empty'),
+      ).toBe(true),
     )
 
     view.unmount()
   })
 
-  it('keeps the prompt visible when startup selection lands in a later empty block', async () => {
+  it('keeps the first paragraph marked empty when startup selection lands in a later empty block', async () => {
     const view = render(<EditorHarness activeId={null} initialDoc={null} />)
 
     await waitFor(() =>
@@ -87,8 +87,8 @@ describe('markdown editor document loads', () => {
 
     await waitFor(() =>
       expect(
-        view.container.querySelector('p')?.getAttribute('data-placeholder'),
-      ).toBe('Start writing…'),
+        view.container.querySelector('p')?.classList.contains('is-empty'),
+      ).toBe(true),
     )
 
     view.unmount()
@@ -150,7 +150,11 @@ describe('markdown editor document loads', () => {
     const editor = view.result.current
     expect(editor?.getText()).toBe('Draft')
 
-    // The user keeps typing; the debounced autosave has not flushed yet.
+    // The user keeps typing; the debounced autosave has not flushed yet. The
+    // caret is placed explicitly rather than left wherever the editor opened
+    // it — this test is about what happens to the buffer, and it should not
+    // start failing because the editor's resting caret position moved.
+    editor?.commands.focus('end')
     editor?.commands.insertContent(' + unsaved keystrokes')
     expect(editor?.getText()).toBe('Draft + unsaved keystrokes')
     const updatesBeforeReload = onDocChanged.mock.calls.length

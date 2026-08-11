@@ -29,9 +29,26 @@
    */
   --rail-gutter: 16px;
 
+  /*
+   * A card's own chrome, hoisted to the rail so the empty-state label can set
+   * its prose on the same left margin as a card's prose. Their sum is how far
+   * a card's text sits inside its box; both .thread-card and
+   * .comment-rail__empty read them, so the two cannot drift apart.
+   */
+  --card-border: 1px;
+  --card-pad-x: 14px;
+
+  /*
+   * Top inset, shared with the sticky offset of .comment-rail__empty so the
+   * label rests exactly on its own sticky threshold and cannot jump when
+   * scrolling starts. Must stay equal to .editor-pane's top padding, which is
+   * what puts the label's baseline on the document's first line.
+   */
+  --rail-inset-top: 32px;
+
   position: relative;
   min-height: 100%;
-  padding: 32px var(--rail-gutter) 45svh;
+  padding: var(--rail-inset-top) var(--rail-gutter) 45svh;
   box-sizing: border-box;
   border-left: 1px solid var(--border);
 }
@@ -85,12 +102,54 @@
   }
 }
 
+/*
+ * The label sits on the document's first baseline. Two columns of type read as
+ * one line only when their baselines agree, and this rail is a margin beside
+ * the text rather than a panel of its own.
+ *
+ * Nothing was positioning it before: the browser's default <p> margin was, and
+ * it dropped the label 13px past where the rail's own 32px inset — the same
+ * inset .editor-pane uses — already intended to put it. Hence `margin: 0`.
+ *
+ * The padding makes up the rest of the distance. `1.11rem * scale` is how far
+ * the document's first baseline falls below that shared inset: half of its 1.6
+ * leading (0.3em) plus the face's ascent (~0.81em). `14.5px` is where this
+ * label's own baseline already sits inside its 13px/1.5 line box. Tracking the
+ * scale variable is what keeps the two together at every text size — measured
+ * within 0.5px across all four sizes, and within 2px across every selectable
+ * document font, the ascent ratio being the only term that moves.
+ */
 .comment-rail__empty {
   font-size: 13px;
   color: var(--text);
   opacity: 0.6;
-  padding: 0 4px;
   line-height: 1.5;
+  margin: 0;
+
+  /*
+   * Stays put while the document scrolls. The prompt describes something you
+   * can do anywhere in the text, so tying it to the top of the page made it
+   * absent for exactly the reader who is deep enough in to want it.
+   *
+   * The scrollport is .workspace; the rail sets no overflow of its own on
+   * desktop, and the rail's own height is what bounds the travel. `top` is the
+   * rail's inset, so at rest the label is already at its threshold — it holds
+   * the baseline it shares with the document's first line until the page
+   * actually moves, then holds that same distance from the top.
+   *
+   * Inert on mobile, where an empty rail is display:none.
+   */
+  position: sticky;
+  top: var(--rail-inset-top);
+
+  /* Horizontally, the label lines up with the TEXT inside a thread card, not
+     with the card's outer edge: --rail-gutter plus the card's 1px border and
+     14px padding. Aligning to the outer edge instead leaves bare text 5px off
+     the ruled line, which a bordered box can carry but loose prose cannot —
+     it reads as crowding the rule. This way the empty column and the filled
+     one set their prose on the same left margin. */
+  padding: calc(1.11rem * var(--document-text-scale) - 14.5px)
+    calc(var(--card-border) + var(--card-pad-x)) 0;
 }
 
 /*
@@ -99,7 +158,7 @@
  * The rail's own border-left is the edge of the pane — structure. This is the
  * other kind of line a margin has: the one you write beside, set in from the
  * edge rather than on it. It says the empty column is a margin waiting for
- * notes, which is the one thing the sentence above it cannot show.
+ * notes, which is the one thing the label above it cannot show.
  *
  * Only while the rail is empty. Once cards are in it they are what the column
  * is for, and a rule behind them is just a line through the notes.
@@ -139,9 +198,9 @@
   left: var(--rail-gutter);
   right: var(--rail-gutter);
   background: var(--bg-raised);
-  border: 1px solid var(--border);
+  border: var(--card-border, 1px) solid var(--border);
   border-radius: var(--radius);
-  padding: 12px 14px;
+  padding: 12px var(--card-pad-x, 14px);
   box-sizing: border-box;
   transition:
     top 160ms ease,

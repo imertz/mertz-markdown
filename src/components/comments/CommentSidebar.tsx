@@ -1,4 +1,5 @@
 import type { Editor } from '@tiptap/core'
+import { useEditorState } from '@tiptap/react'
 import type { RefObject } from 'react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import {
@@ -253,6 +254,26 @@ export function CommentSidebar({
   const openCount = anchored.filter(thread => thread.status === 'open').length
   const isEmpty = !draftRange && visible.length === 0 && orphaned.length === 0
 
+  /*
+   * The prompt is only worth saying when there is something to select. On a
+   * blank document it asks for an action that cannot be taken, so the rail
+   * stays silent and the ruled margin carries the empty state on its own.
+   *
+   * Comments are text marks, so text content — not `editor.isEmpty` — is the
+   * condition that matters: a document holding only an image has nothing to
+   * anchor a thread to either.
+   *
+   * One boolean through `useEditorState`, which deep-compares its selector
+   * result, so this re-renders when the document stops being blank rather than
+   * on every keystroke.
+   */
+  const hasSelectableText =
+    useEditorState({
+      editor,
+      selector: ({ editor: instance }) =>
+        instance ? instance.state.doc.textContent.trim().length > 0 : false,
+    }) ?? false
+
   return (
     <aside
       // The empty modifier lets the mobile bottom sheet collapse away entirely
@@ -266,11 +287,8 @@ export function CommentSidebar({
       ref={rail}
       aria-label="Comments"
     >
-      {isEmpty ? (
-        <p className="comment-rail__empty">
-          Select text in the document, then choose <strong>Comment</strong> to
-          start a thread.
-        </p>
+      {isEmpty && hasSelectableText ? (
+        <p className="comment-rail__empty">Select text to comment</p>
       ) : null}
 
       {draftRange ? (
