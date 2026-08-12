@@ -234,16 +234,17 @@ export function MoreIcon(props: IconProps) {
   )
 }
 
+/*
+ * A puzzle piece: one tab out of the top edge, one socket cut into the left, so
+ * the silhouette reads as "something that plugs in" rather than as a rectangle.
+ * The knobs are semicircles centred on their edges, which keeps every point
+ * inside the 24 grid — `overflow: hidden` on the sized svg would otherwise
+ * shave the strokes off whichever side ran over.
+ */
 export function ExtensionsIcon(props: IconProps) {
   return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" {...props}>
-      <path
-        d="M8.5 4.5h7v3a2.5 2.5 0 1 1 0 5v7h-7v-3a2.5 2.5 0 1 1-5 0v-7h3a2.5 2.5 0 1 1 2-5Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
+    <svg {...base} {...props}>
+      <path d="M4.5 4.5h5a2.5 2.5 0 1 1 5 0h5v15h-15v-5a2.5 2.5 0 1 0 0-5Z" />
     </svg>
   )
 }
