@@ -3,44 +3,31 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#faf9f7" />
+    <!--
+      viewport-fit=cover is what makes env(safe-area-inset-*) resolve to real
+      numbers; without it they are 0px and the installed PWA sits under the
+      notch and the home indicator. interactive-widget is honoured by Chrome,
+      which then resizes the layout viewport for the soft keyboard by itself;
+      Safari ignores it, which is what useVisualViewport is for.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <meta name="theme-color" content="#f7f6f4" />
 
     <!--
       Resolve the theme before first paint, otherwise a dark-mode user gets a
       white flash while the bundle loads. useTheme takes over from here; the
       two must agree on the storage key and the data-theme attribute.
     -->
-    <script>
-      ;(function () {
-        try {
-          var stored = localStorage.getItem('mertz-md:theme')
-          var theme =
-            stored === 'light' || stored === 'dark'
-              ? stored
-              : matchMedia('(prefers-color-scheme: dark)').matches
-                ? 'dark'
-                : 'light'
-          document.documentElement.dataset.theme = theme
-          document.documentElement.style.colorScheme = theme
-          var storedFont = localStorage.getItem('mertz-md:document-font')
-          document.documentElement.dataset.documentFont =
-            storedFont || 'system'
-          var storedTextSize = localStorage.getItem('mertz-md:document-text-size')
-          var textSizes = ['small', 'default', 'large', 'extra-large']
-          document.documentElement.dataset.documentTextSize = textSizes.includes(
-            storedTextSize,
-          )
-            ? storedTextSize
-            : 'default'
-          if (theme === 'dark') {
-            document
-              .querySelector('meta[name="theme-color"]')
-              .setAttribute('content', '#1a1917')
-          }
-        } catch (e) {}
-      })()
-    </script>
+    <script src="/theme-init.js"></script>
+    <!--
+      A tab left open across a deployment can still ask for an old hashed
+      module. Recover before the app bundle runs, including when the entry
+      module itself is the stale asset.
+    -->
+    <script src="/stale-build-recovery.js"></script>
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="YMM" />
     <meta

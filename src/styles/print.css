@@ -1,0 +1,238 @@
+/*
+ * Paper.
+ *
+ * The app had no print stylesheet at all, so printing produced the toolbar, the
+ * comment rail, the status bar and a dark page if the reader happened to be in
+ * the dark theme. What should come out is the document: the chrome is an
+ * instrument for working on the text, and none of it is the text.
+ *
+ * Loaded last in main.tsx so these rules win on order wherever they meet a
+ * screen rule at equal specificity.
+ */
+
+@media print {
+  /*
+   * Paper is white and ink is expensive, so the light palette is forced
+   * regardless of data-theme. Overriding the tokens rather than the rules is
+   * what makes this three declarations instead of a second stylesheet: every
+   * colour downstream is already expressed in terms of them.
+   */
+  :root,
+  :root[data-theme='dark'] {
+    --bg: #fff;
+    --bg-raised: #fff;
+    --bg-inset: #fff;
+    --code-bg: #f4f4f3;
+    --border: #c9c8c5;
+    --text: #444;
+    --text-h: #000;
+    --accent: #000;
+    --accent-bg: transparent;
+    --shadow: none;
+    --find: transparent;
+    --find-active: transparent;
+
+    /* Syntax colour is a screen affordance. On paper it prints as mud on a
+       greyscale printer and as confetti on a colour one. */
+    --code-keyword: #000;
+    --code-string: #000;
+    --code-literal: #000;
+    --code-name: #000;
+    --code-muted: #555;
+  }
+
+  @page {
+    margin: 20mm 18mm;
+  }
+
+  html,
+  body,
+  #root {
+    height: auto;
+    overflow: visible;
+    background: #fff;
+    display: block;
+  }
+
+  /*
+   * Everything that exists to operate the app. Listed explicitly rather than
+   * hidden by a blanket rule with exceptions: a new panel should print wrongly
+   * once and be added here, not disappear silently because it happened to sit
+   * outside an allowlist.
+   */
+  .app-header,
+  .status-bar,
+  .toolbar,
+  .comment-rail,
+  .palette-backdrop,
+  .palette,
+  .search-panel,
+  .history,
+  .sheet,
+  .peek,
+  .drop-overlay,
+  .toast,
+  .pwa-prompt,
+  .find-bar-dock,
+  .bubble-menu,
+  .image-bar,
+  .table-bar,
+  .link-popover,
+  .link-hover-card,
+  .crop-dialog-backdrop,
+  .slash-command-menu,
+  .section-mark,
+  .reading-scale {
+    display: none !important;
+  }
+
+  /* The grille is an invitation to start writing. Nobody prints one. */
+  .editor-pane::after {
+    display: none !important;
+  }
+
+  .workspace {
+    display: block;
+    overflow: visible;
+  }
+
+  .editor-pane {
+    /* The 45svh scroll runway exists so the last line can reach the middle of
+       the screen. On paper it is a blank page. */
+    padding: 0;
+  }
+
+  .editor-pane__inner {
+    /* --measure is a comfortable column on a screen at a screen's font size.
+       The page margin is already doing that job here. */
+    max-width: none;
+  }
+
+  .ProseMirror {
+    font-size: 11pt;
+    line-height: 1.5;
+    color: #000;
+  }
+
+  /*
+   * Focus mode dims what you are not writing. Printing it would print a
+   * document that is mostly grey.
+   */
+  :root[data-focus-mode='on'] .ProseMirror > *:not(.is-focus-block) {
+    opacity: 1;
+  }
+
+  /* --- Breaks --- */
+
+  .ProseMirror :is(h1, h2, h3, h4, h5, h6) {
+    /* A heading at the foot of a page is a heading for nothing. */
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  .ProseMirror :is(pre, blockquote, table, figure, .image-figure, img) {
+    break-inside: avoid;
+  }
+
+  .ProseMirror p {
+    /* Two lines is the usual typographic minimum either side of a break. */
+    orphans: 2;
+    widows: 2;
+  }
+
+  /* --- Comments as endnotes --- */
+
+  /*
+   * The counter runs over the anchors in document order, which is the same
+   * order CommentEndnotes numbers its list in — see orderThreadsForNotes. The
+   * two have to be counting the same things for note 3 to belong to
+   * superscript 3.
+   *
+   * A thread's mark is split across every text node it covers, so only the
+   * first span of each is counted: `:not([data-comment-thread] *)` is what
+   * excludes the continuation spans nested inside it.
+   */
+  .ProseMirror {
+    counter-reset: endnote;
+  }
+
+  .comment-anchor {
+    /* On paper the wash is unreadable and the number carries the reference. */
+    background: none;
+    box-shadow: none;
+    border-bottom: none;
+  }
+
+  .comment-anchor:not([data-comment-thread] *)::after {
+    counter-increment: endnote;
+    content: counter(endnote);
+    font-size: 0.7em;
+    vertical-align: super;
+    line-height: 0;
+    padding-inline-start: 1px;
+  }
+
+  .endnotes {
+    display: block;
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 1px solid #c9c8c5;
+    break-before: auto;
+    font-size: 10pt;
+  }
+
+  .endnotes__title {
+    margin: 0 0 0.75em;
+    font-size: 11pt;
+    font-weight: 600;
+  }
+
+  .endnotes__list {
+    margin: 0;
+    padding-inline-start: 1.6em;
+  }
+
+  .endnotes__note {
+    margin-bottom: 0.9em;
+    break-inside: avoid;
+  }
+
+  .endnotes__quote {
+    margin: 0 0 0.2em;
+    color: #444;
+    font-style: italic;
+  }
+
+  .endnotes__status {
+    margin: 0 0 0.2em;
+    font-size: 8pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #555;
+  }
+
+  .endnotes__comment {
+    margin: 0 0 0.2em;
+  }
+
+  .endnotes__time {
+    color: #555;
+  }
+
+  /*
+   * Section anchors are live in the export and meaningless on paper, but the
+   * URL after a link is worth having when the reader cannot click it.
+   */
+  .ProseMirror a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.85em;
+    color: #444;
+    word-break: break-all;
+  }
+}
+
+/* Off-screen at all other times. It exists in the DOM permanently so the print
+   snapshot never has to wait for a render — see CommentEndnotes. */
+.endnotes {
+  display: none;
+}

@@ -34,7 +34,12 @@ import { usePersistentStorage } from '../hooks/usePersistentStorage'
 import { usePwaUpdate } from '../hooks/usePwaUpdate'
 import { useRailHidden } from '../hooks/useRailHidden'
 import { useStorageEstimate } from '../hooks/useStorageEstimate'
+import { CommentEndnotes } from './CommentEndnotes'
+import { useFocusMode } from '../hooks/useFocusMode'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useTheme } from '../hooks/useTheme'
+import { useVisualViewport } from '../hooks/useVisualViewport'
+import { MobileActionsMenu } from './MobileActionsMenu'
 import { useThreads } from '../hooks/useThreads'
 import { insertImageFiles } from '../images/insert'
 import {
@@ -138,10 +143,20 @@ export function AppShell() {
   const threads = useThreads(documents.activeId)
   const pwa = usePwaUpdate()
   const theme = useTheme()
+  const focus = useFocusMode()
   const documentFont = useDocumentFont()
   const documentTextSize = useDocumentTextSize()
   const online = useOnline()
   const rail = useRailHidden()
+
+  // Keeps the shell the size of what is actually on screen when the phone
+  // keyboard opens, instead of the size of the layout viewport.
+  useVisualViewport()
+  /* The one responsive decision that cannot be made in CSS: on a phone the app
+     actions become a single sheet rather than a row, and rendering both to hide
+     one would mean two copies of the same open/closed state. Matches the 900px
+     breakpoint every stylesheet here uses for "phone". */
+  const phone = useMediaQuery('(max-width: 900px)')
 
   const [draftRange, setDraftRange] = useState<{
     from: number
@@ -858,6 +873,7 @@ export function AppShell() {
       threads,
       rail,
       theme,
+      focus,
       ui: {
         openPalette: () => setPaletteOpen(true),
         openSearch: () => setSearchOpen(true),
@@ -958,37 +974,63 @@ export function AppShell() {
             <SearchIcon />
           </button>
 
-          <ExportMenu
-            disabled={!editor}
-            onExport={exportMarkdown}
-            onExportDocx={exportDocx}
-            onExportDocxAnnotated={exportDocxAnnotated}
-            onExportAnnotated={exportAnnotated}
-            onImport={importFile}
-          />
+          {/* Search stays in the row on a phone; the remaining actions move
+              into the sheet so the row fits a 390px screen. */}
+          {phone ? (
+            <MobileActionsMenu
+              disabled={!editor}
+              exports={{
+                onExport: exportMarkdown,
+                onExportDocx: exportDocx,
+                onExportDocxAnnotated: exportDocxAnnotated,
+                onExportAnnotated: exportAnnotated,
+              }}
+              onImport={importFile}
+              onOpenHistory={() => setHistoryOpen(true)}
+              font={documentFont.font}
+              onSelectFont={documentFont.selectFont}
+              textSize={documentTextSize.size}
+              onSelectTextSize={documentTextSize.selectSize}
+              theme={theme.theme}
+              onToggleTheme={theme.toggle}
+            />
+          ) : (
+            <>
+              <ExportMenu
+                disabled={!editor}
+                onExport={exportMarkdown}
+                onExportDocx={exportDocx}
+                onExportDocxAnnotated={exportDocxAnnotated}
+                onExportAnnotated={exportAnnotated}
+                onImport={importFile}
+              />
 
-          <button
-            type="button"
-            className="app-header__icon"
-            disabled={!editor}
-            aria-label="Version history"
-            title="Version history"
-            onClick={() => setHistoryOpen(true)}
-          >
-            <HistoryIcon />
-          </button>
+              <button
+                type="button"
+                className="app-header__icon"
+                disabled={!editor}
+                aria-label="Version history"
+                title="Version history"
+                onClick={() => setHistoryOpen(true)}
+              >
+                <HistoryIcon />
+              </button>
 
-          <DocumentFontMenu
-            font={documentFont.font}
-            onSelect={documentFont.selectFont}
-          />
+              <DocumentFontMenu
+                font={documentFont.font}
+                onSelect={documentFont.selectFont}
+              />
 
-          <DocumentTextSizeMenu
-            size={documentTextSize.size}
-            onSelect={documentTextSize.selectSize}
-          />
+              <DocumentTextSizeMenu
+                size={documentTextSize.size}
+                onSelect={documentTextSize.selectSize}
+              />
+            </>
+          )}
 
-          <ThemeToggle theme={theme.theme} onToggle={theme.toggle} />
+          {phone ? null : (
+            <ThemeToggle theme={theme.theme} onToggle={theme.toggle} />
+          )}
         </div>
       </header>
 
@@ -1042,6 +1084,13 @@ export function AppShell() {
             }}
           />
         )}
+
+        {/*
+          Print only, and mounted unconditionally — unlike the rail above,
+          which is unmounted when collapsed. Printing with the comments hidden
+          is the normal case, not an edge one, and the notes have to survive it.
+        */}
+        <CommentEndnotes editor={editor} threads={threads.threads} />
       </div>
 
       <StatusBar
@@ -1124,6 +1173,7 @@ export function AppShell() {
           onClose={() => setSearchOpen(false)}
           onOpenHit={openHit}
           flushPendingWrites={flush}
+          corpusCount={documents.documents.length}
         />
       ) : null}
 

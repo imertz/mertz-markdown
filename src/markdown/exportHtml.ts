@@ -1,11 +1,10 @@
 import type { Editor } from '@tiptap/core'
 import { DOMSerializer } from '@tiptap/pm/model'
-import {
-  COMMENT_MARK_NAME,
-  collectThreadStarts,
-} from '../editor/extensions/comment'
+import { COMMENT_MARK_NAME } from '../editor/extensions/comment'
 import { withExtension } from '../lib/filename'
 import type { ThreadWithComments } from '../types'
+import { slugsFor } from './slug'
+import { orderThreadsForNotes } from './threadOrder'
 
 /**
  * Export the document *with* its comments, as a self-contained HTML file.
@@ -24,15 +23,15 @@ const STYLE = `
 :root { color-scheme: light dark; }
 body {
   margin: 0 auto; padding: 40px 20px; max-width: 46rem;
-  font: 16px/1.6 system-ui, sans-serif; color: #1c1a17; background: #faf9f7;
+  font: 16px/1.6 system-ui, sans-serif; color: #171716; background: #f7f6f4;
 }
 h1, h2, h3 { line-height: 1.25; }
-blockquote { margin: 0; padding-left: 1em; border-left: 3px solid #d9d4ca; color: #6d675f; }
-pre { background: #f2efe9; border: 1px solid #e6e2da; border-radius: 8px; padding: 12px 14px; overflow-x: auto; }
+blockquote { margin: 0; padding-left: 1em; border-left: 3px solid #d5d3cf; color: #6b6a67; }
+pre { background: #eeedea; border: 1px solid #dedcd8; border-radius: 3px; padding: 12px 14px; overflow-x: auto; }
 code { font-family: ui-monospace, Consolas, monospace; font-size: 0.9em; }
 pre code { background: none; }
 table { border-collapse: collapse; width: 100%; }
-td, th { border: 1px solid #e6e2da; padding: 6px 10px; text-align: start; }
+td, th { border: 1px solid #dedcd8; padding: 6px 10px; text-align: start; }
 img { display: block; max-width: 100%; height: auto; margin: 1em 0; }
 /* A table box shrinks to the picture, so the caption is measured against the
    image rather than against the page. */
@@ -40,25 +39,25 @@ img { display: block; max-width: 100%; height: auto; margin: 1em 0; }
 .image-figure img { margin: 0; }
 .image-figure figcaption {
   display: table-caption; caption-side: bottom; padding-top: 0.5em;
-  color: #6d675f; font-size: 0.875em; line-height: 1.35; text-align: center;
+  color: #6b6a67; font-size: 0.875em; line-height: 1.35; text-align: center;
 }
-.comment-anchor { background: rgba(179, 81, 47, 0.14); border-bottom: 1px solid rgba(179, 81, 47, 0.5); }
-.annex-ref { text-decoration: none; color: #b3512f; font-weight: 600; padding-inline: 2px; }
-.annex { margin-top: 48px; padding-top: 20px; border-top: 1px solid #e6e2da; }
-.annex__thread { margin: 20px 0; padding-left: 14px; border-left: 3px solid rgba(179, 81, 47, 0.35); }
-.annex__head { margin: 0 0 6px; font-size: 14px; color: #6d675f; }
+.comment-anchor { background: rgba(194, 82, 31, 0.14); border-bottom: 1px solid rgba(194, 82, 31, 0.5); }
+.annex-ref { text-decoration: none; color: #c2521f; font-weight: 600; padding-inline: 2px; }
+.annex { margin-top: 48px; padding-top: 20px; border-top: 1px solid #dedcd8; }
+.annex__thread { margin: 20px 0; padding-left: 14px; border-left: 3px solid rgba(194, 82, 31, 0.35); }
+.annex__head { margin: 0 0 6px; font-size: 14px; color: #6b6a67; }
 .annex__status { font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; opacity: 0.75; }
 .annex__comment { margin: 8px 0; }
 .annex__comment p { margin: 0; }
-.annex__comment time { font-size: 12px; color: #6d675f; }
+.annex__comment time { font-size: 12px; color: #6b6a67; }
 @media (prefers-color-scheme: dark) {
-  body { color: #f5f2ec; background: #1a1917; }
-  blockquote, .annex__head, .annex__comment time, .image-figure figcaption { color: #a8a29a; }
-  pre { background: #24221f; border-color: #35322d; }
-  td, th, .annex { border-color: #35322d; }
-  .comment-anchor { background: rgba(224, 129, 89, 0.2); border-bottom-color: rgba(224, 129, 89, 0.5); }
-  .annex-ref { color: #e08159; }
-  .annex__thread { border-left-color: rgba(224, 129, 89, 0.35); }
+  body { color: #f4f3f1; background: #171716; }
+  blockquote, .annex__head, .annex__comment time, .image-figure figcaption { color: #a3a29e; }
+  pre { background: #212120; border-color: #333331; }
+  td, th, .annex { border-color: #333331; }
+  .comment-anchor { background: rgba(227, 112, 63, 0.2); border-bottom-color: rgba(227, 112, 63, 0.5); }
+  .annex-ref { color: #e3703f; }
+  .annex__thread { border-left-color: rgba(227, 112, 63, 0.35); }
 }
 `.trim()
 
@@ -158,21 +157,9 @@ export async function toAnnotatedHtml(
 ): Promise<string> {
   const { doc } = editor.state
   const type = editor.schema.marks[COMMENT_MARK_NAME]
-  const byId = new Map(threads.map(thread => [thread.id, thread]))
-
-  // Document order, so the footnote numbers run down the page. Threads whose
-  // anchor is gone have no place in that order and are appended after it.
-  const ordered: ThreadWithComments[] = []
-  if (type) {
-    for (const start of collectThreadStarts(doc, type, new Set(byId.keys()))) {
-      const thread = byId.get(start.threadId)
-      if (thread) ordered.push(thread)
-    }
-  }
-  const anchored = new Set(ordered.map(thread => thread.id))
-  for (const thread of threads) {
-    if (!anchored.has(thread.id)) ordered.push(thread)
-  }
+  // Document order, so the footnote numbers run down the page. Shared with the
+  // printed endnotes so the two never number the same document differently.
+  const { ordered, anchored } = orderThreadsForNotes(doc, type, threads)
 
   const numberOf = new Map(
     ordered.map((thread, index) => [thread.id, index + 1]),
@@ -196,6 +183,7 @@ export async function toAnnotatedHtml(
   }
 
   renderImageCaptions(body)
+  addHeadingIds(body)
 
   // A thread's mark is split across every text node it covers; only its first
   // span gets the reference number.
@@ -233,6 +221,23 @@ export async function toAnnotatedHtml(
     '</html>',
     '',
   ].join('\n')
+}
+
+/**
+ * Give every heading the anchor the § marks in the editor hand out.
+ *
+ * Without this the section links copied in the app point at nothing in the
+ * app's own export — the one place they most obviously ought to resolve. The
+ * ids come from the same slugsFor, so a repeated heading is de-duplicated
+ * identically in both, and the whole document is slugged in one pass because
+ * that de-duplication depends on the headings that came before.
+ */
+function addHeadingIds(body: HTMLElement): void {
+  const headings = [...body.querySelectorAll('h1, h2, h3, h4, h5, h6')]
+  const slugs = slugsFor(headings.map(heading => heading.textContent ?? ''))
+  headings.forEach((heading, index) => {
+    heading.id = slugs[index]
+  })
 }
 
 function buildAnnex(

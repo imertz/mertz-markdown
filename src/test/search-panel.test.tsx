@@ -50,6 +50,7 @@ const setup = async () => {
       onClose={onClose}
       onOpenHit={onOpenHit}
       flushPendingWrites={flushPendingWrites}
+      corpusCount={2}
     />,
   )
 

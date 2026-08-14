@@ -51,12 +51,8 @@ export function DocumentFontMenu({ font, onSelect }: DocumentFontMenuProps) {
                   close()
                 }}
               >
-                <span className="font-menu__option-copy">
-                  <span className="font-menu__option-name">{option.label}</span>
-                  <span className="font-menu__option-preview">
-                    Καλημέρα · Greek notes
-                  </span>
-                </span>
+                {/* The name is the specimen: it is set in the face it names. */}
+                <span className="font-menu__option-name">{option.label}</span>
                 {selected ? <CheckIcon className="font-menu__check" /> : null}
               </button>
             )

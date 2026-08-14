@@ -1,39 +1,86 @@
 /*
- * Warm paper. Every hue in the light palette is pulled off-neutral toward
- * yellow/red, so nothing reads as clinical grey next to the terracotta accent.
+ * A Braun instrument. The chassis is a near-neutral grey — barely off-neutral,
+ * enough to stay warm under warm room light but never enough to read as beige
+ * — and one saturated signal colour sits on top of it. The accent is not
+ * decoration: it appears only where something is currently on, selected, or
+ * being pointed at. Everything else is grey, and the greys carry the structure.
+ *
  * The page is off-white and raised surfaces (menus, popovers, cards) are pure
- * white — that difference is the only thing lifting them, since the borders are
- * deliberately faint.
+ * white. That difference plus a hairline border is the whole elevation model:
+ * see --shadow, which lifts a panel by about a millimetre and no more.
  */
 :root {
-  --text: #6d675f;
-  --text-h: #1c1a17;
-  --bg: #faf9f7;
+  --text: #6b6a67;
+  --text-h: #171716;
+  --bg: #f7f6f4;
   --bg-raised: #fff;
-  --border: #e6e2da;
-  --code-bg: #f2efe9;
-  --accent: #b3512f;
-  --accent-bg: rgba(179, 81, 47, 0.1);
-  --accent-border: rgba(179, 81, 47, 0.45);
+  --border: #dedcd8;
+  --code-bg: #eeedea;
+  --accent: #c2521f;
+  --accent-bg: rgba(194, 82, 31, 0.1);
+  --accent-border: rgba(194, 82, 31, 0.45);
 
   /* Text/icons sitting ON an accent fill. Not always white: the dark theme's
      accent is light enough that white on it fails contrast. */
   --on-accent: #fff;
 
   /* Containers (cards, menus, popovers) and the controls inside them. Radius
-     does not vary by theme, so these are not repeated in the dark block. */
-  --radius: 8px;
-  --radius-sm: 5px;
+     does not vary by theme, so these are not repeated in the dark block.
+     Kept small on purpose: a housing gets a relief radius, not a soft corner. */
+  --radius: 3px;
+  --radius-sm: 2px;
+
+  /*
+   * The dimension grid. Chrome spacing was a spread of literals clustering
+   * informally around these values; naming them is what makes the spacing
+   * systematic rather than nearly-systematic. Use the token when editing a
+   * rule — there is no value in a sweep that touches every line in the file.
+   */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+
+  /* The key module. Every square chrome control is exactly this, so the header
+     and the toolbar read as one grid instead of two rows of similar things. */
+  --control: 28px;
+
+  /*
+   * Panel labels, the way a Braun panel names its controls: set tiny, tracked
+   * open, quiet, so the label reads as engraving on the housing rather than as
+   * a heading competing with the value under it.
+   *
+   * There is no .label class — this app names things by component, not by
+   * utility — so these are applied in place. Every uppercase label in the three
+   * stylesheets uses them, and there were seven slightly different ones before,
+   * spread over four tracking values and three weights.
+   */
+  --label-size: 10px;
+  --label-weight: 600;
+  --label-track: 0.1em;
 
   /* Save-state signalling. */
   --ok: #16a34a;
   --warn: #b45309;
   --danger: #e5484d;
 
-  /* Find highlights. Yellow rather than the accent: comment anchors already own
-     the terracotta, and the two are routinely on screen together. Yellow also
-     stays clear of the browser's blue ::selection, which find matches sit under
-     while you type in the find bar. */
+  /* Caution surfaces. Separate from --accent-bg so a warning never borrows the
+     brand colour: the accent means "this is the action", not "read this twice". */
+  --warn-bg: rgba(180, 83, 9, 0.09);
+  --warn-border: rgba(180, 83, 9, 0.3);
+
+  /* Panels sunk into a raised surface — stat cards, list rows. Not --code-bg:
+     that one collapses onto --bg-raised in the dark theme, which is fine for a
+     code block but leaves a borderless row invisible. */
+  --bg-inset: #eeedea;
+
+  /* Find highlights. Yellow rather than the accent, and it now has to hold that
+     ground against two neighbours: comment anchors own the terracotta and are
+     routinely on screen at the same time, and ::selection is an accent wash too
+     — find matches sit under the selection while you type in the find bar.
+     Yellow is the only hue here that stays legible beneath both. */
   --find: #fde68a;
   --find-active: #fbbf24;
 
@@ -41,20 +88,34 @@
      a code block in a notes app is there to be read, not to look like an IDE.
      Keywords take the accent hue on purpose — they are the most frequent token,
      so tying them to it keeps code looking like part of the page. */
-  --code-keyword: #a23b26;
+  --code-keyword: #b04a24;
   --code-string: #3f6e3f;
   --code-literal: #7f6115;
   --code-name: #2f5d9e;
   --code-muted: #8b857a;
 
-  /* Warm-tinted rather than neutral black — a grey shadow on warm paper reads
-     as a smudge. */
+  /*
+   * One elevation, and a shallow one. Every panel already carries a 1px
+   * border; the shadow's only job is to say the panel is in front, not to
+   * simulate a light source. A wide soft blur reads as a cloud under the
+   * housing — the edge should stay the thing you see.
+   */
   --shadow:
-    rgba(58, 45, 34, 0.1) 0 10px 15px -3px, rgba(58, 45, 34, 0.06) 0 4px 6px -2px;
+    rgba(23, 23, 22, 0.06) 0 1px 2px, rgba(23, 23, 22, 0.1) 0 4px 10px -4px;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --document-font: var(--sans);
+  /*
+   * Chrome is set in Inter, which is already bundled for the document font
+   * menu, so this costs no extra bytes. It is the nearest available thing to
+   * the Akzidenz/Helvetica that Braun labelled everything in — and unlike
+   * system-ui it renders identically on every platform, which is the point of
+   * an instrument face.
+   */
+  --sans: 'Inter Variable', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: 'Inter Variable', system-ui, 'Segoe UI', Roboto, sans-serif;
+
+  /* Deliberately NOT var(--sans): the chrome face is a chrome decision, and
+     the document's default must stay where it was when people wrote in it. */
+  --document-font: system-ui, 'Segoe UI', Roboto, sans-serif;
   --document-text-scale: 1;
   --mono: ui-monospace, Consolas, monospace;
 
@@ -66,8 +127,25 @@
      bar exactly. The header's height stays a literal — nothing offsets it. */
   --statusbar-h: 30px;
 
+  /*
+   * Named once here so nothing else has to spell out env(). These are 0px in a
+   * browser tab, where the browser's own chrome already covers the notch and
+   * the home indicator, and become real numbers in the installed PWA — which
+   * is the only place the app draws to the physical screen edge. They need
+   * viewport-fit=cover in index.html to resolve to anything at all.
+   */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+
+  /* What everything pinned above the status bar has to clear. */
+  --statusbar-total: calc(var(--statusbar-h) + var(--safe-b));
+
+  /* Inter is drawn on a wider fitting than system-ui and does not want the
+     extra tracking system-ui needed here. Set flush. */
   font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
+  letter-spacing: 0;
   color-scheme: light dark;
   color: var(--text);
   background: var(--bg);
@@ -97,6 +175,27 @@
   --document-font: 'GFS Neohellenic', Georgia, serif;
 }
 
+:root[data-document-font='source-sans-3'] {
+  --document-font: 'Source Sans 3 Variable', system-ui, sans-serif;
+}
+
+:root[data-document-font='eb-garamond'] {
+  --document-font: 'EB Garamond Variable', Georgia, serif;
+}
+
+:root[data-document-font='alegreya'] {
+  --document-font: 'Alegreya Variable', Georgia, serif;
+}
+
+/*
+ * The one document face that is not a text face. Its fallbacks stay monospaced
+ * so a missing glyph — polytonic Greek, which this family does not draw — lands
+ * on another fixed-pitch face instead of collapsing the column's rhythm.
+ */
+:root[data-document-font='jetbrains-mono'] {
+  --document-font: 'JetBrains Mono Variable', ui-monospace, Consolas, monospace;
+}
+
 :root[data-document-text-size='small'] {
   --document-text-scale: 0.9;
 }
@@ -115,24 +214,33 @@
  * paint by the boot script in index.html and maintained by src/hooks/useTheme.
  */
 :root[data-theme='dark'] {
-  --text: #a8a29a;
-  --text-h: #f5f2ec;
-  --bg: #1a1917;
-  --bg-raised: #24221f;
-  --border: #35322d;
-  --code-bg: #24221f;
-  --accent: #e08159;
-  --accent-bg: rgba(224, 129, 89, 0.16);
-  --accent-border: rgba(224, 129, 89, 0.5);
+  --text: #a3a29e;
+  --text-h: #f4f3f1;
+  --bg: #171716;
+  --bg-raised: #212120;
+  --border: #333331;
+  --code-bg: #212120;
+  --accent: #e3703f;
+  --accent-bg: rgba(227, 112, 63, 0.16);
+  --accent-border: rgba(227, 112, 63, 0.5);
 
   /* The accent has to lighten to stay legible on a dark page, which puts white
      text on an accent fill at ~2.8:1. Ink goes dark instead. */
-  --on-accent: #2a1509;
+  --on-accent: #25120a;
 
   --ok: #4ade80;
   --warn: #fbbf24;
   --danger: #ff6369;
 
+  /* Lighter fill and a stronger edge than the light theme: amber at any real
+     opacity over the warm dark surface turns olive, so the border carries the
+     signal and the fill only separates the block. */
+  --warn-bg: rgba(251, 191, 36, 0.08);
+  --warn-border: rgba(251, 191, 36, 0.4);
+
+  /* Lighter than --bg-raised, not darker: going down lands on the page colour
+     and the row reads as a hole cut through the panel. */
+  --bg-inset: #2b2b29;
   /* Translucent, so the text under a highlight keeps its own colour instead of
      being read as a swatch of black on amber. */
   --find: rgba(251, 191, 36, 0.25);
@@ -144,8 +252,9 @@
   --code-name: #8ab4e0;
   --code-muted: #78716a;
 
-  --shadow:
-    rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+  /* Same shallow geometry as the light theme, carried harder: on a dark page
+     the border alone does not separate a panel from what is behind it. */
+  --shadow: rgba(0, 0, 0, 0.5) 0 1px 2px, rgba(0, 0, 0, 0.45) 0 4px 10px -4px;
 }
 
 body {
@@ -164,7 +273,13 @@ body {
  */
 #root {
   width: 100%;
-  height: 100svh;
+  /*
+   * useVisualViewport writes --app-height from the *visual* viewport, which is
+   * the only measure that shrinks for a phone keyboard. The 100svh fallback is
+   * what desktop and any browser without visualViewport get, and is what this
+   * was before the hook existed.
+   */
+  height: var(--app-height, 100svh);
   margin: 0;
   text-align: start;
   box-sizing: border-box;
@@ -184,7 +299,11 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 10px 16px;
+  /* The top inset is a max(), not an addition: in a browser tab it is 0px and
+     the row still needs its normal padding. The side insets are additions —
+     they are only non-zero in landscape, where they are pure encroachment. */
+  padding: max(10px, var(--safe-t)) calc(16px + var(--safe-r)) 10px
+    calc(16px + var(--safe-l));
   border-bottom: 1px solid var(--border);
   background: var(--bg);
   min-height: 52px;
@@ -222,33 +341,56 @@ body {
 }
 
 /*
- * Narrow screens: the header becomes two rows — controls on top, formatting
- * below on its own horizontally-scrollable strip. Letting the toolbar wrap
- * instead (the default) stacked it into four rows and pushed the status text
- * off the edge.
+ * One row, always. Below the full desktop width the header tightens rather than
+ * reflows: everything keeps its place and the formatting toolbar — the only item
+ * here that is allowed to shrink — gives up width and scrolls its keys inside
+ * its plate. The toolbar's paired rules live in editor.css because that
+ * stylesheet owns its base layout.
  */
-@media (max-width: 900px) {
+@media (max-width: 1680px) {
   .app-header {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
-    padding: 8px 12px;
+    padding: max(8px, var(--safe-t)) calc(12px + var(--safe-r)) 8px
+      calc(12px + var(--safe-l));
     min-height: 0;
-  }
-
-  /* The row already wraps and the doc picker is capped at 42vw — the mark must
-     not take width back off it. */
-  .app-header__brand {
-    width: 20px;
-    height: 20px;
   }
 
   .app-header__spacer {
     display: none;
-  }
+}
 
   .app-header__tools {
     margin-inline-start: auto;
     gap: 8px;
+  }
+  }
+
+@media (max-width: 900px) {
+  /*
+   * The phone exception to the single-row rule above: the doc picker and the app
+   * actions fill the line on their own here, so formatting drops to a row of its
+   * own. Its paired rules live in editor.css.
+   */
+  .app-header {
+    flex-wrap: wrap;
+  }
+
+  /*
+   * While the keyboard is up the screen is worth more than the file actions
+   * are. Typing needs the formatting toolbar and nothing else in this row, so
+   * the rest of it stands down and the document gets the height back. The
+   * attribute is set by useVisualViewport.
+   */
+  :root[data-keyboard='open'] .app-header__tools {
+    display: none;
+  }
+
+  /* The row wraps again here and the doc picker is capped at 42vw — the mark
+     must not take width back off it. */
+  .app-header__brand {
+    width: 20px;
+    height: 20px;
   }
 
   .save-indicator {
@@ -290,19 +432,133 @@ body {
 .status-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  height: var(--statusbar-h);
-  padding: 0 16px;
+  gap: var(--s3);
+  /* The bar keeps its 30px of content and grows by the home-indicator inset
+     underneath it, so the readout clears the indicator instead of sitting
+     beneath it. In a browser tab the inset is 0 and this is just --statusbar-h. */
+  height: var(--statusbar-total);
+  padding: 0 calc(var(--s4) + var(--safe-r)) var(--safe-b)
+    calc(var(--s4) + var(--safe-l));
   box-sizing: border-box;
   border-top: 1px solid var(--border);
   background: var(--bg);
   font-size: 12px;
   color: var(--text);
+  /* Containing block for the reading scale, which is pinned to the top edge. */
+  position: relative;
 
   @media (max-width: 900px) {
-    gap: 8px;
-    padding: 0 12px;
+    gap: var(--s2);
+    padding: 0 calc(var(--s3) + var(--safe-r)) var(--safe-b)
+      calc(var(--s3) + var(--safe-l));
   }
+}
+
+/* --- Reading scale --- */
+/*
+ * A dial scale across the top edge of the bar: fine graduations with every
+ * fifth one taller, and a mark riding the scroll position. Both tick series
+ * are drawn as repeating gradients rather than elements — a tick per 8px of a
+ * wide window is a lot of DOM to own for something that is out of the flow and
+ * never interactive.
+ *
+ * Absolutely positioned so it costs the 30px row no height. It sits ON the
+ * top border rather than under it, which is why it starts at -1px: the border
+ * is the baseline the graduations rise from.
+ */
+.reading-scale {
+  position: absolute;
+  inset-inline: 0;
+  top: -1px;
+  height: 5px;
+  pointer-events: none;
+  overflow: hidden;
+
+  /* Minor graduations every 8px, then a major one every 40px drawn taller and
+     darker. The majors are listed first so they paint over the minor tick they
+     land on rather than beside it. */
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      var(--text) 0 1px,
+      transparent 1px 40px
+    ),
+    repeating-linear-gradient(
+      to right,
+      var(--border) 0 1px,
+      transparent 1px 8px
+    );
+  background-size:
+    100% 5px,
+    100% 3px;
+  background-position:
+    0 0,
+    0 0;
+  background-repeat: no-repeat;
+  opacity: 0.7;
+}
+
+/*
+ * Station marks: one per heading, at the scroll offset that brings it to the
+ * top of the screen. These are what make the strip a map of this document
+ * rather than a ruler that looks the same on all of them — the station names
+ * on a radio dial, not the graduations on a rule.
+ *
+ * Drawn over the graduations and under the needle, in source order.
+ */
+.reading-scale__station {
+  position: absolute;
+  top: 0;
+  /* Two pixels and full ink. The major graduations are already 1px of --text,
+     so a station drawn the same way would be invisible among them — a station
+     has to out-weigh the scale it sits on to be a station at all. */
+  width: 2px;
+  height: 5px;
+  background: var(--text-h);
+
+  /* An H2 is a subdivision of an H1, so it reads as a minor station: same
+     weight, two thirds the height. */
+  &[data-level='2'] {
+    height: 3px;
+  }
+
+  /* The section the caret is in. The accent is doing the same job it does
+     everywhere else in the chrome — marking the one thing that is current —
+     and here it also tells you which station the needle is between. */
+  &[data-active] {
+    background: var(--accent);
+    height: 5px;
+  }
+}
+
+/*
+ * The viewport: the span of the document currently on screen.
+ *
+ * A band rather than a needle because that is the truth — a screen shows a
+ * range of a document, and on anything that only just overflows it shows most
+ * of it. A point would have to be drawn on a different scale from the stations
+ * to reach the end of the strip, and then "the mark is at that station" would
+ * mean nothing.
+ *
+ * Translucent, so the stations read through it: a station inside the band is a
+ * section you can see right now. The leading edge is drawn solid because the
+ * top of the viewport is the one exact position in the band.
+ *
+ * `left` and `width` are set inline from the scroll position. No transition —
+ * it tracks scrolling one-to-one, so there is nothing here for
+ * prefers-reduced-motion to turn off.
+ */
+.reading-scale__view {
+  position: absolute;
+  top: 0;
+  height: 5px;
+  min-width: 2px;
+  box-sizing: border-box;
+  /* Stronger than --accent-bg, which is tuned for a fill behind text. This is
+     5px of wash on the page colour with no type over it, and at that size the
+     standard tint disappears. */
+  background: color-mix(in oklab, var(--accent) 26%, transparent);
+  border-inline-start: 2px solid var(--accent);
 }
 
 /* A heading is arbitrarily long, so it yields the row to the readout. */
@@ -330,10 +586,6 @@ body {
     display: block;
     width: 14px;
     height: 14px;
-  }
-
-  &:hover:not(:disabled) {
-    color: var(--text-h);
   }
 
   /* Space is tight on a phone and the outline covers the same ground. */
@@ -469,10 +721,8 @@ body {
   color: var(--text);
   white-space: nowrap;
   flex: 0 0 auto;
-
-  &:hover:not(:disabled) {
-    color: var(--text-h);
-  }
+  /* Readouts, so they must not reflow as their digits change. */
+  font-variant-numeric: tabular-nums;
 }
 
 .status-bar__chip--icon {
@@ -623,18 +873,14 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: var(--control);
+  height: var(--control);
   padding: 0;
   flex: 0 0 auto;
   color: var(--text);
 
   & > svg {
     display: block;
-  }
-
-  &:hover:not(:disabled) {
-    color: var(--text-h);
   }
 }
 
@@ -649,14 +895,10 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: var(--control);
+  height: var(--control);
   padding: 0;
   color: var(--text);
-}
-
-.font-menu__trigger:hover:not(:disabled) {
-  color: var(--text-h);
 }
 
 .font-menu__glyph {
@@ -673,6 +915,15 @@ body {
   top: calc(100% + 6px);
   right: 0;
   width: min(264px, calc(100vw - 24px));
+  /*
+   * Nine 52px options overrun a short viewport, and an absolutely positioned
+   * panel cannot be scrolled into view by the page — the options past the fold
+   * would simply be unreachable. Cap it against the space below the trigger and
+   * let the list scroll inside itself instead.
+   */
+  max-height: calc(100svh - 60px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 4px;
   box-sizing: border-box;
   background: var(--bg-raised);
@@ -681,12 +932,15 @@ body {
   box-shadow: var(--shadow);
 }
 
+/* Single-line rows, sized to match .text-size-menu__option — the two panels sit
+   side by side in the header and should read as one piece of menu language. The
+   45px floor is a touch target, not a typographic measure: do not shrink it. */
 .font-menu__option {
   display: flex;
   align-items: center;
   width: 100%;
-  min-height: 52px;
-  padding: 7px 8px;
+  min-height: 45px;
+  padding: 6px 8px;
   text-align: start;
 }
 
@@ -695,23 +949,11 @@ body {
   background: var(--accent-bg);
 }
 
-.font-menu__option-copy {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
 .font-menu__option-name {
+  min-width: 0;
   font-size: 15px;
   font-weight: 600;
   line-height: 1.15;
-}
-
-.font-menu__option-preview {
-  color: var(--text);
-  font-size: 13px;
-  line-height: 1.2;
-  white-space: nowrap;
 }
 
 .font-menu__check {
@@ -733,33 +975,28 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: var(--control);
+  height: var(--control);
   padding: 0;
   color: var(--text);
 }
 
-.text-size-menu__trigger:hover:not(:disabled) {
-  color: var(--text-h);
-}
-
 .text-size-menu__glyph {
   display: inline-flex;
-  align-items: flex-end;
-  gap: 1px;
+  align-items: center;
+  gap: 2px;
   font-family: Georgia, serif;
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -1px;
   line-height: 1;
 }
 
-.text-size-menu__glyph small {
-  margin-bottom: -1px;
-  font-family: var(--sans);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0;
+.text-size-menu__glyph > svg {
+  display: block;
+  width: 8px;
+  height: 13px;
+  margin-top: 1px;
 }
 
 .text-size-menu__panel {
@@ -782,8 +1019,9 @@ body {
   gap: 12px;
   padding: 7px 9px 6px;
   color: var(--text);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-track);
   text-transform: uppercase;
 
   span:last-child {
@@ -872,24 +1110,56 @@ body {
   opacity: 0.75;
   white-space: nowrap;
   flex: 0 0 auto;
+  /* "Saved 12m ago" counts up while you look at it. */
+  font-variant-numeric: tabular-nums;
 }
 
+/*
+ * How far round the aperture has closed. Registered rather than left as a plain
+ * custom property because an unregistered one is a string: it would jump from
+ * 0% to 100% instead of sweeping. This is what makes the keyframes below
+ * interpolate at all.
+ */
+@property --sweep {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 100%;
+}
+
+/*
+ * The save state as an aperture rather than a lamp.
+ *
+ * A pulsing dot says "something is happening" and nothing else; an aperture
+ * sweeping closed says the write is running and shows it reaching the end. It
+ * rests filled, so the resting state is exactly the disc it has always been —
+ * the mechanism is only visible while there is something to report.
+ */
 .save-indicator__dot {
-  width: 7px;
-  height: 7px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex: 0 0 auto;
-  background: var(--dot, var(--text));
 
-  /*
-   * Best-effort storage draws the dot as a ring rather than a disc. It's a
-   * standing property of the browser, not an error, so it should register
-   * without ever demanding attention.
-   */
-  .save-indicator[data-durability='best-effort'] & {
-    background: transparent;
-    box-shadow: inset 0 0 0 2px var(--dot, var(--text));
-  }
+  /* Filled to --sweep, with the unswept remainder left as a faint track so the
+     dot stays a whole shape mid-sweep instead of a disappearing wedge. */
+  background: conic-gradient(
+    var(--dot, var(--text)) var(--sweep),
+    color-mix(in oklab, var(--dot, var(--text)) 20%, transparent) 0
+  );
+}
+
+/*
+ * Best-effort storage draws the dot as a ring rather than a disc. It's a
+ * standing property of the browser, not an error, so it should register
+ * without ever demanding attention.
+ *
+ * The ring and the aperture cannot both be drawn in 8px — an inset ring over a
+ * conic sweep leaves a 4px core that reads as neither — so durability wins the
+ * shape and this state keeps the original opacity pulse for its motion.
+ */
+.save-indicator[data-durability='best-effort'] .save-indicator__dot {
+  background: transparent;
+  box-shadow: inset 0 0 0 2px var(--dot, var(--text));
 }
 
 .save-indicator[data-status='saved'] {
@@ -904,6 +1174,15 @@ body {
 
 .save-indicator[data-status='saving'] .save-indicator__dot,
 .save-indicator[data-status='loading'] .save-indicator__dot {
+  animation: save-aperture 1.1s ease-in-out infinite;
+}
+
+/* Higher specificity than the rule above, deliberately: the ring has no
+   aperture to sweep, so it keeps the pulse. */
+.save-indicator[data-durability='best-effort'][data-status='saving']
+  .save-indicator__dot,
+.save-indicator[data-durability='best-effort'][data-status='loading']
+  .save-indicator__dot {
   animation: save-pulse 1.2s ease-in-out infinite;
 }
 
@@ -920,6 +1199,22 @@ body {
   }
 }
 
+@keyframes save-aperture {
+  from {
+    --sweep: 0%;
+  }
+  to {
+    --sweep: 100%;
+  }
+}
+
+/*
+ * With the animation off, --sweep rests at its registered 100% and the dot is
+ * the same full disc it is when saved. That is the right resting state: a
+ * static aperture frozen part-closed would read as a write that never
+ * finished. Saving stays distinguishable by hue — --warn against --ok — and by
+ * the "Saving…" label beside it.
+ */
 @media (prefers-reduced-motion: reduce) {
   .save-indicator__dot {
     animation: none !important;
@@ -1070,7 +1365,7 @@ body {
   color: var(--text-h);
   background: var(--accent-bg);
   border: 1px solid var(--accent);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
 
   &::placeholder {
     color: var(--text);
@@ -1098,9 +1393,9 @@ body {
   margin: 0;
   padding: 2px 8px;
   font-family: var(--heading);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-track);
   text-transform: uppercase;
   color: var(--text);
   opacity: 0.7;
@@ -1166,6 +1461,13 @@ body {
   min-width: 0;
   padding: 32px 24px 45svh;
   box-sizing: border-box;
+
+  /* 24px a side costs ~12% of a 390px screen. The measure is the scarce thing
+     on a phone; the gutter is not what makes the page feel composed there. */
+  @media (max-width: 900px) {
+    padding-inline: calc(16px + var(--safe-l)) calc(16px + var(--safe-r));
+    padding-top: 24px;
+  }
 }
 
 .editor-pane__inner {
@@ -1173,7 +1475,59 @@ body {
   margin-inline: auto;
 }
 
-/* Generic controls shared by the toolbar, sidebar and dialogs. */
+/*
+ * The grille. An empty document shows the placeholder line and then nothing at
+ * all, so the field below it gets a perforated lattice — the speaker grille off
+ * a T3 or an SK4, which is the one Braun graphic that exists purely to admit
+ * that a surface is there.
+ *
+ * Hung off the pane with :has() rather than rendered into the editor, which
+ * matters for more than tidiness: anything inside .ProseMirror is document
+ * content, and document content reaches the markdown serializer. A pseudo
+ * element on the pane cannot.
+ *
+ * `:only-child` rather than the placeholder's "every block is empty" test,
+ * because :has() may not contain another :has(). That makes this the stricter
+ * of the two: one empty paragraph and nothing else, which is a document nobody
+ * has touched. Press return twice and the grille goes — by then the page is
+ * yours and does not need dressing.
+ */
+.editor-pane:has(.ProseMirror > p.is-empty:only-child)::after {
+  content: '';
+  display: block;
+  max-width: var(--measure);
+  height: 180px;
+  margin: var(--s6) auto 0;
+  pointer-events: none;
+
+  background-image: radial-gradient(
+    circle,
+    var(--text) 1px,
+    transparent 1.2px
+  );
+  background-size: 12px 12px;
+  opacity: 0.1;
+
+  /* Bounds the perforation field the way the housing bounds a real grille —
+     without this the lattice ends on a hard rectangular edge, which reads as a
+     texture swatch rather than as part of the surface. */
+  mask-image: radial-gradient(ellipse at center, #000 40%, transparent 72%);
+
+  /* Nothing to look at on a phone, where the field would take most of the
+     screen and the keyboard covers it anyway. */
+  @media (max-width: 900px) {
+    display: none;
+  }
+}
+
+/*
+ * Generic controls shared by the toolbar, sidebar and dialogs.
+ *
+ * One hover idiom for everything: the key surface lights, and the label goes
+ * to full ink. Icon-only controls used to shift colour without a fill, which
+ * made two classes of button out of what the hand treats as one — a keypad
+ * only reads as a keypad if every key answers the same way.
+ */
 button {
   font: inherit;
   font-size: 14px;
@@ -1187,14 +1541,22 @@ button {
 
   &:hover:not(:disabled) {
     background: var(--code-bg);
+    color: var(--text-h);
+  }
+  /* A control that gives nothing back under the finger is the one thing a
+     physical panel never does. Held, it sits one step darker than hover. */
+  &:active:not(:disabled) {
+    background: var(--bg-inset);
   }
   &:disabled {
     opacity: 0.45;
     cursor: default;
   }
+  /* Hairline and set off the control rather than drawn on it: the ring should
+     mark the key, not thicken it. */
   &:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 1px;
+    outline: 1px solid var(--accent);
+    outline-offset: 2px;
   }
 }
 
@@ -1240,7 +1602,7 @@ button {
   align-items: flex-start;
   padding: 12vh 16px 16px;
   box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(23, 23, 22, 0.28);
 }
 
 .palette {
@@ -1564,10 +1926,23 @@ button {
 }
 
 .search-panel__empty {
-  padding: 24px 16px;
+  padding: var(--s5) var(--s4);
   font-size: 13px;
   color: var(--text);
   text-align: center;
+}
+
+/* The scale the instrument is set to, under the sentence describing it. Set as
+   a panel label rather than as more prose: it is a reading, not a sentence. */
+.search-panel__corpus {
+  display: block;
+  margin-top: var(--s2);
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-track);
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
 }
 
 /* --- Version history --- */
@@ -1871,9 +2246,9 @@ button {
   align-items: baseline;
   gap: 8px;
   margin: 0 0 4px;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-track);
   text-transform: uppercase;
   color: var(--text);
 }
@@ -1930,7 +2305,7 @@ button {
  */
 .peek {
   position: fixed;
-  bottom: calc(20px + var(--statusbar-h));
+  bottom: calc(20px + var(--statusbar-total));
   left: 50%;
   translate: -50% 0;
   /* Above the toasts, which share this corner. Safe because the panel takes no
@@ -1952,9 +2327,9 @@ button {
 }
 
 .peek__held {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-track);
   text-transform: uppercase;
   color: var(--text);
   margin-bottom: 6px;
@@ -1997,4 +2372,103 @@ button {
   .peek {
     animation: none;
   }
+}
+
+/* --- Text entry on touch --- */
+/*
+ * iOS zooms the page whenever a focused field is under 16px, and then leaves it
+ * zoomed — the whole layout jumps sideways on the first tap into find, rename,
+ * or a comment. 16px is the threshold, so this is a fix with exactly one legal
+ * value; the fields all read a little larger on a phone as a consequence, which
+ * a field being typed into can afford.
+ *
+ * Listed by class rather than as a bare `input` rule: every one of these sets
+ * its own size through a class selector, which would outrank the element.
+ * The `:root` prefix wins over the same classes in editor.css and comments.css,
+ * which are imported after this file.
+ */
+@media (max-width: 900px) {
+  :root .composer textarea,
+  :root .doc-picker__rename-input,
+  :root .sheet__input,
+  :root .find-bar__input,
+  :root .link-popover__input,
+  :root .image-bar__label input,
+  :root .image-bar__size input,
+  :root .image-insert-popover > label:not(.image-insert-popover__check) input,
+  :root .crop-dialog__zoom input {
+    font-size: 16px;
+  }
+}
+
+/* --- Phone actions sheet --- */
+/*
+ * The header's file and reading controls, collapsed into one panel because the
+ * row that holds them measures 428px and a phone screen is 390px. Deliberately
+ * flat: Export, reading font and text size are each a menu of their own on
+ * desktop, and a menu that opens a menu is not something to operate with a
+ * thumb. Sections instead, in one scroller.
+ */
+.actions-menu {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.actions-menu__panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(300px, calc(100vw - 24px));
+  /* Six sections is more than a phone can show at once, so it scrolls itself
+     rather than running off the bottom of a screen it cannot scroll. */
+  max-height: calc(100svh - 96px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px;
+  box-sizing: border-box;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.actions-menu__heading {
+  margin: 8px 0 2px;
+  padding: 0 9px;
+  color: var(--text);
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-track);
+  text-transform: uppercase;
+
+  &:first-child {
+    margin-top: 2px;
+  }
+}
+
+.actions-menu__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  /* A thumb target, not a pointer one — this panel only exists on phones. */
+  min-height: 44px;
+  padding: 6px 9px;
+  text-align: start;
+  font-size: 15px;
+
+  &[aria-checked='true'] {
+    color: var(--accent);
+    background: var(--accent-bg);
+  }
+}
+
+.actions-menu__check {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
 }

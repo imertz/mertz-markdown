@@ -163,6 +163,19 @@ export const CATALOG = {
     // "bookmark all tabs".
     keys: 'mod+shift+l',
   },
+  'app.toggleFocus': {
+    label: 'Focus on the current block',
+    category: 'app',
+    // The mod+alt row rather than mod+shift: every letter left in mod+shift is
+    // spoken for by a browser (D bookmarks all tabs, I and J open devtools, O
+    // the bookmark manager, P a private window), and the note on toggleTheme
+    // above is this app already having been bitten by exactly that.
+    //
+    // Which means the AltGr rule applies — Windows synthesises Ctrl+Alt — so
+    // it drops the mod off Apple, the way every other mod+alt chord here does.
+    keys: 'mod+alt+f',
+    keysOther: 'alt+f',
+  },
 
   // --- Documents ---------------------------------------------------------
   'doc.new': {

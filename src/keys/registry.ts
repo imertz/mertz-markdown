@@ -36,6 +36,7 @@ export interface CommandDeps {
   threads: ThreadsApi
   rail: RailVisibility
   theme: { theme: Theme; toggle: () => void }
+  focus: { on: boolean; toggle: () => void }
   ui: {
     openPalette: () => void
     openSearch: () => void
@@ -83,7 +84,7 @@ const hasEditor = (context: CommandContext) =>
  * the palette happened to assemble.
  */
 export function buildCommands(deps: CommandDeps): Command[] {
-  const { documents, rail, theme, threads, ui } = deps
+  const { documents, focus, rail, theme, threads, ui } = deps
   const editorCommand = (action: (editor: Editor) => void) =>
     withEditor(deps, action)
 
@@ -98,6 +99,7 @@ export function buildCommands(deps: CommandDeps): Command[] {
     define('app.exportHtml', ui.exportAnnotated, hasEditor),
     define('app.toggleRail', rail.toggle),
     define('app.toggleTheme', theme.toggle),
+    define('app.toggleFocus', focus.toggle),
 
     // --- Documents -------------------------------------------------------
     define('doc.new', () => void documents.create()),

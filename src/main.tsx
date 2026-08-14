@@ -4,6 +4,9 @@ import './styles/fonts.css'
 import './styles/index.css'
 import './styles/editor.css'
 import './styles/comments.css'
+// Last, so its rules win on order wherever they meet a screen rule at equal
+// specificity — which is most of what a print stylesheet does.
+import './styles/print.css'
 import App from './App'
 
 const container = document.getElementById('root')

@@ -17,8 +17,10 @@ import { CommentMark } from './comment'
 import { CommentActive } from './commentActive'
 import { CommentSanitizer } from './commentSanitizer'
 import { CommentSync } from './commentSync'
+import { FocusBlock } from './focusBlock'
 import { LocalImage } from './image'
 import { Search } from './search'
+import { SectionMarks } from './sectionMarks'
 import { SlashCommands } from './slashCommands'
 import { TextAlign } from './textAlign'
 import {
@@ -83,7 +85,46 @@ export function buildExtensions(
      * `parent`, so it inherits renderMarkdown/parseMarkdown and the ```lang
      * fence still round-trips. Nothing here reaches the document or the .md.
      */
-    CodeBlockLowlight.configure({ lowlight }),
+    CodeBlockLowlight.configure({ lowlight }).extend({
+      /*
+       * Mirror the language onto the <pre> as a data attribute so the CSS can
+       * print it as a label on the block. CodeBlock already renders it, but
+       * only as `class="language-x"` on the inner <code>, which `attr()`
+       * cannot read a name out of.
+       *
+       * This changes DOM output only. The attribute itself is unchanged — same
+       * name, same parseHTML, same default — so the schema is untouched and
+       * export still goes through the inherited renderMarkdown to a ```lang
+       * fence. schema-lock and markdown-roundtrip both cover that.
+       */
+      addAttributes() {
+        // Typed loosely on purpose: TipTap types `this.parent?.()` as
+        // `Attributes | {}`, so the inherited `language` spec is not reachable
+        // through it without widening. Spreading it keeps every field the
+        // parent set — parseHTML, default, keepOnSplit — and replaces one.
+        const parent = this.parent?.() as Record<string, unknown> | undefined
+        return {
+          ...parent,
+          language: {
+            ...(parent?.language as Record<string, unknown> | undefined),
+            /*
+             * MUST come after the spread. CodeBlock declares this attribute
+             * `rendered: false`, because it writes the language onto the inner
+             * <code> as a class by hand rather than through the attribute
+             * machinery. Inheriting that flag means getRenderedAttributes skips
+             * the attribute outright and the renderHTML below is never called —
+             * which is exactly what happened: the <pre> came out with no
+             * attributes at all and the label silently never appeared.
+             */
+            rendered: true,
+            renderHTML: (attributes: Record<string, unknown>) =>
+              attributes.language
+                ? { 'data-language': attributes.language as string }
+                : {},
+          },
+        }
+      },
+    }),
 
     LocalImage.configure({
       resolveAsset: options.resolveImageAsset ?? (async () => undefined),
@@ -130,11 +171,16 @@ export function buildExtensions(
     Search,
     SlashCommands,
     TextAlign,
+    FocusBlock,
+    SectionMarks,
 
     // Keep the first empty paragraph decorated even if startup or a document
-    // reload leaves the selection in another empty block. The CSS uses the
-    // `is-editor-empty` class, so this still renders only for a truly empty
-    // document rather than adding prompts to ordinary blank lines.
+    // reload leaves the selection in another empty block. Every empty block
+    // gets the decoration as a result; the CSS narrows it back down to the
+    // first block of an all-empty document, so ordinary blank lines in the
+    // middle of a draft do not sprout prompts. See the rule in editor.css —
+    // it deliberately does NOT use `is-editor-empty`, which this extension
+    // never applies.
     Placeholder.configure({
       placeholder: EDITOR_PLACEHOLDER,
       showOnlyCurrent: false,

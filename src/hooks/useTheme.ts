@@ -39,7 +39,7 @@ export function useTheme() {
     // The address bar on mobile reads this; a media-scoped meta would ignore
     // an explicit override, so it's driven from here instead.
     const meta = document.querySelector('meta[name="theme-color"]')
-    meta?.setAttribute('content', theme === 'dark' ? '#1a1917' : '#faf9f7')
+    meta?.setAttribute('content', theme === 'dark' ? '#171716' : '#f7f6f4')
   }, [theme])
 
   useEffect(() => {

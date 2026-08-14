@@ -5,6 +5,7 @@ import type { DocumentStats } from '../hooks/useDocumentStats'
 import { titleFor } from '../keys/catalog'
 import { ChevronDownIcon, ChevronUpIcon, PanelRightIcon } from './icons'
 import { OutlineMenu } from './OutlineMenu'
+import { ReadingScale } from './ReadingScale'
 import { SaveIndicator } from './SaveIndicator'
 
 interface StatusBarProps {
@@ -76,6 +77,11 @@ export function StatusBar({
 
   return (
     <footer className="status-bar">
+      <ReadingScale
+        outlineLength={stats.outline.length}
+        activeIndex={stats.activeIndex}
+      />
+
       <div className="status-bar__context">
         {/*
           Enablement is derived from the debounced outline, so it can trail the

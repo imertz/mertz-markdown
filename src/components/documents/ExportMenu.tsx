@@ -3,56 +3,12 @@ import { useDismissable } from '../../hooks/useDismissable'
 import { BUNDLE_ACCEPT } from '../../markdown/bundle'
 import { MARKDOWN_ACCEPT } from '../../markdown/import'
 import { ChevronDownIcon, DownloadIcon, UploadIcon } from '../icons'
+import { FORMATS, type ExportActions } from './exportFormats'
 
-export interface ExportMenuProps {
-  onExport: () => void
-  onExportDocx: () => void
-  onExportDocxAnnotated: () => void
-  onExportAnnotated: () => void
+export interface ExportMenuProps extends ExportActions {
   onImport: (file: File) => void
   disabled?: boolean
 }
-
-interface Format {
-  id: string
-  label: string
-  hint: string
-  run: (props: ExportMenuProps) => void
-}
-
-/**
- * The formats, in order of how much of the app they carry.
- *
- * Markdown first because it is the one with the guarantee; the two that carry
- * comments are last, and say so, because "with comments" is the decision the
- * user is actually making when they pick one of them.
- */
-const FORMATS: Format[] = [
-  {
-    id: 'markdown',
-    label: 'Markdown',
-    hint: 'Clean GFM, bundled with an images folder when needed. Never any comments.',
-    run: props => props.onExport(),
-  },
-  {
-    id: 'docx',
-    label: 'Word',
-    hint: 'A .docx for readers who work in Word. No comments.',
-    run: props => props.onExportDocx(),
-  },
-  {
-    id: 'docx-comments',
-    label: 'Word, with comments',
-    hint: 'A .docx whose threads open in Word’s review pane.',
-    run: props => props.onExportDocxAnnotated(),
-  },
-  {
-    id: 'html-comments',
-    label: 'HTML, with comments',
-    hint: 'One self-contained page, comments in an annex.',
-    run: props => props.onExportAnnotated(),
-  },
-]
 
 /**
  * Export as a format menu, Import as its peer.

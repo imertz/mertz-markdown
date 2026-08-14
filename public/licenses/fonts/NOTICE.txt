@@ -26,3 +26,24 @@ reserved.
 GFSNeohellenicBoldItalic.ttf: Copyright (c) Designed by Takis Katsoulidis
 and George D. Matthiopoulos (gfs@greekfontsociety.gr)., 2001. All rights
 reserved.
+
+EB Garamond
+Copyright 2017 The EB Garamond Project Authors
+(https://github.com/octaviopardo/EBGaramond12)
+EBGaramond-Italic[wght].ttf: Copyright 2017 The EB Garamond Project Authors
+(https://github.com/octaviopardo/EBGaramond12)
+
+Alegreya
+Copyright 2011 The Alegreya Project Authors
+(https://github.com/huertatipografica/Alegreya)
+Alegreya-Italic[wght].ttf: Copyright 2011 The Alegreya Project Authors
+(https://github.com/huertatipografica/Alegreya)
+
+Source Sans 3
+Google Inc.
+
+JetBrains Mono
+Copyright 2020 The JetBrains Mono Project Authors
+(https://github.com/JetBrains/JetBrainsMono)
+JetBrainsMono-Italic[wght].ttf: Copyright 2020 The JetBrains Mono Project
+Authors (https://github.com/JetBrains/JetBrainsMono)

@@ -3,6 +3,237 @@
  * purpose: the old global h1/h2/code rules from the Vite scaffold applied to the
  * app chrome too, which made editor headings 56px.
  */
+
+/*
+ * Section marks: a § in the margin beside each heading, click to copy a link.
+ *
+ * Absolutely positioned out into the margin, so it occupies no width in the
+ * text column and can never reflow a heading — the one thing a hover affordance
+ * inside prose must not do. The heading itself needs no `position: relative`
+ * for this: the containing block is .editor-pane__inner, which means the marks
+ * all hang off the same edge no matter how the heading is aligned.
+ *
+ * Hidden until the heading or the mark itself is hovered or focused. It stays
+ * reachable by keyboard, which is why :focus-visible is in the list.
+ */
+.section-mark {
+  position: absolute;
+
+  /*
+   * Sized and offset in rem, deliberately not em.
+   *
+   * em here would resolve against the button's own font-size, which made the
+   * offset move whenever the glyph did, and made the column zig-zag: an h1 is
+   * 1.9em and an h4 is 1.1em, so every level would hang at a different depth.
+   * A fixed rem puts all of them in one margin column, which is what a margin
+   * is.
+   */
+  left: -1.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
+
+  /*
+   * REQUIRED for the `top` below, not cosmetic. A button does not inherit
+   * font-size — it falls back to the UA's ~14px — so without this every `em`
+   * here silently measures the browser's button default instead of the
+   * heading, and the mark lands at the same offset on an h1 as on an h4. The
+   * glyph's own size is set on ::before in rem and is unaffected.
+   */
+  font-size: inherit;
+
+  /*
+   * Flex, purely to get the glyph off the baseline.
+   *
+   * `font-size: inherit` above is what makes `em` mean the heading, but it
+   * also makes the line box's STRUT the heading's size — and the strut, not
+   * the small glyph, decides where the baseline sits. At an h1 that pushed the
+   * § about 6px below where its own metrics said it would land, and by a
+   * different amount at every heading level. Centring the glyph as a flex item
+   * takes the baseline out of the calculation entirely.
+   */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  /*
+   * Centred on the CAP BAND, not on the line box.
+   *
+   * The line box is 1.25em and its lower part is descender space that a line
+   * of capitals never occupies, so centring on it puts the mark above the
+   * text's optical centre — and since the dead space scales with the type, an
+   * h1 looked visibly more wrong than an h2.
+   *
+   * 0.61em    the cap band's centre, measured from the top of the heading box:
+   *           half-leading (0.125em) + ascent (~0.93em) − half the cap height
+   *           (~0.35em). Measured off the rendered fonts, not assumed.
+   * 0.6875rem where the § ink centre sits inside this box — a touch below the
+   *           middle, because the glyph has a small descending tail.
+   *
+   * The five selectable document faces differ slightly, so this is right to
+   * about a pixel rather than exactly.
+   */
+  top: calc(0.61em - 0.6875rem);
+
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-family: var(--sans);
+  line-height: 1.25rem;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0;
+  user-select: none;
+
+  /*
+   * One glyph slot for all three states. Swapping `content` leaves the
+   * button's box completely alone — the previous version zeroed the font-size
+   * to hide the §, which also zeroed the em that `left` was measured in and
+   * dropped the confirmation mark on top of the heading.
+   */
+  /* line-height: 1 so the glyph's own box is its own size and the flex
+     centring above has something predictable to centre. */
+  &::before {
+    content: '§';
+    font-size: 0.8rem;
+    line-height: 1;
+  }
+
+  /*
+   * `:not(:disabled)` is carrying specificity, not logic — it is never
+   * disabled. The generic control hover in index.css is
+   * `button:hover:not(:disabled)` at (0,2,1), which out-ranks a plain
+   * `.section-mark:hover` at (0,2,0) and would paint a key-sized grey box
+   * around the glyph and drop the accent. This matches at (0,3,0).
+   *
+   * The mark is a margin glyph, not a key: it takes no fill, only ink.
+   */
+  &:hover:not(:disabled),
+  &:focus-visible {
+    background: none;
+    color: var(--accent);
+  }
+
+  &:active:not(:disabled) {
+    background: none;
+  }
+
+  /* Reports the copy where the pointer already is, by glyph as well as by
+     colour so it does not depend on hue to be read. */
+  /* Same specificity problem as the hover above: the confirmation is shown
+     while the pointer is still on the mark, so these have to out-rank the
+     generic button hover too. */
+  &[data-copied],
+  &[data-failed] {
+    opacity: 1;
+  }
+  &[data-copied]:not(:disabled) {
+    background: none;
+    color: var(--accent);
+    &::before {
+      content: '✓';
+    }
+  }
+  &[data-failed]:not(:disabled) {
+    background: none;
+    color: var(--danger);
+    &::before {
+      content: '✗';
+    }
+  }
+}
+
+.ProseMirror :is(h1, h2, h3, h4, h5, h6) {
+  position: relative;
+
+  &:hover .section-mark,
+  .section-mark:focus-visible {
+    opacity: 0.6;
+  }
+}
+
+/*
+ * No margin to hang in on a phone, and no hover to reveal it with. The
+ * heading's own :hover would fire on tap and leave a § stuck beside it.
+ */
+@media (max-width: 900px) {
+  .section-mark {
+    display: none;
+  }
+}
+
+/*
+ * Focus mode. Everything but the block the caret is in drops back, so the page
+ * narrows to the paragraph you are actually writing.
+ *
+ * Opacity rather than colour: it dims images, code and tables by the same
+ * amount as prose, and it needs no dark-theme counterpart. The lit block is
+ * marked by the FocusBlock decoration, which is applied whether or not the
+ * mode is on — turning it on is purely this rule matching.
+ */
+:root[data-focus-mode='on'] .ProseMirror > *:not(.is-focus-block) {
+  opacity: 0.35;
+  transition: opacity 160ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root[data-focus-mode='on'] .ProseMirror > *:not(.is-focus-block) {
+    transition: none;
+  }
+}
+
+/*
+ * Selection. The browser default is a saturated blue that belongs to no part
+ * of this palette, and it lands on the text hundreds of times a session.
+ *
+ * The fill is deliberately the accent at low alpha rather than the accent
+ * itself: a comment anchor is already an accent wash, and dragging a selection
+ * across one has to leave both legible. Ink stays --text-h throughout, so a
+ * selection never restates the colour of what it covers.
+ */
+::selection {
+  background: var(--accent-bg);
+  color: var(--text-h);
+}
+
+/*
+ * Scrollbars, on the panels that have them. Hairline and drawn in the border
+ * colour, so a scrollbar reads as an edge of the housing rather than as a
+ * control sitting on top of the content.
+ */
+.workspace,
+.comment-rail,
+.search-panel__body,
+.history__list,
+.palette__list {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+/*
+ * Oldstyle figures, for the serif document faces only. Each of these draws
+ * them; they sit on the x-height with ascenders and descenders, so a date in
+ * running prose stops shouting the way lining figures do in a book. A face
+ * without the feature simply ignores the declaration, so listing one costs
+ * nothing — but the sans and mono options are left out on purpose.
+ *
+ * Body text only. Code needs its digits monospaced and aligned, tables need
+ * theirs comparable down a column, and the chrome is an instrument panel where
+ * lining tabular figures are the correct choice — see the tabular-nums rules
+ * in index.css.
+ */
+:root[data-document-font='literata'] .ProseMirror,
+:root[data-document-font='gfs-neohellenic'] .ProseMirror,
+:root[data-document-font='eb-garamond'] .ProseMirror,
+:root[data-document-font='alegreya'] .ProseMirror {
+  font-variant-numeric: oldstyle-nums;
+
+  code,
+  pre,
+  table {
+    font-variant-numeric: normal;
+  }
+}
 .ProseMirror {
   outline: none;
   color: var(--text-h);
@@ -11,6 +242,20 @@
   line-height: 1.6;
   word-wrap: break-word;
   white-space: pre-wrap;
+
+  /* The most-looked-at pixel in the app was the browser default. */
+  caret-color: var(--accent);
+
+  /*
+   * Opening quotes and list bullets hang into the margin so the text block's
+   * left edge is optically flush instead of merely mathematically flush — the
+   * oldest trick in setting a page, and one line of CSS.
+   *
+   * Safari-only for now. Everywhere else it is ignored and the text sets
+   * exactly as it does today, which is the right failure mode for a refinement:
+   * nobody who cannot see it loses anything.
+   */
+  hanging-punctuation: first last;
 
   & > * + * {
     margin-top: 0.85em;
@@ -28,8 +273,28 @@
     line-height: 1.25;
     letter-spacing: -0.02em;
     margin: 1.6em 0 0;
+
+    /*
+     * Headings break badly by default — the last word drops to a line of its
+     * own and the whole block goes lopsided. `balance` evens the lines instead
+     * of filling greedily. Browsers cap it at a handful of lines, which is
+     * exactly the range a heading lives in.
+     */
+    text-wrap: balance;
+
+    /*
+     * Optical margin alignment. A glyph's left side bearing scales with the
+     * type size, so a 1.9em heading sets its first stem visibly further right
+     * than the body text below it, and the column edge looks bent. Pulling
+     * back by a fraction of an em puts the STEM on the margin rather than the
+     * glyph box. Scaled per level below, since the error scales with the size.
+     */
+    margin-inline-start: -0.012em;
   }
 
+  /* The optical correction above is in em, so it already scales with each of
+     these — h1 pulls back nearly twice as far in px as h4 does, which is what
+     the eye wants. Only h5/h6, set at body size, need it cancelled. */
   h1 {
     font-size: 1.9em;
   }
@@ -45,6 +310,7 @@
   h5,
   h6 {
     font-size: 1em;
+    margin-inline-start: 0;
   }
 
   h1,
@@ -96,11 +362,41 @@
     border-radius: var(--radius);
     padding: 12px 14px;
     overflow-x: auto;
+    /* Containing block for the language label below. */
+    position: relative;
 
     code {
       background: none;
       padding: 0;
       font-size: inherit;
+    }
+
+    /*
+     * The language, named on the block the way a panel names its inputs.
+     * Present only on fenced blocks that declared one — an unlabelled block is
+     * unlabelled on purpose and gets nothing.
+     *
+     * Carries the code background because the first line of code can reach the
+     * right edge, and this has to occlude rather than overlap. It scrolls with
+     * the content on a block wide enough to pan, which is the cost of not
+     * wrapping every code block in an extra element to escape `overflow`.
+     */
+    &[data-language]::before {
+      content: attr(data-language);
+      position: absolute;
+      top: 0;
+      right: 0;
+      padding: 4px 6px;
+      pointer-events: none;
+      background: var(--code-bg);
+      border-end-start-radius: var(--radius-sm);
+      color: var(--text);
+      font-family: var(--sans);
+      font-size: var(--label-size);
+      font-weight: var(--label-weight);
+      letter-spacing: var(--label-track);
+      text-transform: uppercase;
+      opacity: 0.7;
     }
   }
 
@@ -301,6 +597,30 @@
     /* The last column's resize handle sits at `right: -2px`; without this it
        puts every table into a two-pixel horizontal scroll of its own. */
     padding-inline-end: 2px;
+
+    /*
+     * On a phone the wrapper was ready to scroll and never got the chance:
+     * `table { width: 100% }` under `table-layout: fixed` sizes the table to
+     * the pane, so three columns split ~340px between them and every cell set
+     * one word per line. Giving the table a floor wider than the pane is what
+     * makes the overflow — and therefore the scroll — happen.
+     *
+     * It has to be `width`, not `min-width`. TableView writes an inline
+     * `min-width` on *every* table it renders, not only resized ones, and
+     * inline style beats any selector — a `min-width` here is simply ignored.
+     * Setting `width` instead leaves that inline value alone to do its own job,
+     * which is the right precedence twice over: the table widens by default,
+     * and a table the user has deliberately resized wider keeps its size,
+     * because its larger inline `min-width` then raises this width.
+     */
+    @media (max-width: 900px) {
+      /* A sideways swipe across a table must not become a back gesture. */
+      overscroll-behavior-x: contain;
+
+      table {
+        width: max(100%, 34rem);
+      }
+    }
   }
 
   table {
@@ -349,8 +669,19 @@
     pointer-events: none;
   }
 
-  /* Empty-document placeholder, driven by the Placeholder extension. */
-  p.is-editor-empty:first-child::before {
+  /*
+   * Empty-document placeholder, driven by the Placeholder extension.
+   *
+   * Keyed off `is-empty`, which the extension puts on every empty block, and
+   * narrowed here to "the first block, in a document whose blocks are ALL
+   * empty" — which is the condition the prompt is meant to describe.
+   *
+   * It used to key off `is-editor-empty` instead. That class is only added
+   * when `editor.isEmpty` is true, which never happens with this extension
+   * set, so the prompt had silently stopped rendering: a new document opened
+   * to a blank page with no invitation on it at all.
+   */
+  &:not(:has(> :not(p.is-empty))) > p.is-empty:first-child::before {
     content: attr(data-placeholder);
     float: left;
     height: 0;
@@ -424,17 +755,69 @@
 }
 
 /* --- Toolbar --- */
+/*
+ * A keypad, not a row of links. The keys sit on a recessed plate and abut each
+ * other with no gap: what separates them is the plate showing through their
+ * corners, the way the moulding does between the keys of a calculator. Group
+ * boundaries are the only real gaps, and they carry a hairline.
+ *
+ * The consequence to keep in mind when editing: every key must be exactly
+ * --control square, including the H1/H2/H3 text keys. One key wider than the
+ * others and the whole thing stops reading as a machined part.
+ */
+/*
+ * The plate keeps its place in the header row beside the document title at every
+ * width — it is never reordered and never wraps onto a line of its own. Instead
+ * it is the one header item that gives ground: `width: max-content` sizes it to
+ * its keys while there is room, and the shrink rules below let the row take that
+ * room back, at which point the keys scroll sideways inside a plate that stays
+ * put. (The one exception is the phone layout at the bottom of this file.)
+ */
 .toolbar {
   display: flex;
   align-items: center;
-  gap: 2px;
-  flex-wrap: wrap;
+  gap: 0;
+  flex-wrap: nowrap;
+  width: max-content;
+  /*
+   * A cap, not a width. The plate keeps the `max-content` size above, so it
+   * stays a housing that fits its keys instead of a bar stretched across the
+   * header with dead space in it — but it can never exceed the row.
+   */
+  max-width: 100%;
+  /*
+   * Without this the sideways scroll never engages. A flex item's automatic
+   * minimum size is its min-content width, which for a nowrap row of
+   * non-shrinking buttons is the full ~545px of them — so the toolbar refused to
+   * shrink, widened the header past the viewport, and took the whole #root grid
+   * column with it. Everything then sat on a surface wider than the screen and
+   * drifted sideways as the caret moved.
+   */
+  min-width: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  padding: 2px;
+  box-sizing: border-box;
+  background: var(--bg-inset);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.toolbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* The plate absorbs the header's overflow; the keys never do. */
+.toolbar button,
+.toolbar__sep {
+  flex: 0 0 auto;
 }
 
 .toolbar__group {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 0;
 }
 
 .image-insert-trigger {
@@ -493,9 +876,10 @@
   align-items: center;
   gap: 8px;
   color: var(--text);
-  font-size: 11px;
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--label-track);
 
   &::before,
   &::after {
@@ -538,7 +922,7 @@
   padding: 16px;
   box-sizing: border-box;
   color: var(--text-h);
-  background: rgba(0, 0, 0, 0.42);
+  background: rgba(23, 23, 22, 0.45);
 }
 
 .crop-dialog {
@@ -644,19 +1028,24 @@
   }
 }
 
+/* Full-height, unlike the old inset rule: on the plate it divides key blocks
+   rather than floating between two free-standing buttons. */
 .toolbar__sep {
   width: 1px;
   align-self: stretch;
-  margin: 4px 6px;
+  margin: 0 var(--s1);
   background: var(--border);
 }
 
 .toolbar button {
-  min-width: 30px;
-  height: 30px;
+  width: var(--control);
+  min-width: var(--control);
+  height: var(--control);
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
+  border-radius: var(--radius-sm);
   font-size: 13px;
   color: var(--text);
 
@@ -667,6 +1056,28 @@
     display: block;
   }
 
+  /*
+   * The generic button hover fills with --code-bg, which in the light theme is
+   * the same colour as the plate these keys sit on — invisible. A key on a
+   * recessed plate should come UP under the finger, so it lights to the raised
+   * surface instead. This has to out-specify the base `button:hover:not()` at
+   * (0,2,1), which it does at (0,3,1).
+   */
+  &:hover:not(:disabled) {
+    background: var(--bg-raised);
+    color: var(--text-h);
+  }
+
+  /*
+   * Held, the key goes back down INTO the plate — the exact inverse of the
+   * hover above, which lifts it out. A key that only ever lights and never
+   * travels is a picture of a key.
+   */
+  &:active:not(:disabled) {
+    background: var(--bg-inset);
+    color: var(--text-h);
+  }
+
   &[aria-pressed='true'] {
     background: var(--accent-bg);
     color: var(--accent);
@@ -674,36 +1085,29 @@
 }
 
 /*
- * On a phone the toolbar gets its own full-width row and scrolls sideways.
- * Wrapping (the default above) stacked it into four rows and ate the viewport.
+ * The phone exception to the inline rule at the top of this section. Here the
+ * document picker and the app actions already fill the row on their own, so an
+ * inline plate would be squeezed to nothing; formatting takes a full-width row
+ * of its own instead and scrolls sideways within it.
+ *
+ * `flex-basis: 100%` is what makes that row deterministic — without it the plate
+ * can trail the actions on the first line whenever the row happens to have slack
+ * left. `order: 3` keeps the actions on the first line rather than pushed to a
+ * third. The paired `flex-wrap` on the header lives in index.css.
+ *
+ * Touch targets: the 28px key module is a pointer dimension; a finger needs
+ * more, and the row has the height to give once it is the only thing on it.
  */
 @media (max-width: 900px) {
   .toolbar {
     order: 3;
-    width: 100%;
-    /*
-     * Without this the sideways scroll never engages. A flex item's automatic
-     * minimum size is its min-content width, which for a nowrap row of
-     * non-shrinking buttons is the full ~660px of them — so the toolbar refused
-     * to honour `width: 100%`, widened the header past the viewport, and took
-     * the whole #root grid column with it. Everything then sat on a surface
-     * wider than the screen and drifted sideways as the caret moved.
-     */
-    min-width: 0;
-    flex-wrap: nowrap;
-    justify-content: flex-start;
-    overflow-x: auto;
-    overscroll-behavior-x: contain;
-    scrollbar-width: none;
+    flex-basis: 100%;
   }
 
-  .toolbar::-webkit-scrollbar {
-    display: none;
-  }
-
-  .toolbar button,
-  .toolbar__sep {
-    flex: 0 0 auto;
+  .toolbar button {
+    width: 32px;
+    min-width: 32px;
+    height: 32px;
   }
 }
 
@@ -947,6 +1351,14 @@
   }
 }
 
+/* The § is a glyph, not an icon, so it needs sizing to sit level with the 14px
+   icons beside it rather than inheriting the card's body text. */
+.link-hover-card__action--section {
+  width: 24px;
+  font-size: 15px;
+  line-height: 14px;
+}
+
 /* --- Syntax highlighting --- */
 
 /*
@@ -1094,7 +1506,7 @@
   color: var(--text-h);
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   box-shadow: var(--shadow);
   animation: command-menu-in 120ms ease-out;
 }
@@ -1231,7 +1643,7 @@
     color: var(--text-h);
     background: var(--code-bg);
     border: 1px solid var(--border);
-    border-radius: 3px;
+    border-radius: var(--radius-sm);
   }
 }
 
