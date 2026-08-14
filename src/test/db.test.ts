@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { closeDB, getDB } from '../db/client'
 import { DB_NAME } from '../db/schema'
-import { getDocumentAsset, putAssets } from '../db/assets'
+import { getAsset, getDocumentAsset, putAssets } from '../db/assets'
 import {
   deleteDocumentCascade,
   getDocument,
@@ -186,6 +186,21 @@ describe('documents', () => {
     expect(loaded?.storageName).toBe(asset.storageName)
     expect(await loaded?.blob.text()).toBe('image bytes')
     expect(await getDocumentAsset(other.id, asset.id)).toBeUndefined()
+  })
+
+  it('persists image bytes instead of Blob/File structured clones', async () => {
+    const doc = makeDocument()
+    const asset = makeAsset(doc.id, {
+      blob: new File(['safari image'], 'safari.png', { type: 'image/png' }),
+      size: 12,
+    })
+    await putAssets([asset])
+
+    const db = await getDB()
+    const stored = await db.get('assets', asset.id)
+    expect(stored?.bytes).toBeInstanceOf(ArrayBuffer)
+    expect(stored?.blob).toBeUndefined()
+    expect(await (await getAsset(asset.id))?.blob.text()).toBe('safari image')
   })
 })
 

@@ -4,8 +4,10 @@ import { COMMENT_MARK_NAME, findMarkRanges } from './comment'
 
 export interface CommentSanitizerOptions {
   /** Thread ids that legitimately belong to the open document. */
-  getKnownThreadIds: () => ReadonlySet<string>
+  getKnownThreadIds: () => ReadonlySet<string> | null
 }
+
+export const COMMENT_SANITIZER_RECHECK = 'commentSanitizer:recheck'
 
 /**
  * Strips comment anchors pasted in from another document.
@@ -20,7 +22,7 @@ export const CommentSanitizer = Extension.create<CommentSanitizerOptions>({
   name: 'commentSanitizer',
 
   addOptions() {
-    return { getKnownThreadIds: () => new Set<string>() }
+    return { getKnownThreadIds: () => null }
   },
 
   addProseMirrorPlugins() {
@@ -31,15 +33,22 @@ export const CommentSanitizer = Extension.create<CommentSanitizerOptions>({
         key: new PluginKey('commentSanitizer'),
 
         appendTransaction(transactions, _oldState, newState) {
-          if (!transactions.some(tr => tr.docChanged)) return null
+          if (
+            !transactions.some(
+              tr => tr.docChanged || tr.getMeta(COMMENT_SANITIZER_RECHECK),
+            )
+          ) {
+            return null
+          }
 
           const type = newState.schema.marks[COMMENT_MARK_NAME]
           if (!type) return null
 
           const known = getKnownThreadIds()
-          // An empty set means threads have not loaded yet. Stripping now would
-          // wipe every anchor in a document that simply hasn't finished opening.
-          if (known.size === 0) return null
+          // `null` means threads have not loaded yet. An empty set is an
+          // authoritative document with no threads, so foreign pasted anchors
+          // must still be stripped.
+          if (known === null) return null
 
           const foreign = findMarkRanges(newState.doc, type).filter(
             hit => !known.has(hit.mark.attrs.threadId as string),

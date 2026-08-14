@@ -27,7 +27,8 @@ export interface ThreadsApi {
   threads: ThreadWithComments[]
   activeId: string | null
   setActiveId: (id: string | null) => void
-  getKnownIds: () => ReadonlySet<string>
+  getKnownIds: () => ReadonlySet<string> | null
+  knownIdsRevision: number
   onAnchorsChanged: (ids: Set<string>) => void
   addThread: (editor: Editor, body: string) => Promise<string | null>
   reply: (threadId: string, body: string) => Promise<void>
@@ -42,6 +43,7 @@ export interface ThreadsApi {
 export function useThreads(docId: string | null): ThreadsApi {
   const [threads, setThreads] = useState<ThreadWithComments[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
+  const [knownIdsRevision, setKnownIdsRevision] = useState(0)
 
   // The reconciler runs from a ProseMirror view plugin, outside React's render
   // cycle, so it reads current threads through a ref rather than a stale closure.
@@ -65,6 +67,7 @@ export function useThreads(docId: string | null): ThreadsApi {
       if (cancelled) return
       setThreads(loaded)
       loadedRef.current = true
+      setKnownIdsRevision(previous => previous + 1)
     })
 
     return () => {
@@ -92,14 +95,13 @@ export function useThreads(docId: string | null): ThreadsApi {
 
   // Must read live rather than close over a render's value: the sanitizer calls
   // this during a dispatch that can happen before React has re-rendered.
-  const getKnownIds = useCallback(
-    (): ReadonlySet<string> =>
-      new Set([
-        ...threadsRef.current.map(thread => thread.id),
-        ...pendingIds.current,
-      ]),
-    [],
-  )
+  const getKnownIds = useCallback((): ReadonlySet<string> | null => {
+    if (!loadedRef.current) return null
+    return new Set([
+      ...threadsRef.current.map(thread => thread.id),
+      ...pendingIds.current,
+    ])
+  }, [])
 
   // Once a thread is in state it no longer needs its pending entry, and keeping
   // it would shield a deleted thread's anchor from the sanitizer forever.
@@ -399,6 +401,7 @@ export function useThreads(docId: string | null): ThreadsApi {
     activeId,
     setActiveId,
     getKnownIds,
+    knownIdsRevision,
     onAnchorsChanged,
     addThread,
     reply,

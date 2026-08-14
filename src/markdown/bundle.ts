@@ -1,5 +1,13 @@
 import type { Editor, JSONContent } from '@tiptap/core'
-import { strFromU8, unzip, zip, type AsyncZippable } from 'fflate'
+import {
+  strFromU8,
+  Unzip,
+  UnzipInflate,
+  UnzipPassThrough,
+  zip,
+  type AsyncZippable,
+  type UnzipFile,
+} from 'fflate'
 import { getDocumentAsset } from '../db/assets'
 import {
   assetMarkdownPath,
@@ -18,6 +26,9 @@ import {
 
 const ZIP_MIME = 'application/zip'
 const MARKDOWN_FILE = /\.(md|markdown|mdown|mkd)$/i
+const MAX_BUNDLE_INPUT_BYTES = 200 * 1024 * 1024
+const MAX_BUNDLE_INFLATED_BYTES = 500 * 1024 * 1024
+const MAX_BUNDLE_ENTRIES = 5000
 
 export const BUNDLE_ACCEPT = '.zip,application/zip,application/x-zip-compressed'
 
@@ -112,20 +123,6 @@ export function downloadFile(filename: string, blob: Blob): void {
   setTimeout(() => URL.revokeObjectURL(url), 10_000)
 }
 
-function unzipAsync(file: File): Promise<Record<string, Uint8Array>> {
-  return new Promise((resolve, reject) => {
-    void file
-      .arrayBuffer()
-      .then(buffer => {
-        unzip(new Uint8Array(buffer), (error, entries) => {
-          if (error) reject(error)
-          else resolve(entries)
-        })
-      })
-      .catch(reject)
-  })
-}
-
 const unsafeArchivePath = (path: string): boolean => {
   if (!path || path.includes('\\') || path.startsWith('/')) return true
   const parts = path.split('/')
@@ -137,6 +134,142 @@ const unsafeArchivePath = (path: string): boolean => {
     parts.length === 0 ||
     parts.some(part => part === '' || part === '.' || part === '..')
   )
+}
+
+export interface BundleImportLimits {
+  inputBytes: number
+  inflatedBytes: number
+  entries: number
+}
+
+const DEFAULT_BUNDLE_LIMITS: BundleImportLimits = {
+  inputBytes: MAX_BUNDLE_INPUT_BYTES,
+  inflatedBytes: MAX_BUNDLE_INFLATED_BYTES,
+  entries: MAX_BUNDLE_ENTRIES,
+}
+
+/** Extract a ZIP incrementally while bounding attacker-controlled expansion. */
+export async function unzipBundleWithLimits(
+  file: File,
+  limits: BundleImportLimits = DEFAULT_BUNDLE_LIMITS,
+): Promise<Record<string, Uint8Array>> {
+  if (file.size > limits.inputBytes) {
+    throw new Error('The bundle is larger than 200 MiB')
+  }
+
+  const reader = file.stream().getReader()
+  const entries: Record<string, Uint8Array> = Object.create(null) as Record<
+    string,
+    Uint8Array
+  >
+  const active = new Set<UnzipFile>()
+  let entryCount = 0
+  let inflatedBytes = 0
+  let pendingFiles = 0
+  let inputDone = false
+  let settled = false
+
+  return await new Promise((resolve, reject) => {
+    const fail = (error: unknown) => {
+      if (settled) return
+      settled = true
+      for (const entry of active) entry.terminate()
+      active.clear()
+      void reader.cancel(error).catch(() => undefined)
+      reject(error instanceof Error ? error : new Error('The bundle is invalid'))
+    }
+
+    const finishIfReady = () => {
+      if (settled || !inputDone || pendingFiles !== 0) return
+      settled = true
+      resolve(entries)
+    }
+
+    const archive = new Unzip(entry => {
+      if (settled) return
+      entryCount += 1
+      if (entryCount > limits.entries) {
+        fail(new Error('The bundle contains too many files'))
+        return
+      }
+      if (unsafeArchivePath(entry.name)) {
+        fail(new Error('The bundle contains an unsafe path'))
+        return
+      }
+      if (
+        typeof entry.originalSize === 'number' &&
+        inflatedBytes + entry.originalSize > limits.inflatedBytes
+      ) {
+        fail(new Error('The bundle expands beyond the safe size limit'))
+        return
+      }
+
+      const chunks: Uint8Array[] = []
+      let entryBytes = 0
+      pendingFiles += 1
+      active.add(entry)
+      entry.ondata = (error, chunk, final) => {
+        if (settled) return
+        if (error) {
+          fail(error)
+          return
+        }
+        entryBytes += chunk.byteLength
+        inflatedBytes += chunk.byteLength
+        if (inflatedBytes > limits.inflatedBytes) {
+          fail(new Error('The bundle expands beyond the safe size limit'))
+          return
+        }
+        if (chunk.byteLength) chunks.push(chunk)
+        if (!final) return
+
+        const contents = new Uint8Array(entryBytes)
+        let offset = 0
+        for (const part of chunks) {
+          contents.set(part, offset)
+          offset += part.byteLength
+        }
+        entries[entry.name] = contents
+        active.delete(entry)
+        pendingFiles -= 1
+        finishIfReady()
+      }
+      try {
+        entry.start()
+      } catch (error) {
+        fail(error)
+      }
+    })
+    archive.register(UnzipPassThrough)
+    archive.register(UnzipInflate)
+
+    const pump = async () => {
+      try {
+        while (!settled) {
+          const { done, value } = await reader.read()
+          if (done) {
+            archive.push(new Uint8Array(), true)
+            inputDone = true
+            finishIfReady()
+            return
+          }
+          const compressedChunkBytes = 32 * 1024
+          for (
+            let offset = 0;
+            offset < value.byteLength && !settled;
+            offset += compressedChunkBytes
+          ) {
+            archive.push(
+              value.subarray(offset, offset + compressedChunkBytes),
+            )
+          }
+        }
+      } catch (error) {
+        fail(error)
+      }
+    }
+    void pump()
+  })
 }
 
 function replaceImages(
@@ -172,11 +305,8 @@ export async function readDocumentBundle(
   file: File,
   docId: string,
 ): Promise<ImportedBundle> {
-  const entries = await unzipAsync(file)
+  const entries = await unzipBundleWithLimits(file)
   const names = Object.keys(entries)
-  if (names.some(unsafeArchivePath)) {
-    throw new Error('The bundle contains an unsafe path')
-  }
   const fileNames = names.filter(name => !name.endsWith('/'))
 
   const markdownNames = fileNames.filter(

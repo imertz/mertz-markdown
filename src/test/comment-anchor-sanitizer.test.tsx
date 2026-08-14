@@ -1,7 +1,8 @@
-import { Editor } from '@tiptap/core'
+import { Editor, type JSONContent } from '@tiptap/core'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import { COMMENT_MARK_NAME, findMarkRanges } from '../editor/extensions/comment'
+import { COMMENT_SANITIZER_RECHECK } from '../editor/extensions/commentSanitizer'
 import { buildExtensions } from '../editor/extensions'
 import { useThreads } from '../hooks/useThreads'
 import { rangeOfText } from './editorHarness'
@@ -31,7 +32,78 @@ const anchoredText = (editor: Editor) =>
     hit => editor.state.doc.textBetween(hit.from, hit.to),
   )
 
+const markedDocument = (...threadIds: string[]): JSONContent => ({
+  type: 'doc',
+  content: [
+    {
+      type: 'paragraph',
+      content: threadIds.flatMap((threadId, index) => [
+        ...(index ? [{ type: 'text', text: ' ' }] : []),
+        {
+          type: 'text',
+          text: threadId,
+          marks: [
+            {
+              type: COMMENT_MARK_NAME,
+              attrs: { threadId, resolved: false },
+            },
+          ],
+        },
+      ]),
+    },
+  ],
+})
+
 describe('comment anchors survive the sanitizer', () => {
+  it('treats a loaded zero-thread set as authoritative', async () => {
+    const { result } = renderHook(() => useThreads('doc-no-threads'))
+    await waitFor(() =>
+      expect(result.current.knownIdsRevision).toBeGreaterThan(0),
+    )
+
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: buildExtensions({
+        getKnownThreadIds: () => result.current.getKnownIds(),
+      }),
+      content: markedDocument('foreign-thread'),
+    })
+    act(() => {
+      editor.view.dispatch(
+        editor.state.tr.setMeta(COMMENT_SANITIZER_RECHECK, true),
+      )
+    })
+
+    expect(anchorsFor(editor, 'foreign-thread')).toHaveLength(0)
+    editor.destroy()
+  })
+
+  it('rechecks anchors that arrived while thread records were loading', async () => {
+    const view = renderHook(() => useThreads('doc-loading-window'))
+    expect(view.result.current.getKnownIds()).toBeNull()
+
+    const editor = new Editor({
+      element: document.createElement('div'),
+      extensions: buildExtensions({
+        getKnownThreadIds: () => view.result.current.getKnownIds(),
+      }),
+      content: markedDocument('foreign-during-load'),
+    })
+    expect(anchorsFor(editor, 'foreign-during-load')).toHaveLength(1)
+
+    await waitFor(() =>
+      expect(view.result.current.knownIdsRevision).toBeGreaterThan(0),
+    )
+    act(() => {
+      editor.view.dispatch(
+        editor.state.tr.setMeta(COMMENT_SANITIZER_RECHECK, true),
+      )
+    })
+
+    expect(anchorsFor(editor, 'foreign-during-load')).toHaveLength(0)
+    editor.destroy()
+  })
+
   it('keeps the anchor for every thread, not just the first', async () => {
     const { result } = renderHook(() => useThreads('doc-sanitizer'))
     await waitFor(() => expect(result.current.threads).toEqual([]))

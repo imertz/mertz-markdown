@@ -11,10 +11,20 @@ import type {
 export const DB_NAME = 'mertz-markdown'
 export const DB_VERSION = 3
 
+/**
+ * Safari can reject Blob/File structured clones during IndexedDB writes.
+ * New records therefore persist owned bytes; `blob` remains optional solely
+ * so databases created by earlier releases can be read lazily.
+ */
+export type StoredAssetRecord = Omit<AssetRecord, 'blob'> & {
+  bytes?: ArrayBuffer
+  blob?: Blob
+}
+
 export interface MertzDB extends DBSchema {
   assets: {
     key: string
-    value: AssetRecord
+    value: StoredAssetRecord
     indexes: { 'by-docId': string }
   }
   documents: {

@@ -34,14 +34,12 @@ export interface EditorExtensionOptions {
   /** Called whenever the set of threads with a live anchor changes. */
   onAnchorsChanged?: (threadIds: Set<string>) => void
   /** Threads belonging to the open document; anything else is foreign paste. */
-  getKnownThreadIds?: () => ReadonlySet<string>
+  getKnownThreadIds?: () => ReadonlySet<string> | null
   /** Resolve browser-local image bytes for the active document. */
   resolveImageAsset?: (assetId: string) => Promise<Blob | undefined>
   /** Store and insert files supplied by drop or paste. */
   onImageFiles?: (editor: Editor, files: File[], position?: number) => void
 }
-
-const NO_THREADS: ReadonlySet<string> = new Set<string>()
 
 /**
  * `common` is highlight.js's ~37 most-used grammars — roughly 60 KB gzipped,
@@ -122,7 +120,7 @@ export function buildExtensions(
       onAnchorsChanged: options.onAnchorsChanged ?? (() => {}),
     }),
     CommentSanitizer.configure({
-      getKnownThreadIds: options.getKnownThreadIds ?? (() => NO_THREADS),
+      getKnownThreadIds: options.getKnownThreadIds ?? (() => null),
     }),
 
     // Typing ergonomics and find/replace — none of these add a node or mark.

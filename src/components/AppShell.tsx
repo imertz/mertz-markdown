@@ -191,7 +191,12 @@ export function AppShell() {
   const { activeId, save } = documents
   const activeDocument = useRef(activeId)
   activeDocument.current = activeId
-  const { getKnownIds, onAnchorsChanged, setActiveId } = threads
+  const {
+    getKnownIds,
+    knownIdsRevision,
+    onAnchorsChanged,
+    setActiveId,
+  } = threads
   // Destructured because the hook returns a fresh object each render; the
   // callbacks inside it are stable, the wrapper is not.
   const { show: showRail, toggle: toggleRail } = rail
@@ -264,6 +269,7 @@ export function AppShell() {
     onDocChanged,
     onAnchorsChanged,
     getKnownThreadIds: getKnownIds,
+    commentThreadRevision: knownIdsRevision,
     resolveImageAsset,
     onImageFiles: addImageFiles,
     onDocumentLoaded: docId => documentLoaded.current(docId),

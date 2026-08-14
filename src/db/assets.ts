@@ -1,10 +1,25 @@
 import type { AssetRecord, DocumentRecord } from '../types'
 import { getDB } from './client'
+import type { StoredAssetRecord } from './schema'
+
+async function toStoredAsset(record: AssetRecord): Promise<StoredAssetRecord> {
+  const { blob, ...metadata } = record
+  return { ...metadata, bytes: await blob.arrayBuffer() }
+}
+
+function fromStoredAsset(record: StoredAssetRecord): AssetRecord {
+  const { bytes, blob: legacyBlob, ...metadata } = record
+  const blob =
+    legacyBlob ?? (bytes ? new Blob([bytes], { type: metadata.mimeType }) : null)
+  if (!blob) throw new Error(`Image ${record.id} has no stored payload`)
+  return { ...metadata, blob }
+}
 
 export async function getAsset(
   assetId: string,
 ): Promise<AssetRecord | undefined> {
-  return (await getDB()).get('assets', assetId)
+  const stored = await (await getDB()).get('assets', assetId)
+  return stored ? fromStoredAsset(stored) : undefined
 }
 
 /** Resolve an image without allowing a copied foreign-document id to leak. */
@@ -19,14 +34,20 @@ export async function getDocumentAsset(
 export async function listDocumentAssets(
   docId: string,
 ): Promise<AssetRecord[]> {
-  return (await getDB()).getAllFromIndex('assets', 'by-docId', docId)
+  const stored = await (await getDB()).getAllFromIndex(
+    'assets',
+    'by-docId',
+    docId,
+  )
+  return stored.map(fromStoredAsset)
 }
 
 export async function putAssets(records: readonly AssetRecord[]): Promise<void> {
   if (!records.length) return
+  const stored = await Promise.all(records.map(toStoredAsset))
   const db = await getDB()
   const tx = db.transaction('assets', 'readwrite')
-  await Promise.all([...records.map(record => tx.store.put(record)), tx.done])
+  await Promise.all([...stored.map(record => tx.store.put(record)), tx.done])
 }
 
 export async function deleteAssets(assetIds: readonly string[]): Promise<void> {
@@ -45,11 +66,12 @@ export async function putDocumentWithAssets(
   document: DocumentRecord,
   assets: readonly AssetRecord[],
 ): Promise<void> {
+  const stored = await Promise.all(assets.map(toStoredAsset))
   const db = await getDB()
   const tx = db.transaction(['documents', 'assets'], 'readwrite')
   await Promise.all([
     tx.objectStore('documents').put(document),
-    ...assets.map(asset => tx.objectStore('assets').put(asset)),
+    ...stored.map(asset => tx.objectStore('assets').put(asset)),
     tx.done,
   ])
 }
