@@ -34,6 +34,14 @@ pre code { background: none; }
 table { border-collapse: collapse; width: 100%; }
 td, th { border: 1px solid #e6e2da; padding: 6px 10px; text-align: start; }
 img { display: block; max-width: 100%; height: auto; margin: 1em 0; }
+/* A table box shrinks to the picture, so the caption is measured against the
+   image rather than against the page. */
+.image-figure { display: table; margin: 1em 0; max-width: 100%; }
+.image-figure img { margin: 0; }
+.image-figure figcaption {
+  display: table-caption; caption-side: bottom; padding-top: 0.5em;
+  color: #6d675f; font-size: 0.875em; line-height: 1.35; text-align: center;
+}
 .comment-anchor { background: rgba(179, 81, 47, 0.14); border-bottom: 1px solid rgba(179, 81, 47, 0.5); }
 .annex-ref { text-decoration: none; color: #b3512f; font-weight: 600; padding-inline: 2px; }
 .annex { margin-top: 48px; padding-top: 20px; border-top: 1px solid #e6e2da; }
@@ -45,7 +53,7 @@ img { display: block; max-width: 100%; height: auto; margin: 1em 0; }
 .annex__comment time { font-size: 12px; color: #6d675f; }
 @media (prefers-color-scheme: dark) {
   body { color: #f5f2ec; background: #1a1917; }
-  blockquote, .annex__head, .annex__comment time { color: #a8a29a; }
+  blockquote, .annex__head, .annex__comment time, .image-figure figcaption { color: #a8a29a; }
   pre { background: #24221f; border-color: #35322d; }
   td, th, .annex { border-color: #35322d; }
   .comment-anchor { background: rgba(224, 129, 89, 0.2); border-bottom-color: rgba(224, 129, 89, 0.5); }
@@ -81,6 +89,68 @@ const blobDataUrl = (blob: Blob): Promise<string> =>
     reader.onload = () => resolve(String(reader.result))
     reader.readAsDataURL(blob)
   })
+
+const isBlank = (fragment: DocumentFragment): boolean =>
+  fragment.childElementCount === 0 && !fragment.textContent?.trim()
+
+/**
+ * The canonical image caption, deliberately absent from Markdown.
+ *
+ * A `<figure>` is a block, and a block inside a `<p>` is not something a
+ * browser will keep: the parser closes the paragraph in front of it and leaves
+ * whatever followed the image stranded outside any block. So the paragraph is
+ * split around the picture — the same three pieces the editor draws, and the
+ * same ones the .docx gets.
+ */
+function renderImageCaptions(body: HTMLElement): void {
+  for (const image of body.querySelectorAll<HTMLImageElement>(
+    'img[data-image-caption]',
+  )) {
+    const text = image.getAttribute('data-image-caption')?.trim() ?? ''
+    image.removeAttribute('data-image-caption')
+    if (!text) continue
+
+    // Only a paragraph can be broken into blocks. Anywhere else — a heading is
+    // the one other place an image can sit — the caption stays canonical but
+    // cannot be represented in this block export.
+    const paragraph = image.closest('p')
+    if (!paragraph) continue
+
+    /*
+     * Ranges rather than plain child moves: an image can sit inside a link or
+     * a comment anchor, and extractContents() reproduces that inline markup on
+     * whichever side of the split needs it, leaving the image wrapped in its
+     * own copy.
+     */
+    const trailing = document.createRange()
+    trailing.setStartAfter(image)
+    trailing.setEnd(paragraph, paragraph.childNodes.length)
+    const after = trailing.extractContents()
+
+    const leading = document.createRange()
+    leading.setStart(paragraph, 0)
+    leading.setEndBefore(image)
+    const before = leading.extractContents()
+
+    const caption = document.createElement('figcaption')
+    caption.textContent = text
+
+    const figure = document.createElement('figure')
+    figure.className = 'image-figure'
+    figure.append(...paragraph.childNodes, caption)
+
+    // Each half is a shallow clone, so it keeps the paragraph's own attributes
+    // — which is where an alignment lives.
+    const half = (fragment: DocumentFragment): Element[] => {
+      if (isBlank(fragment)) return []
+      const block = paragraph.cloneNode(false) as HTMLElement
+      block.append(fragment)
+      return [block]
+    }
+
+    paragraph.replaceWith(...half(before), figure, ...half(after))
+  }
+}
 
 export async function toAnnotatedHtml(
   editor: Editor,
@@ -124,6 +194,8 @@ export async function toAnnotatedHtml(
     image.src = await blobDataUrl(blob)
     image.removeAttribute('data-local-asset-id')
   }
+
+  renderImageCaptions(body)
 
   // A thread's mark is split across every text node it covers; only its first
   // span gets the reference number.

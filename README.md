@@ -161,10 +161,14 @@ Everything below is built on the same rule: nothing reaches the `.md`.
 - **Images.** Drop or paste a PNG, JPEG, GIF, WebP or AVIF, choose files from
   the toolbar, or insert an HTTP(S) URL. URL images can remain remote or be
   copied into IndexedDB for offline use. Selected images have aspect-locked
-  resize handles, an exact width field, alt-text editing and a free/preset crop
-  dialog. Crops become new WebP assets while the source remains available to
-  undo and version history. Documents with local images export as ZIPs with
-  clean Markdown and an `images/` directory; annotated HTML embeds the bytes.
+  resize handles, exact width, alt-text and caption editing, and a free/preset
+  crop dialog. Captions use Markdown's portable image-title syntax and are set
+  under the picture, measured against its own width rather than the text
+  column's. Crops become new WebP assets (or PNG where WebP encoding is
+  unavailable) while the
+  source remains available to undo and version history. Documents with local
+  images export as ZIPs with clean Markdown and an `images/` directory;
+  annotated HTML embeds the bytes.
 - **Table editing.** A bar floats over the table the caret is in: add and delete
   rows and columns, set column alignment, toggle the header row, delete the
   table. Only operations GFM can actually express are offered — merged cells and
@@ -216,6 +220,13 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   plain Markdown reader chooses its own display size. Cropping is portable
   because it changes the exported asset bytes. GIF cropping is disabled to
   avoid silently flattening an animation.
+- **Captions use Markdown image titles.** The app draws an image title as a
+  visible caption, which makes that picture a figure: it takes a block of its
+  own in the editor, in the annotated HTML and in Word, splitting the paragraph
+  it shared with any text. A title on an image a caption cannot belong to — in
+  a heading — stays the tooltip Markdown calls it. Readers that do not
+  implement captions still keep the text as the image's standard title
+  metadata.
 - **Find is literal and case-insensitive.** No regular expressions, no
   whole-word, and a match never spans a block boundary. Cross-document search
   (`⌘⇧F`) is the opposite: stemmed and ranked, so it matches *running* for

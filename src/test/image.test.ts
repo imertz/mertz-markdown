@@ -30,6 +30,28 @@ describe('image Markdown', () => {
     )
   })
 
+  it('round-trips a portable image title without treating it as a caption', () => {
+    const editor = createTestEditor(
+      '![A chart](https://example.com/chart.png "Quarterly results")',
+    )
+    let title = ''
+    editor.state.doc.descendants(node => {
+      if (node.type.name === 'image') title = node.attrs.title
+    })
+
+    expect(title).toBe('Quarterly results')
+    expect(toMarkdown(editor)).toBe(
+      '![A chart](https://example.com/chart.png "Quarterly results")\n',
+    )
+    expect(
+      editor.view.dom.querySelector<HTMLElement>('.editor-image__caption')
+        ?.hidden,
+    ).toBe(true)
+    expect(editor.view.dom.querySelector('img')?.title).toBe(
+      'Quarterly results',
+    )
+  })
+
   it('keeps the local asset id out of Markdown', () => {
     const editor = createTestEditorFromJSON({
       type: 'doc',
@@ -90,7 +112,49 @@ describe('image Markdown', () => {
     )
   })
 
-  it('marks only top-level standalone images for block spacing', () => {
+  it('keeps captions byte-clean in portable Markdown', () => {
+    const image = {
+      type: 'image',
+      attrs: {
+        src: 'images/architecture.webp',
+        alt: 'Architecture diagram',
+        assetId: 'local-only',
+        width: 640,
+        height: 360,
+      },
+    }
+    const withoutCaption = createTestEditorFromJSON({
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [image] }],
+    })
+    const withCaption = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              ...image,
+              attrs: {
+                ...image.attrs,
+                caption: 'Figure 1 — Request processing architecture',
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    expect(toMarkdown(withCaption)).toBe(toMarkdown(withoutCaption))
+    expect(toMarkdown(withCaption)).toBe(
+      '![Architecture diagram](images/architecture.webp)\n',
+    )
+
+    withoutCaption.destroy()
+    withCaption.destroy()
+  })
+
+  it('keeps image-leading paragraphs and standalone images block-spaced', () => {
     const standalone = createTestEditorFromJSON({
       type: 'doc',
       content: [
@@ -108,6 +172,27 @@ describe('image Markdown', () => {
     const inline = createTestEditor(
       'Before ![chart](https://example.com/inline.png) after',
     )
+    const captioned = createTestEditor(
+      '![chart](https://example.com/captioned.png)\nThis is the caption.',
+    )
+    const captionedImage = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/titled.png',
+                alt: 'Titled',
+                caption: 'A visible caption',
+              },
+            },
+          ],
+        },
+      ],
+    })
 
     expect(
       standalone.view.dom.querySelector(
@@ -117,9 +202,91 @@ describe('image Markdown', () => {
     expect(
       inline.view.dom.querySelector('.editor-image-resize--standalone'),
     ).toBeNull()
+    expect(
+      captioned.view.dom.querySelector('.editor-image-resize--standalone'),
+    ).not.toBeNull()
+    expect(
+      captionedImage.view.dom.querySelector(
+        '.editor-image-resize--standalone',
+      ),
+    ).not.toBeNull()
+    expect(
+      captionedImage.view.dom.querySelector('.editor-image__caption')
+        ?.textContent,
+    ).toBe('A visible caption')
 
     standalone.destroy()
     inline.destroy()
+    captioned.destroy()
+    captionedImage.destroy()
+  })
+
+  it('makes a captioned image block-like even where it follows text', () => {
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Before ' },
+            {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/inline.png',
+                alt: 'chart',
+                caption: 'A caption',
+              },
+            },
+            { type: 'text', text: ' after' },
+          ],
+        },
+      ],
+    })
+
+    expect(
+      editor.view.dom.querySelector('.editor-image-resize--standalone'),
+    ).not.toBeNull()
+    expect(
+      editor.view.dom.querySelector<HTMLElement>('.editor-image__caption')
+        ?.hidden,
+    ).toBe(false)
+
+    editor.destroy()
+  })
+
+  it('leaves a title in a heading as the tooltip Markdown calls it', () => {
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'heading',
+          attrs: { level: 1 },
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/mark.png',
+                alt: 'Mark',
+                title: 'A tooltip',
+                caption: 'Not representable here',
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    // Neither export can put a caption in a heading, so the editor does not
+    // draw one there either.
+    expect(
+      editor.view.dom.querySelector<HTMLElement>('.editor-image__caption')
+        ?.hidden,
+    ).toBe(true)
+    expect(editor.view.dom.querySelector('img')?.title).toBe(
+      'A tooltip',
+    )
+
+    editor.destroy()
   })
 })
 
@@ -161,6 +328,7 @@ describe('image insertion', () => {
         callback(new Blob(['first webp'], { type }))
       })
       .mockImplementationOnce(callback => callback(null))
+      .mockImplementationOnce(callback => callback(null))
     const document_ = makeDocument()
     await putDocument(document_)
     const editor = createTestEditor('hello')
@@ -174,7 +342,7 @@ describe('image insertion', () => {
           new File(['second'], 'second.png', { type: 'image/png' }),
         ],
       }),
-    ).rejects.toThrow('could not encode the imported image as WebP')
+    ).rejects.toThrow('could not encode the imported image')
 
     expect(await listDocumentAssets(document_.id)).toEqual([])
     expect(toMarkdown(editor)).toBe('hello\n')

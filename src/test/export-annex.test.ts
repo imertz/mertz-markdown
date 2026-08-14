@@ -35,6 +35,14 @@ const anchor = (editor: Editor, needle: string, threadId: string) => {
   editor.commands.setComment(threadId)
 }
 
+/**
+ * A `<figure>` still inside its paragraph — which is a file that renders
+ * nothing like what was exported, because the parser closes the `<p>` in front
+ * of the figure and leaves the rest of the paragraph outside any block.
+ */
+const figureInsideParagraph = (html: string): boolean =>
+  /<p[^>]*>(?:(?!<\/p>)[\s\S])*?<figure/.test(html)
+
 describe('annotated HTML export', () => {
   it('carries the anchors, the numbers and the thread bodies', async () => {
     const editor = createTestEditor('alpha bravo charlie')
@@ -218,5 +226,106 @@ describe('annotated HTML export', () => {
 
     expect(html).toContain('width="320"')
     expect(html).toContain('height="180"')
+  })
+
+  it('renders a canonical image caption while retaining its title', async () => {
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/chart.png',
+                alt: 'Chart',
+                title: 'Tooltip text',
+                caption: 'Quarterly results',
+              },
+            },
+          ],
+        },
+      ],
+    })
+
+    const html = await toAnnotatedHtml(editor, {
+      title: 'Images',
+      threads: [],
+    })
+
+    expect(html).toContain('<figure class="image-figure">')
+    expect(html).toContain('<figcaption>Quarterly results</figcaption>')
+    expect(html).toContain('title="Tooltip text"')
+    expect(html).not.toContain('data-image-caption')
+    expect(figureInsideParagraph(html)).toBe(false)
+  })
+
+  it('splits the paragraph a captioned image shares with text', async () => {
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Before ' },
+            {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/chart.png',
+                alt: 'Chart',
+                caption: 'Quarterly results',
+              },
+            },
+            { type: 'text', text: ' after.' },
+          ],
+        },
+      ],
+    })
+
+    const html = await toAnnotatedHtml(editor, { title: 'Images', threads: [] })
+
+    expect(html).toContain(
+      '<p>Before </p><figure class="image-figure">' +
+        '<img src="https://example.com/chart.png" alt="Chart">' +
+        '<figcaption>Quarterly results</figcaption></figure><p> after.</p>',
+    )
+  })
+
+  it('keeps a captioned image inside the comment anchor covering it', async () => {
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            { type: 'text', text: 'Look ' },
+            {
+              type: 'image',
+              attrs: {
+                src: 'https://example.com/chart.png',
+                alt: 'Chart',
+                caption: 'Quarterly results',
+              },
+            },
+            { type: 'text', text: ' here' },
+          ],
+        },
+      ],
+    })
+    editor.commands.setTextSelection({ from: 1, to: editor.state.doc.content.size - 1 })
+    editor.commands.setComment('t1')
+
+    const html = await toAnnotatedHtml(editor, {
+      title: 'Images',
+      threads: [thread('t1', 'Look')],
+    })
+
+    // The split rebuilds the anchor on both sides of the figure rather than
+    // dropping the image out of the range the comment was drawn over.
+    expect(html).toMatch(
+      /<figure class="image-figure"><span [^>]*data-comment-thread="t1"[^>]*><img/,
+    )
+    expect(figureInsideParagraph(html)).toBe(false)
   })
 })

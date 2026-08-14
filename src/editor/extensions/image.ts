@@ -38,6 +38,14 @@ export const LocalImage = Image.extend<LocalImageOptions>({
             ? { 'data-local-asset-id': attributes.assetId }
             : {},
       },
+      caption: {
+        default: null,
+        parseHTML: element => element.getAttribute('data-image-caption'),
+        renderHTML: attributes =>
+          typeof attributes.caption === 'string' && attributes.caption
+            ? { 'data-image-caption': attributes.caption }
+            : {},
+      },
     }
   },
 
@@ -56,9 +64,16 @@ export const LocalImage = Image.extend<LocalImageOptions>({
       status.setAttribute('aria-hidden', 'true')
       content.append(image, status)
 
+      // Outside `content` on purpose: the resizer measures that element and
+      // commits what it measures, so a caption inside it would be dragged into
+      // the image's own height attribute.
+      const caption = document.createElement('div')
+      caption.className = 'editor-image__caption'
+
       let objectUrl: string | null = null
       let generation = 0
       let sourceKey: string | null = null
+      let captionText = ''
 
       const revoke = () => {
         if (!objectUrl) return
@@ -78,11 +93,13 @@ export const LocalImage = Image.extend<LocalImageOptions>({
 
       const sync = async (next: typeof node) => {
         const alt = typeof next.attrs.alt === 'string' ? next.attrs.alt : ''
-        const title =
-          typeof next.attrs.title === 'string' ? next.attrs.title : ''
+        const title = typeof next.attrs.title === 'string' ? next.attrs.title : ''
         image.alt = alt
         if (title) image.title = title
         else image.removeAttribute('title')
+        captionText =
+          typeof next.attrs.caption === 'string' ? next.attrs.caption.trim() : ''
+        applyLayout()
 
         const width =
           typeof next.attrs.width === 'number' && next.attrs.width > 0
@@ -182,6 +199,7 @@ export const LocalImage = Image.extend<LocalImageOptions>({
           },
         },
       })
+      resizable.dom.append(caption)
       // TipTap 3.29's resizer listens for touchmove but not touchend. Bridge
       // that missing end event so a phone resize commits instead of remaining
       // in its active state indefinitely.
@@ -198,26 +216,40 @@ export const LocalImage = Image.extend<LocalImageOptions>({
 
       /*
        * Images remain inline schema nodes so ordinary Markdown such as
-       * `Before ![chart](chart.png) after` keeps working. Give only an image
-       * that occupies its own top-level paragraph the document-block rhythm.
+       * `Before ![chart](chart.png) after` keeps working. An image at the start
+       * of a top-level paragraph is block-like in the editor, which also keeps
+       * a caption written on the next source line below it. A caption makes an
+       * image block-like wherever it sits, because a picture with a line of
+       * text under it is a figure rather than a glyph in a sentence — and
+       * because that is the shape both exports have to give it anyway; images
+       * that follow text without a caption remain inline.
+       *
+       * A caption is drawn only inside a paragraph. A heading is the other
+       * block that can hold an image, and neither block export can express a
+       * caption there. The independent Markdown title remains a tooltip.
        */
-      const syncStandaloneState = () => {
+      const applyLayout = () => {
         const position = getPos()
         if (position === undefined) return
         const resolved = editor.state.doc.resolve(position)
         const parent = resolved.parent
+        const captioned = captionText !== '' && parent.type.name === 'paragraph'
         const standalone =
           resolved.depth === 1 &&
           parent.type.name === 'paragraph' &&
-          parent.childCount === 1 &&
+          resolved.index(resolved.depth) === 0 &&
           parent.firstChild?.type === node.type
+
+        caption.textContent = captionText
+        caption.hidden = !captioned
+
         resizable.dom.classList.toggle(
           'editor-image-resize--standalone',
-          standalone,
+          standalone || captioned,
         )
       }
-      editor.on('transaction', syncStandaloneState)
-      syncStandaloneState()
+      editor.on('transaction', applyLayout)
+      applyLayout()
 
       void sync(node)
 
@@ -230,7 +262,7 @@ export const LocalImage = Image.extend<LocalImageOptions>({
           document.removeEventListener('touchend', finishTouchResize)
           document.removeEventListener('touchcancel', finishTouchResize)
           document.removeEventListener('touchmove', resizableTouch.handleTouchMove)
-          editor.off('transaction', syncStandaloneState)
+          editor.off('transaction', applyLayout)
           resizable.destroy()
         },
       }

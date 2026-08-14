@@ -7,6 +7,7 @@ import {
 
 export const IMPORTED_IMAGE_MAX_EDGE = 1920
 export const IMPORTED_IMAGE_MIME = 'image/webp'
+export const IMPORTED_IMAGE_FALLBACK_MIME = 'image/png'
 export const IMPORTED_IMAGE_QUALITY = 0.85
 
 export interface DecodedImage {
@@ -103,9 +104,10 @@ export function encodeCanvasAsWebp(
   return encodeCanvas(canvas, IMPORTED_IMAGE_MIME, quality, failureMessage)
 }
 
-function webpFilename(filename: string): string {
+function optimizedFilename(filename: string, mimeType: string): string {
   const stem = filename.replace(/\.[^.]+$/, '') || 'pasted-image'
-  return `${stem}.webp`
+  const extension = mimeType === IMPORTED_IMAGE_MIME ? 'webp' : 'png'
+  return `${stem}.${extension}`
 }
 
 function containedDimensions(width: number, height: number): {
@@ -170,13 +172,23 @@ export async function optimizeImportedImage(file: File): Promise<File> {
       dimensions.height,
     )
 
-    const blob = await encodeCanvasAsWebp(
-      canvas,
-      IMPORTED_IMAGE_QUALITY,
-      'This browser could not encode the imported image as WebP',
-    )
-    return new File([blob], webpFilename(file.name), {
-      type: IMPORTED_IMAGE_MIME,
+    let blob: Blob
+    try {
+      blob = await encodeCanvasAsWebp(
+        canvas,
+        IMPORTED_IMAGE_QUALITY,
+        'This browser could not encode the imported image as WebP',
+      )
+    } catch {
+      blob = await encodeCanvas(
+        canvas,
+        IMPORTED_IMAGE_FALLBACK_MIME,
+        1,
+        'This browser could not encode the imported image',
+      )
+    }
+    return new File([blob], optimizedFilename(file.name, blob.type), {
+      type: blob.type,
       lastModified: file.lastModified,
     })
   } finally {

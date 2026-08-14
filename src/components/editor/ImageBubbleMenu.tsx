@@ -69,6 +69,7 @@ export function ImageControls({
         return {
           pos: -1,
           alt: '',
+          caption: '',
           width: null,
           height: null,
           assetId: null,
@@ -80,6 +81,10 @@ export function ImageControls({
         alt:
           typeof selection.node.attrs.alt === 'string'
             ? selection.node.attrs.alt
+            : '',
+        caption:
+          typeof selection.node.attrs.caption === 'string'
+            ? selection.node.attrs.caption
             : '',
         width:
           typeof selection.node.attrs.width === 'number'
@@ -101,11 +106,16 @@ export function ImageControls({
     },
   })
   const [alt, setAlt] = useState(selected.alt)
+  const [caption, setCaption] = useState(selected.caption)
   const [width, setWidth] = useState(
     selected.width === null ? '' : String(Math.round(selected.width)),
   )
 
   useEffect(() => setAlt(selected.alt), [selected.alt, selected.pos])
+  useEffect(
+    () => setCaption(selected.caption),
+    [selected.caption, selected.pos],
+  )
   useEffect(
     () =>
       setWidth(
@@ -120,6 +130,15 @@ export function ImageControls({
       .chain()
       .setNodeSelection(selected.pos)
       .updateAttributes('image', { alt: alt.trim() })
+      .run()
+  }
+
+  const commitCaption = () => {
+    if (selected.pos < 0 || editor.isDestroyed) return
+    editor
+      .chain()
+      .setNodeSelection(selected.pos)
+      .updateAttributes('image', { caption: caption.trim() || null })
       .run()
   }
 
@@ -185,6 +204,27 @@ export function ImageControls({
             } else if (event.key === 'Escape') {
               event.preventDefault()
               setAlt(selected.alt)
+              editor.commands.focus()
+            }
+          }}
+        />
+      </label>
+      <label className="image-bar__label">
+        <span>Caption</span>
+        <input
+          type="text"
+          value={caption}
+          placeholder="Optional caption"
+          onChange={event => setCaption(event.target.value)}
+          onBlur={commitCaption}
+          onKeyDown={event => {
+            if (event.key === 'Enter') {
+              event.preventDefault()
+              commitCaption()
+              editor.commands.focus()
+            } else if (event.key === 'Escape') {
+              event.preventDefault()
+              setCaption(selected.caption)
               editor.commands.focus()
             }
           }}

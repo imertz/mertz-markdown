@@ -134,6 +134,98 @@ describe('docx images', () => {
     )
   })
 
+  it('writes an image caption as a Caption paragraph', async () => {
+    const editor = createTestEditorFromJSON(
+      docWithImage({
+        src: 'https://example.com/photo.png',
+        alt: 'Photo',
+        caption: 'A field study',
+      }),
+    )
+    const body = (await exportDocx(editor)).text('word/document.xml')
+
+    expect(body).toContain('<w:pStyle w:val="Caption"/>')
+    expect(documentText(body)).toContain('A field study')
+  })
+
+  it('captions the image rather than the text that shared its line', async () => {
+    const asset = makeAsset('doc-1')
+    await putAssets([asset])
+
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: [
+            {
+              type: 'image',
+              attrs: {
+                assetId: asset.id,
+                src: assetMarkdownPath(asset),
+                alt: 'Photo',
+                caption: 'A field study',
+              },
+            },
+            { type: 'text', text: 'The sentence that followed it.' },
+          ],
+        },
+      ],
+    })
+    const body = (await exportDocx(editor)).text('word/document.xml')
+    const paragraphs = elements(body, 'w:p')
+
+    // Left inline, Word wraps the sentence around the picture and the caption
+    // ends up under the text instead of under the image.
+    expect(paragraphs).toHaveLength(3)
+    expect(paragraphs[0]).toContain('<w:drawing>')
+    expect(paragraphs[1]).toContain('<w:pStyle w:val="Caption"/>')
+    expect(documentText(paragraphs[1]!)).toBe('A field study')
+    expect(documentText(paragraphs[2]!)).toBe('The sentence that followed it.')
+  })
+
+  it('does not repeat the bullet when splitting a list item', async () => {
+    const asset = makeAsset('doc-1')
+    await putAssets([asset])
+
+    const editor = createTestEditorFromJSON({
+      type: 'doc',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [
+                    { type: 'text', text: 'An item ' },
+                    {
+                      type: 'image',
+                      attrs: {
+                        assetId: asset.id,
+                        src: assetMarkdownPath(asset),
+                        alt: 'Photo',
+                        caption: 'A field study',
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    })
+    const body = (await exportDocx(editor)).text('word/document.xml')
+    const paragraphs = elements(body, 'w:p')
+
+    expect(paragraphs).toHaveLength(3)
+    expect(paragraphs.filter(xml => xml.includes('<w:numPr>'))).toHaveLength(1)
+    expect(paragraphs[0]).toContain('<w:numPr>')
+  })
+
   it('refuses to export when a referenced asset is gone', async () => {
     const editor = createTestEditorFromJSON(
       docWithImage({ assetId: 'missing', src: 'images/missing.png' }),

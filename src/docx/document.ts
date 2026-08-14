@@ -162,6 +162,77 @@ function paragraphProperties(options: BlockOptions): string {
 const paragraphElement = (options: BlockOptions, inline: string): string =>
   element('w:p', undefined, paragraphProperties(options) + inline)
 
+const imageCaption = (node: JSONContent): string =>
+  node.type === 'image' && typeof node.attrs?.caption === 'string'
+    ? node.attrs.caption.trim()
+    : ''
+
+/**
+ * A captioned image is a figure, so it gets a paragraph of its own with the
+ * caption directly beneath it, and anything that shared the line carries on in
+ * a paragraph after.
+ *
+ * Leaving the picture inline instead is what let Word wrap the following
+ * sentence around it and pushed the caption below *that* — a caption for the
+ * text rather than for the image. The split is also what the editor draws and
+ * what the annotated HTML writes, so the three agree.
+ *
+ * Only the first block keeps any list numbering: the ones after it are
+ * continuations of the same item, not new bullets.
+ */
+function renderParagraph(
+  node: JSONContent,
+  context: RenderContext,
+  options: BlockOptions,
+): string {
+  const content = node.content ?? []
+  const paragraphOptions: BlockOptions = {
+    ...options,
+    // A cell's column alignment wins over nothing; an explicitly justified
+    // paragraph wins over the cell.
+    align: node.attrs?.textAlign === 'justify' ? 'justify' : options.align,
+  }
+
+  if (!content.some(child => imageCaption(child))) {
+    return paragraphElement(paragraphOptions, renderInline(content, context))
+  }
+
+  const blocks: string[] = []
+  const nextOptions = (): BlockOptions =>
+    blocks.length === 0
+      ? paragraphOptions
+      : { ...paragraphOptions, list: undefined }
+
+  let pending: JSONContent[] = []
+  const flush = () => {
+    if (!pending.length) return
+    blocks.push(paragraphElement(nextOptions(), renderInline(pending, context)))
+    pending = []
+  }
+
+  for (const child of content) {
+    const caption = imageCaption(child)
+    if (!caption) {
+      pending.push(child)
+      continue
+    }
+
+    flush()
+    // Through renderInline rather than renderImage, so a comment mark on the
+    // image itself still opens and closes around it.
+    blocks.push(paragraphElement(nextOptions(), renderInline([child], context)))
+    blocks.push(
+      paragraphElement(
+        { ...nextOptions(), style: STYLE_IDS.caption },
+        renderTextRun({ type: 'text', text: caption }, context),
+      ),
+    )
+  }
+  flush()
+
+  return blocks.join('')
+}
+
 /** Every block a node produces, in order. */
 function renderBlock(
   node: JSONContent,
@@ -170,15 +241,7 @@ function renderBlock(
 ): string {
   switch (node.type) {
     case 'paragraph':
-      return paragraphElement(
-        {
-          ...options,
-          // A cell's column alignment wins over nothing; an explicitly
-          // justified paragraph wins over the cell.
-          align: node.attrs?.textAlign === 'justify' ? 'justify' : options.align,
-        },
-        renderInline(node.content ?? [], context),
-      )
+      return renderParagraph(node, context, options)
 
     case 'heading': {
       const level = Math.min(6, Math.max(1, Number(node.attrs?.level) || 1))
