@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import type { SaveStatus } from '../hooks/useDocuments'
 import type { PersistenceState } from '../hooks/usePersistentStorage'
 import type { DocumentStats } from '../hooks/useDocumentStats'
-import { titleFor } from '../keys/catalog'
+import { hintFor, titleFor } from '../keys/catalog'
 import { ChevronDownIcon, ChevronUpIcon, PanelRightIcon } from './icons'
 import { OutlineMenu } from './OutlineMenu'
 import { ReadingScale } from './ReadingScale'
@@ -25,6 +25,7 @@ interface StatusBarProps {
   onJumpToHeading: (index: number) => void
   onStepSection: (delta: -1 | 1) => void
   onToggleRail: () => void
+  onOpenShortcuts: () => void
 }
 
 /** "Saved 2m ago" would otherwise stay frozen at whatever the last render said. */
@@ -58,6 +59,7 @@ export function StatusBar({
   onJumpToHeading,
   onStepSection,
   onToggleRail,
+  onOpenShortcuts,
 }: StatusBarProps) {
   const [, setTick] = useState(0)
 
@@ -191,6 +193,23 @@ export function StatusBar({
             Offline
           </span>
         )}
+
+        {/*
+          The chord is the label, so the button that opens the reference is also
+          the standing reminder that the reference has a key — which is the one
+          thing worth keeping from the panel that used to appear on a modifier
+          hold. Hidden below 900px, where the actions sheet carries it instead
+          and a chord means nothing without a keyboard anyway.
+        */}
+        <button
+          type="button"
+          className="status-bar__chip status-bar__chip--keys"
+          aria-label="Keyboard shortcuts"
+          title={titleFor('app.cheatsheet')}
+          onClick={onOpenShortcuts}
+        >
+          {hintFor('app.cheatsheet') || '?'}
+        </button>
 
         {/*
           The count deliberately does not repeat here — the comment chip stays

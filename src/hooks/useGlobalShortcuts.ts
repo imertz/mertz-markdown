@@ -8,8 +8,7 @@ import { firesIn, scopeOf } from '../keys/scope'
  *
  * The chord itself — which key, which modifiers, and whether it matches by
  * character or by position — lives in `keys/chord`, so the same shape drives
- * the matcher, the cheat sheet and the peek HUD without any of them restating
- * it.
+ * the matcher and the cheat sheet without either of them restating it.
  */
 export interface Shortcut extends Chord {
   /**

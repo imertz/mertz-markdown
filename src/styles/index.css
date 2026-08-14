@@ -315,6 +315,19 @@ body {
  * it — that way it shares --radius-sm with the controls beside it instead of
  * baking a second corner radius into the SVG.
  */
+/* Wraps the mark without changing its metrics — the header row was laid out
+   around a 22px square and still is. */
+.app-header__brand-link {
+  flex: none;
+  display: block;
+  border-radius: var(--radius-sm);
+
+  &:hover,
+  &:focus-visible {
+    opacity: 0.8;
+  }
+}
+
 .app-header__brand {
   flex: none;
   display: block;
@@ -740,6 +753,30 @@ body {
      permanent noise. The hidden state dims instead — "off", not "active". */
   &[aria-pressed='false'] {
     opacity: 0.5;
+  }
+}
+
+/*
+ * The shortcuts chip, whose label is a chord rather than a word.
+ *
+ * Quieter than the readout it sits beside — it is a standing offer, not a
+ * number anyone is reading — and monospaced so "⌘/" and "Ctrl+/" both sit as
+ * keycaps rather than as prose.
+ */
+.status-bar__chip--keys {
+  font-family: var(--mono);
+  opacity: 0.6;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    opacity: 1;
+  }
+
+  /* The actions sheet carries this below 900px, and a chord is meaningless
+     without a keyboard. Same breakpoint as the `phone` query in AppShell, so
+     exactly one of the two is ever on screen. */
+  @media (max-width: 900px) {
+    display: none;
   }
 }
 
@@ -2164,9 +2201,8 @@ button {
 /* --- Keyboard chords --- */
 
 /*
- * Shared by the cheat sheet and the peek HUD. Tabular numerals so a column of
- * ⌘1…⌘9 lines up, and nowrap because "Ctrl+Shift+↓" is a single token however
- * narrow the panel gets.
+ * Used by the cheat sheet. Tabular numerals so a column of ⌘1…⌘9 lines up, and
+ * nowrap because "Ctrl+Shift+↓" is a single token however narrow the panel gets.
  */
 .kbd {
   display: inline-block;
@@ -2295,83 +2331,44 @@ button {
   padding: 12px 0;
 }
 
-/* --- Shortcut peek --- */
-
 /*
- * Summoned by holding a modifier, so it must never take focus or swallow a
- * click: the caret stays where it was and the next keystroke goes to the
- * matcher, which is what runs the command. This is a view of the keymap, not a
- * menu.
+ * Sibling of the scrolling body rather than its last child, so it stays on the
+ * frame while the list moves behind it. Mirrors the head's border and padding —
+ * the sheet reads as a bounded card, not a list that trails off.
  */
-.peek {
-  position: fixed;
-  bottom: calc(20px + var(--statusbar-total));
-  left: 50%;
-  translate: -50% 0;
-  /* Above the toasts, which share this corner. Safe because the panel takes no
-     pointer events: a click still reaches the toast's buttons underneath. */
-  z-index: 60;
-  pointer-events: none;
-  /* A width, not just a max: the grid below auto-fills columns against the
-     space it is given, and a panel sized to its content would only ever be one
-     column wide however many commands it is listing. */
-  width: min(680px, calc(100vw - 32px));
-  max-height: 46vh;
-  overflow: hidden;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 10px 14px;
-  animation: peek-in 120ms ease-out;
-}
-
-.peek__held {
-  font-size: var(--label-size);
-  font-weight: var(--label-weight);
-  letter-spacing: var(--label-track);
-  text-transform: uppercase;
-  color: var(--text);
-  margin-bottom: 6px;
-}
-
-.peek__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-  gap: 2px 20px;
-}
-
-.peek__row {
+.sheet__foot {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-h);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 12px;
 }
 
-.peek__label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.peek__more {
-  font-size: 11px;
+.sheet__foot-name {
   color: var(--text);
-  margin-top: 6px;
+  font-family: var(--mono);
 }
 
-@keyframes peek-in {
-  from {
-    opacity: 0;
-    translate: -50% 4px;
+.sheet__foot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  text-decoration: none;
+
+  &:hover,
+  &:focus-visible {
+    color: var(--accent);
+    text-decoration: underline;
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .peek {
-    animation: none;
-  }
+.sheet__foot-icon {
+  width: 13px;
+  height: 13px;
 }
 
 /* --- Text entry on touch --- */

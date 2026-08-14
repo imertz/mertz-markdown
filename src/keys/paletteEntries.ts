@@ -10,7 +10,7 @@ import { relative } from '../lib/time'
  * Split out from the registry by cost rather than by kind: everything here
  * walks something — the document list, the heading outline — so it is built
  * only while the palette is actually open, whereas the commands are standing
- * and feed the cheat sheet and the peek HUD too.
+ * and feed the cheat sheet too.
  */
 export function buildPaletteEntries(input: {
   editor: Editor | null

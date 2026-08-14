@@ -40,7 +40,7 @@ function EditorHarness({
 }
 
 describe('markdown editor document loads', () => {
-  it('keeps the empty-document placeholder after the stored document loads', async () => {
+  it('keeps the first paragraph marked empty after the stored document loads', async () => {
     const view = render(<EditorHarness activeId={null} initialDoc={null} />)
 
     await waitFor(() =>
@@ -53,12 +53,12 @@ describe('markdown editor document loads', () => {
 
     await waitFor(() =>
       expect(
-        view.container.querySelector('p')?.getAttribute('data-placeholder'),
-      ).toBe('Start writing…'),
+        view.container.querySelector('p')?.classList.contains('is-empty'),
+      ).toBe(true),
     )
   })
 
-  it('keeps the prompt visible when startup selection lands in a later empty block', async () => {
+  it('keeps the first paragraph marked empty when startup selection lands in a later empty block', async () => {
     const view = render(<EditorHarness activeId={null} initialDoc={null} />)
 
     await waitFor(() =>
@@ -75,8 +75,8 @@ describe('markdown editor document loads', () => {
 
     await waitFor(() =>
       expect(
-        view.container.querySelector('p')?.getAttribute('data-placeholder'),
-      ).toBe('Start writing…'),
+        view.container.querySelector('p')?.classList.contains('is-empty'),
+      ).toBe(true),
     )
   })
 })

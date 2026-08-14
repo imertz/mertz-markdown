@@ -112,7 +112,7 @@ describe('document jumps', () => {
     ])
   })
 
-  it('labels each with the document’s own name, for the peek list', () => {
+  it('labels each with the document’s own name, for the palette and cheat sheet', () => {
     const { deps } = makeDeps()
     expect(find(deps, 'doc.goto:2')?.label).toBe('Document 2')
   })

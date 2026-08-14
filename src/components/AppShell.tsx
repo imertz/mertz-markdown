@@ -54,9 +54,8 @@ import type { OverlayId } from '../keys/context'
 import { buildPaletteEntries } from '../keys/paletteEntries'
 import { toPaletteActions } from '../keys/registry'
 import { useCommands } from '../keys/useCommands'
-import { usePeek } from '../keys/usePeek'
+import { REPO_URL } from '../lib/repo'
 import { pageTitle } from '../lib/title'
-import { PeekHud } from './keys/PeekHud'
 import { ShortcutSheet } from './keys/ShortcutSheet'
 import { buildDocxExport } from '../docx'
 import { buildDocumentExport, downloadFile } from '../markdown/bundle'
@@ -462,8 +461,13 @@ export function AppShell() {
     if (!editor || editor.isDestroyed) return
     const { from, to } = editor.state.selection
     if (from === to) return
+    // The composer is a card in the rail, so a hidden rail swallowed the draft
+    // whole: the click appeared to do nothing at all. After the empty-selection
+    // guard, so a Comment click with nothing selected still leaves the rail as
+    // the reader left it.
+    showRail()
     setDraftRange({ from, to })
-  }, [editor])
+  }, [editor, showRail])
 
   /**
    * Open the link popover on whatever the caret is touching.
@@ -861,10 +865,9 @@ export function AppShell() {
   /**
    * The keyboard, wired.
    *
-   * Everything — the bindings, the palette's command half, the cheat sheet and
-   * the peek HUD — comes out of one registry built from `keys/catalog`, so a
-   * chord has a single spelling and a command a single label no matter which
-   * surface is showing it.
+   * Everything — the bindings, the palette's command half and the cheat sheet —
+   * comes out of one registry built from `keys/catalog`, so a chord has a single
+   * spelling and a command a single label no matter which surface is showing it.
    */
   const commands = useCommands(
     {
@@ -896,8 +899,6 @@ export function AppShell() {
     },
     overlay,
   )
-
-  const peek = usePeek(overlay === null)
 
   /**
    * The palette's list: the commands, then what only it can offer.
@@ -934,7 +935,22 @@ export function AppShell() {
   return (
     <>
       <header className="app-header">
-        <BrandMark className="app-header__brand" />
+        {/*
+          The mark is the one thing in the header with nothing else to do, and
+          "logo goes to the source" is the settled convention for a developer
+          tool. `noreferrer` rather than merely `noopener`: the new tab has no
+          business knowing which document was open when it was opened.
+        */}
+        <a
+          className="app-header__brand-link"
+          href={REPO_URL}
+          target="_blank"
+          rel="noreferrer"
+          title="Source on GitHub"
+          aria-label="Source on GitHub"
+        >
+          <BrandMark className="app-header__brand" />
+        </a>
 
         <DocumentList
           documents={documents.documents}
@@ -993,6 +1009,7 @@ export function AppShell() {
               onSelectTextSize={documentTextSize.selectSize}
               theme={theme.theme}
               onToggleTheme={theme.toggle}
+              onOpenShortcuts={() => setSheetOpen(true)}
             />
           ) : (
             <>
@@ -1109,6 +1126,7 @@ export function AppShell() {
         onJumpToHeading={jumpToHeading}
         onStepSection={stepSection}
         onToggleRail={toggleRail}
+        onOpenShortcuts={() => setSheetOpen(true)}
       />
 
       {editor ? (
@@ -1184,8 +1202,6 @@ export function AppShell() {
           onClose={closeSheet}
         />
       ) : null}
-
-      <PeekHud held={peek} commands={commands.live} />
 
       {historyOpen && editor && documents.activeId ? (
         <HistoryPanel

@@ -19,7 +19,7 @@
 ```bash
 bun install
 bun run dev        # http://localhost:5173
-bun run test       # 761 tests
+bun run test       # full regression suite
 bun run build      # tsc -b && vite build (emits the service worker)
 bun run preview    # serve the production build, service worker active
 ```
@@ -77,15 +77,11 @@ Two upstream quirks are handled in `src/markdown/`:
 ## Keyboard
 
 Every chord in the app is declared once, in `src/keys/catalog.ts`. The window
-matcher, the command palette, the cheat sheet, the hold-a-modifier panel and
-every tooltip are views of that one table, so a chord cannot mean one thing in
-a tooltip and another in the keymap. Chords below are written in the ⌘ spelling;
-off Apple hardware they print, and bind, as Ctrl.
+matcher, the command palette, the cheat sheet and every tooltip are views of
+that one table, so a chord cannot mean one thing in a tooltip and another in the
+keymap. Chords below are written in the ⌘ spelling; off Apple hardware they
+print, and bind, as Ctrl.
 
-- **Hold ⌘ for a moment** and a panel lists what that modifier does from here —
-  filtered live as you add ⇧ or ⌥, dismissed the instant you press a key or let
-  go. It is a view of the keymap, never a second dispatcher: the key you press
-  runs through the ordinary matcher.
 - **`⌘/`, or just `?`** opens the full reference, grouped and searchable,
   including the chords Tiptap delivers (`⌘B`, `⌘Z`, Tab between table cells)
   that nothing used to mention. Context-gated groups are shown as inactive
@@ -137,6 +133,15 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   from IndexedDB, and is updated at the same choke point that writes a
   document — `src/test/search-index-guard.test.ts` fails the build if a write
   ever bypasses it, because a stale index reports no error at all.
+- **Focus and reading tools.** Focus mode quiets every block except the one at
+  the caret. The reading-position scale and heading stations show progress
+  through long documents and provide direct section navigation. Reading font
+  and text scale are document-local preferences; print output turns comments
+  into numbered endnotes.
+- **Responsive editing.** The desktop toolbar condenses into a mobile actions
+  menu with the same export formats, reading controls and shortcut reference.
+  Safe-area and visual-viewport handling keep controls above phone notches,
+  home indicators and the software keyboard.
 - **Links** (`⌘⇧K`) get a popover instead of nothing: the mark was always in the
   schema with no UI. Bare hosts gain `https://`, bare addresses become
   `mailto:`, and `javascript:` is refused.
@@ -162,10 +167,11 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   the toolbar, or insert an HTTP(S) URL. URL images can remain remote or be
   copied into IndexedDB for offline use. Selected images have aspect-locked
   resize handles, exact width, alt-text and caption editing, and a free/preset
-  crop dialog. Captions use Markdown's portable image-title syntax and are set
-  under the picture, measured against its own width rather than the text
-  column's. Crops become new WebP assets (or PNG where WebP encoding is
-  unavailable) while the
+  crop dialog. Captions are local document metadata, separate from Markdown's
+  portable image title, and are set under the picture, measured against its
+  own width rather than the text column's. Rich HTML and Word exports preserve
+  them; plain GFM remains unchanged. Crops become new WebP assets (or PNG where
+  WebP encoding is unavailable) while the
   source remains available to undo and version history. Documents with local
   images export as ZIPs with clean Markdown and an `images/` directory;
   annotated HTML embeds the bytes.
@@ -220,13 +226,11 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   plain Markdown reader chooses its own display size. Cropping is portable
   because it changes the exported asset bytes. GIF cropping is disabled to
   avoid silently flattening an animation.
-- **Captions use Markdown image titles.** The app draws an image title as a
-  visible caption, which makes that picture a figure: it takes a block of its
-  own in the editor, in the annotated HTML and in Word, splitting the paragraph
-  it shared with any text. A title on an image a caption cannot belong to — in
-  a heading — stays the tooltip Markdown calls it. Readers that do not
-  implement captions still keep the text as the image's standard title
-  metadata.
+- **Captions are local-only metadata.** CommonMark has no caption syntax, so a
+  caption is intentionally absent from plain Markdown and Markdown bundles.
+  Annotated HTML and Word retain it. A captioned image becomes a figure in the
+  editor and rich exports, splitting the paragraph it shared with any text;
+  the independent Markdown title continues to round-trip as a tooltip.
 - **Find is literal and case-insensitive.** No regular expressions, no
   whole-word, and a match never spans a block boundary. Cross-document search
   (`⌘⇧F`) is the opposite: stemmed and ranked, so it matches *running* for

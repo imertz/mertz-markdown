@@ -81,5 +81,3 @@ export const MARKED_OPTIONS = {
   breaks: false,
   pedantic: false,
 } as const
-
-export const EDITOR_PLACEHOLDER = 'Start writing…'

@@ -84,6 +84,13 @@ export function useMarkdownEditor({
     }),
     content: '',
     immediatelyRender: false,
+    // Open with the caret already in the document, so the page is ready to
+    // type into rather than waiting for a click to find it.
+    //
+    // Not on touch, where focusing on load would throw the on-screen keyboard
+    // over the document every single time the app is opened — the phone wants
+    // to show you the document first and be asked for the keyboard.
+    autofocus: window.matchMedia('(pointer: coarse)').matches ? false : 'start',
     editorProps: {
       attributes: {
         role: 'textbox',

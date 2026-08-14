@@ -11,7 +11,7 @@ import { TableKit } from '@tiptap/extension-table'
 import { Markdown } from '@tiptap/markdown'
 import StarterKit from '@tiptap/starter-kit'
 import { common, createLowlight } from 'lowlight'
-import { EDITOR_PLACEHOLDER, MARKED_OPTIONS } from '../../markdown/config'
+import { MARKED_OPTIONS } from '../../markdown/config'
 import { AppShortcuts } from './appShortcuts'
 import { CommentMark } from './comment'
 import { CommentActive } from './commentActive'
@@ -174,15 +174,16 @@ export function buildExtensions(
     FocusBlock,
     SectionMarks,
 
-    // Keep the first empty paragraph decorated even if startup or a document
-    // reload leaves the selection in another empty block. Every empty block
-    // gets the decoration as a result; the CSS narrows it back down to the
-    // first block of an all-empty document, so ordinary blank lines in the
-    // middle of a draft do not sprout prompts. See the rule in editor.css —
-    // it deliberately does NOT use `is-editor-empty`, which this extension
-    // never applies.
+    // Registered for its side effect only: the `is-empty` class it puts on
+    // empty blocks is what the empty-page grille in index.css keys off. An
+    // empty document shows just the caret, so there is no prompt text — the
+    // empty string is deliberate, since the extension's own default would
+    // otherwise leave stale copy sitting in `data-placeholder`.
+    //
+    // `showOnlyCurrent: false` so the first paragraph still gets the class
+    // when startup or a document reload leaves the selection elsewhere.
     Placeholder.configure({
-      placeholder: EDITOR_PLACEHOLDER,
+      placeholder: '',
       showOnlyCurrent: false,
     }),
 

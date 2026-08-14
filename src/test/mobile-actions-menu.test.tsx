@@ -5,6 +5,7 @@ import { MobileActionsMenu } from '../components/MobileActionsMenu'
 import { documentFonts } from '../hooks/useDocumentFont'
 import { documentTextSizes } from '../hooks/useDocumentTextSize'
 import { FORMATS } from '../components/documents/exportFormats'
+import { REPO_URL } from '../lib/repo'
 
 afterEach(cleanup)
 
@@ -24,6 +25,7 @@ function renderMenu(overrides: Record<string, unknown> = {}) {
     onSelectTextSize: vi.fn(),
     theme: 'light' as const,
     onToggleTheme: vi.fn(),
+    onOpenShortcuts: vi.fn(),
     ...overrides,
   }
   render(<MobileActionsMenu {...props} />)
@@ -59,6 +61,35 @@ describe('mobile actions menu', () => {
       screen.getByRole('menuitem', { name: /version history/i }),
     ).toBeTruthy()
     expect(screen.getByRole('menuitem', { name: /dark theme/i })).toBeTruthy()
+    expect(
+      screen.getByRole('menuitem', { name: /keyboard shortcuts/i }),
+    ).toBeTruthy()
+  })
+
+  it('opens the shortcut reference and closes', async () => {
+    const user = userEvent.setup()
+    const props = renderMenu()
+    await openMenu(user)
+
+    await user.click(
+      screen.getByRole('menuitem', { name: /keyboard shortcuts/i }),
+    )
+
+    expect(props.onOpenShortcuts).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('menu')).toBeNull()
+  })
+
+  it('offers the repository as a real link, not a handler', async () => {
+    const user = userEvent.setup()
+    renderMenu()
+    await openMenu(user)
+
+    // An anchor rather than a button so a long-press can copy or share it,
+    // which is how a link is used on the device this sheet exists for.
+    const link = screen.getByRole('menuitem', { name: /source on github/i })
+    expect(link.tagName).toBe('A')
+    expect(link.getAttribute('href')).toBe(REPO_URL)
+    expect(link.getAttribute('rel')).toBe('noreferrer')
   })
 
   it('runs an export and closes', async () => {

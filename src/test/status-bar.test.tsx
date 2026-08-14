@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { StatusBar } from '../components/StatusBar'
 import type { OutlineEntry } from '../editor/outline'
 import type { DocumentStats } from '../hooks/useDocumentStats'
+import { hintFor, titleFor } from '../keys/catalog'
 
 const heading = (text: string, level = 2, pos = 0): OutlineEntry => ({
   pos,
@@ -36,6 +37,7 @@ const setup = (overrides: Partial<Props> = {}) => {
     onJumpToHeading: vi.fn(),
     onStepSection: vi.fn(),
     onToggleRail: vi.fn(),
+    onOpenShortcuts: vi.fn(),
   }
 
   const view = render(
@@ -180,6 +182,7 @@ describe('status bar section navigation', () => {
         onJumpToHeading={vi.fn()}
         onStepSection={vi.fn()}
         onToggleRail={vi.fn()}
+        onOpenShortcuts={vi.fn()}
       />,
     )
     expect(
@@ -244,6 +247,27 @@ describe('status bar comment chips', () => {
     await user.click(screen.getByRole('button', { name: '1 orphaned' }))
 
     expect(onShowOrphans).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('status bar shortcuts chip', () => {
+  it('opens the reference when clicked', async () => {
+    const user = userEvent.setup()
+    const { onOpenShortcuts } = setup()
+
+    await user.click(screen.getByRole('button', { name: 'Keyboard shortcuts' }))
+
+    expect(onOpenShortcuts).toHaveBeenCalledTimes(1)
+  })
+
+  it('wears the chord as its label, from the catalog', () => {
+    setup()
+
+    // Not a hard-coded '⌘/': the catalog is the one place the chord is
+    // spelled, so rebinding it there moves this label too.
+    const chip = screen.getByRole('button', { name: 'Keyboard shortcuts' })
+    expect(chip.textContent).toBe(hintFor('app.cheatsheet'))
+    expect(chip.getAttribute('title')).toBe(titleFor('app.cheatsheet'))
   })
 })
 

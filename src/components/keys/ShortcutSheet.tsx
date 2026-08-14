@@ -5,7 +5,9 @@ import { CATEGORIES, noteFor } from '../../keys/catalog'
 import type { Command, CommandContext } from '../../keys/context'
 import { isLive } from '../../keys/context'
 import { hintOf } from '../../keys/registry'
+import { REPO_NAME, REPO_URL } from '../../lib/repo'
 import { isApplePlatform } from '../../lib/shortcuts'
+import { ExternalLinkIcon } from '../icons'
 
 interface ShortcutSheetProps {
   commands: readonly Command[]
@@ -142,6 +144,25 @@ export function ShortcutSheet({
           {groups.length === 0 ? (
             <p className="sheet__empty">No matching shortcuts</p>
           ) : null}
+        </div>
+
+        {/*
+          Outside the scrolling body, so it stays put rather than sitting at the
+          bottom of a long list nobody scrolls to. This is the app's only
+          informational overlay, which makes it the closest thing there is to an
+          About box — hence the name of the thing alongside the link.
+        */}
+        <div className="sheet__foot">
+          <span className="sheet__foot-name">{REPO_NAME}</span>
+          <a
+            className="sheet__foot-link"
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Source on GitHub
+            <ExternalLinkIcon className="sheet__foot-icon" />
+          </a>
         </div>
       </div>
     </div>

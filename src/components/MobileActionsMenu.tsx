@@ -8,11 +8,13 @@ import {
   documentTextSizes,
   type DocumentTextSizeId,
 } from '../hooks/useDocumentTextSize'
+import { hintFor } from '../keys/catalog'
 import { BUNDLE_ACCEPT } from '../markdown/bundle'
 import { MARKDOWN_ACCEPT } from '../markdown/import'
 import type { Theme } from '../hooks/useTheme'
 import { FORMATS, type ExportActions } from './documents/exportFormats'
-import { CheckIcon, MoonIcon, MoreIcon, SunIcon } from './icons'
+import { REPO_URL } from '../lib/repo'
+import { CheckIcon, ExternalLinkIcon, MoonIcon, MoreIcon, SunIcon } from './icons'
 
 export interface MobileActionsMenuProps {
   exports: ExportActions
@@ -24,6 +26,7 @@ export interface MobileActionsMenuProps {
   onSelectTextSize: (size: DocumentTextSizeId) => void
   theme: Theme
   onToggleTheme: () => void
+  onOpenShortcuts: () => void
   disabled?: boolean
 }
 
@@ -51,6 +54,7 @@ export function MobileActionsMenu(props: MobileActionsMenuProps) {
     onSelectTextSize,
     theme,
     onToggleTheme,
+    onOpenShortcuts,
     disabled,
   } = props
 
@@ -172,6 +176,37 @@ export function MobileActionsMenu(props: MobileActionsMenuProps) {
               <MoonIcon className="actions-menu__check" />
             )}
           </button>
+
+          {/*
+            Last, because it is the least reached for. Present at all because
+            this sheet stands in for the whole header below 900px — which
+            includes a tablet with a keyboard attached, where the chord is
+            worth knowing and the status bar's chip is hidden.
+          */}
+          <p className="actions-menu__heading">Help</p>
+          <button
+            type="button"
+            role="menuitem"
+            className="actions-menu__option"
+            onClick={() => {
+              close()
+              onOpenShortcuts()
+            }}
+          >
+            Keyboard shortcuts
+            <kbd className="kbd">{hintFor('app.cheatsheet')}</kbd>
+          </button>
+          <a
+            role="menuitem"
+            className="actions-menu__option"
+            href={REPO_URL}
+            target="_blank"
+            rel="noreferrer"
+            onClick={close}
+          >
+            Source on GitHub
+            <ExternalLinkIcon className="actions-menu__check" />
+          </a>
         </div>
       ) : null}
 
