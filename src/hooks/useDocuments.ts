@@ -8,7 +8,11 @@ import {
   listTrashedDocuments,
   purgeExpiredTrash,
   putDocument,
+  renameProject,
+  renameTag,
   restoreDocument,
+  setDocumentProject,
+  setDocumentTags,
   softDeleteDocument,
 } from '../db/documents'
 import {
@@ -49,7 +53,11 @@ export interface DocumentsApi {
   contentRevision: number
   refreshFromStorage: () => Promise<void>
   select: (id: string) => void
-  create: () => Promise<void>
+  /**
+   * Start a new document, optionally filed under a project — so "New document"
+   * pressed while the picker is narrowed to one lands where the user is looking.
+   */
+  create: (project?: string | null) => Promise<void>
   /** Moves to the trash and returns the record, so a caller can offer an undo. */
   remove: (id: string) => Promise<DocumentRecord | null>
   restore: (id: string) => Promise<void>
@@ -60,6 +68,14 @@ export interface DocumentsApi {
    * only route back to a title derived from the content.
    */
   rename: (id: string, name: string) => Promise<void>
+  /** File one document under a project, or unfile it with `null`. */
+  setProject: (id: string, project: string | null) => Promise<void>
+  /** Replace one document's tags; the list is normalised on the way in. */
+  setTags: (id: string, tags: readonly string[]) => Promise<void>
+  /** Rename a project everywhere it is used. `null` unfiles every document in it. */
+  renameProject: (from: string, to: string | null) => Promise<void>
+  /** Rename a tag everywhere it is used. `null` removes it. */
+  renameTag: (from: string, to: string | null) => Promise<void>
   save: (docId: string, doc: JSONContent, markdown: string) => Promise<void>
   snapshot: (
     docId: string,
@@ -75,7 +91,7 @@ const emptyDoc = (): JSONContent => ({
   content: [{ type: 'paragraph' }],
 })
 
-function newDocument(): DocumentRecord {
+function newDocument(project: string | null = null): DocumentRecord {
   const now = Date.now()
   return {
     id: createId(),
@@ -85,6 +101,7 @@ function newDocument(): DocumentRecord {
     createdAt: now,
     updatedAt: now,
     deletedAt: null,
+    project,
   }
 }
 
@@ -168,8 +185,8 @@ export function useDocuments(): DocumentsApi {
     })
   }, [])
 
-  const create = useCallback(async () => {
-    const record = newDocument()
+  const create = useCallback(async (project: string | null = null) => {
+    const record = newDocument(project)
     await putDocument(record)
     reindex(record)
     setDocuments(previous => [record, ...previous])
@@ -265,6 +282,66 @@ export function useDocuments(): DocumentsApi {
       previous.map(candidate => (candidate.id === id ? record : candidate)),
     )
   }, [reindex])
+
+  /*
+   * Filing.
+   *
+   * None of these move `updatedAt` — the database writers are what enforce
+   * that; see the block comment above them in `src/db/documents.ts`. The local
+   * state is patched in place rather than re-listed, exactly as `rename` does,
+   * so the list keeps the order the user is looking at.
+   */
+
+  /** Replace one document in both the live list and the trash, wherever it is. */
+  const patch = useCallback((record: DocumentRecord) => {
+    reindex(record)
+    const swap = (previous: DocumentRecord[]) =>
+      previous.map(candidate => (candidate.id === record.id ? record : candidate))
+    setDocuments(swap)
+    setTrashed(swap)
+  }, [reindex])
+
+  const setProject = useCallback(
+    async (id: string, project: string | null) => {
+      const record = await setDocumentProject(id, project)
+      if (record) patch(record)
+    },
+    [patch],
+  )
+
+  const setTags = useCallback(
+    async (id: string, tags: readonly string[]) => {
+      const record = await setDocumentTags(id, tags)
+      if (record) patch(record)
+    },
+    [patch],
+  )
+
+  /**
+   * Bulk edits touch documents this hook may not be holding — trashed ones, and
+   * on a later render any that arrived by sync — so both lists are re-read
+   * rather than patched. The order is unchanged either way, because the writers
+   * leave `updatedAt` alone.
+   */
+  const relist = useCallback(async () => {
+    invalidateIndex()
+    setDocuments(await listDocuments())
+    setTrashed(await listTrashedDocuments())
+  }, [])
+
+  const renameProjectEverywhere = useCallback(
+    async (from: string, to: string | null) => {
+      if (await renameProject(from, to)) await relist()
+    },
+    [relist],
+  )
+
+  const renameTagEverywhere = useCallback(
+    async (from: string, to: string | null) => {
+      if (await renameTag(from, to)) await relist()
+    },
+    [relist],
+  )
 
   /**
    * Write a restore point.
@@ -440,6 +517,10 @@ export function useDocuments(): DocumentsApi {
     restore,
     destroy,
     rename,
+    setProject,
+    setTags,
+    renameProject: renameProjectEverywhere,
+    renameTag: renameTagEverywhere,
     save,
     snapshot,
     importFile,

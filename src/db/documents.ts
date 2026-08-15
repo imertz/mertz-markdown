@@ -1,4 +1,5 @@
 import type { DocumentRecord } from '../types'
+import { foldLabel, normalizeTags } from '../lib/labels'
 import { announceDirty, dirtyRecord } from '../sync/local'
 import { getDB } from './client'
 
@@ -36,6 +37,124 @@ export async function putDocument(doc: DocumentRecord): Promise<void> {
     tx.done,
   ])
   announceDirty()
+}
+
+/*
+ * Projects and tags.
+ *
+ * Neither has a store of its own: the project is a name on the document and the
+ * tags are a list on it, so the catalogue is whatever the documents happen to
+ * be carrying (see `src/lib/library.ts`). That is what lets both ride inside the
+ * existing encrypted document package with no new sync object kind.
+ *
+ * Every writer below leaves `updatedAt` alone, for the reason the rename path in
+ * `useDocuments` gives: the list is ordered by it, and re-filing a document from
+ * inside that list would make the row jump out from under the pointer that just
+ * filed it. Filing is not editing.
+ */
+
+/** File a document under a project. `null` unfiles it. */
+export async function setDocumentProject(
+  id: string,
+  project: string | null,
+): Promise<DocumentRecord | undefined> {
+  const db = await getDB()
+  const existing = await db.get('documents', id)
+  if (!existing) return undefined
+
+  const record: DocumentRecord = { ...existing, project }
+  await putDocument(record)
+  return record
+}
+
+/** Replace a document's tags wholesale; the list is normalised on the way in. */
+export async function setDocumentTags(
+  id: string,
+  tags: readonly string[],
+): Promise<DocumentRecord | undefined> {
+  const db = await getDB()
+  const existing = await db.get('documents', id)
+  if (!existing) return undefined
+
+  const record: DocumentRecord = { ...existing, tags: normalizeTags(tags) }
+  await putDocument(record)
+  return record
+}
+
+/**
+ * Rename a project across every document filed under it; `null` unfiles them all.
+ * Returns how many documents were rewritten.
+ *
+ * One transaction, on the same reasoning as `deleteDocumentCascade` below: every
+ * promise awaited here belongs to it, because an IndexedDB transaction
+ * auto-closes as soon as the microtask queue drains.
+ *
+ * Trashed documents are rewritten too. They keep their project so that restoring
+ * one puts it back where it was, and skipping them here would strand it under a
+ * name nothing else uses.
+ */
+export async function renameProject(
+  from: string,
+  to: string | null,
+): Promise<number> {
+  const db = await getDB()
+  const tx = db.transaction(['documents', 'syncOutbox'], 'readwrite')
+  const store = tx.objectStore('documents')
+  const outbox = tx.objectStore('syncOutbox')
+
+  const key = foldLabel(from)
+  const matching = (await store.getAll()).filter(
+    record => record.project && foldLabel(record.project) === key,
+  )
+
+  // One outbox entry per document, because there is no project object to
+  // upload — the whole point of deriving the project list rather than storing it.
+  await Promise.all([
+    ...matching.flatMap(record => [
+      store.put({ ...record, project: to }),
+      outbox.put(dirtyRecord('document', record.id, record.id)),
+    ]),
+    tx.done,
+  ])
+
+  if (matching.length) announceDirty()
+  return matching.length
+}
+
+/**
+ * Rename a tag everywhere it appears; `null` removes it. Returns how many
+ * documents were rewritten.
+ */
+export async function renameTag(from: string, to: string | null): Promise<number> {
+  const db = await getDB()
+  const tx = db.transaction(['documents', 'syncOutbox'], 'readwrite')
+  const store = tx.objectStore('documents')
+  const outbox = tx.objectStore('syncOutbox')
+
+  const key = foldLabel(from)
+  const updated = (await store.getAll()).flatMap(record => {
+    const tags = record.tags ?? []
+    if (!tags.some(tag => foldLabel(tag) === key)) return []
+    // Renaming onto a tag the document already carries merges the two rather
+    // than listing it twice. The new name goes last deliberately: `normalizeTags`
+    // deduplicates first-spelling-wins, so a document that already said `wip`
+    // keeps saying `wip` rather than being restyled to `WIP` by a rename it was
+    // only incidentally caught up in.
+    const kept = tags.filter(tag => foldLabel(tag) !== key)
+    const next = normalizeTags(to ? [...kept, to] : kept)
+    return [{ ...record, tags: next }]
+  })
+
+  await Promise.all([
+    ...updated.flatMap(record => [
+      store.put(record),
+      outbox.put(dirtyRecord('document', record.id, record.id)),
+    ]),
+    tx.done,
+  ])
+
+  if (updated.length) announceDirty()
+  return updated.length
 }
 
 /**

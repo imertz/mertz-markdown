@@ -321,6 +321,31 @@ export function PencilIcon(props: IconProps) {
   )
 }
 
+/* --- Filing ---
+ *
+ * A folder for the project a document sits in, a tag for the labels that cut
+ * across projects. Both are the plainest reading of their idea, because these
+ * two sit side by side on every row in the picker and have to be told apart at
+ * 16px without reading the tooltip. */
+
+export function FolderIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z" />
+    </svg>
+  )
+}
+
+export function TagIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42Z" />
+      {/* Filled, not stroked: at 16px a 1px ring reads as a smudge. */}
+      <circle cx="7.5" cy="7.5" r="1.1" fill="currentColor" stroke="none" />
+    </svg>
+  )
+}
+
 /* --- Tables ---
  *
  * The structural four share TableIcon's frame, cropped to the axis they act

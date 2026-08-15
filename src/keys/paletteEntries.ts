@@ -24,7 +24,10 @@ export function buildPaletteEntries(input: {
     .map(record => ({
       id: `doc:${record.id}`,
       label: record.title,
-      hint: `Document · ${relative(record.updatedAt)}`,
+      // The project where there is one, since "Document" was only ever saying
+      // which list the row came from — which the palette's grouping already
+      // shows. Matching stays on the label alone; the hint is not searched.
+      hint: `${record.project ?? 'Document'} · ${relative(record.updatedAt)}`,
       run: () => documents.select(record.id),
     }))
 

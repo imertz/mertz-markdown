@@ -57,6 +57,24 @@ export interface DocumentRecord {
   updatedAt: number
   /** Soft-delete tombstone; `null` means live. */
   deletedAt: number | null
+  /**
+   * Which project the document is filed under, or `null` for unfiled.
+   *
+   * The name itself, not a reference: there is no project store, and the list
+   * of projects is derived from whatever names the documents carry. A project
+   * therefore exists exactly as long as something is filed under it.
+   *
+   * Optional for the same reason as `titleOverride` — records written before
+   * projects existed read back as unfiled rather than as invalid.
+   */
+  project?: string | null
+  /**
+   * Free-form labels, normalised and deduplicated by `normalizeTags`.
+   *
+   * App metadata like the project above: it survives autosave, snapshots and
+   * encrypted sync, and never reaches the exported Markdown.
+   */
+  tags?: string[]
 }
 
 /** Device-local configuration owned by one compile-time application extension. */

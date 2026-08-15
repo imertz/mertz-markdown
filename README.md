@@ -45,6 +45,7 @@ cannot be the canonical stored form — every save would destroy the anchors.
 | Threads + comments | **Sidecar**, never touches the `.md`. | IndexedDB `threads` / `comments` |
 | Image blobs | **Sidecar.** Nodes keep a lightweight id and standard relative path. | IndexedDB `assets` |
 | Extension document state | **Sidecar.** Publication ids, status and article settings live here. | IndexedDB `extensionDocumentState` |
+| Project + tags | **App metadata.** How the library is organised; never enters the `.md`. | IndexedDB `documents.project` / `documents.tags` |
 
 The comment mark (`src/editor/extensions/comment.ts`) deliberately declares **no**
 `renderMarkdown`. `@tiptap/markdown`'s `getMarkOpening` returns `""` for a mark
@@ -126,6 +127,15 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   chord — and the table commands are only listed with the caret in a table,
   which is the sole pointer-free route to them, since the table extension owns
   Tab.
+- **Projects and tags** organise the picker: a document lives in one project
+  (or none) and carries any number of tags. Neither has a store of its own —
+  the project is a name on the document and the catalogue is derived from
+  whatever names the documents are carrying, which is what lets both ride
+  inside the existing encrypted document package with no new sync object kind
+  and no migration. The chips filter with AND semantics; the filter box uses
+  the same fuzzy matcher as the palette. Cross-document search deliberately
+  knows nothing about either: it indexes passages, and these are properties of
+  a document.
 - **Search across documents** (`⌘⇧F`) is full-text, not title-only: BM25 over
   every passage of every document, its comments and its trash, ranked and
   grouped by document. Picking a hit opens the document and puts the caret on
@@ -231,6 +241,14 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   *laufen*. ZBSearch holds one language per index, so a script-dispatched
   stemmer keeps a single comparable BM25 space rather than splitting into
   per-language indexes whose scores could not be merged honestly.
+- **A project exists only while something is filed under it.** The project list
+  is derived from the documents, not stored, so unfiling the last document in a
+  project makes the project itself disappear — there is no empty folder to
+  leave behind, and no way to create one ahead of time. The same trade buys the
+  feature its zero-migration, zero-server-change sync: renaming a project
+  rewrites every document in it, each queued for upload individually.
+- **Project and tag names fold case for comparison.** `Research` and `research`
+  are one project, displayed with whichever spelling a document used first.
 - **Search results reflect this tab's view of the database.** The index is
   built per tab, so another tab's unsynchronized writes are invisible until
   reload. An applied vault pull invalidates the index and reruns an open query.

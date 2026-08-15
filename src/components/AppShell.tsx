@@ -1035,11 +1035,15 @@ export function AppShell() {
           activeId={documents.activeId}
           activeTitle={documents.activeTitle}
           onSelect={documents.select}
-          onCreate={() => void documents.create()}
+          onCreate={project => void documents.create(project)}
           onDelete={id => void deleteDocument(id)}
           onRestore={id => void documents.restore(id)}
           onDestroy={id => void documents.destroy(id)}
           onRename={(id, name) => void documents.rename(id, name)}
+          onSetProject={(id, project) => void documents.setProject(id, project)}
+          onSetTags={(id, tags) => void documents.setTags(id, tags)}
+          onRenameProject={(from, to) => void documents.renameProject(from, to)}
+          onRenameTag={(from, to) => void documents.renameTag(from, to)}
         />
 
         {editor ? (

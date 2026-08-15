@@ -18,6 +18,10 @@ const setup = (trashed = [gone]) => {
     onRestore: vi.fn(),
     onDestroy: vi.fn(),
     onRename: vi.fn(),
+    onSetProject: vi.fn(),
+    onSetTags: vi.fn(),
+    onRenameProject: vi.fn(),
+    onRenameTag: vi.fn(),
   }
   render(
     <DocumentList
