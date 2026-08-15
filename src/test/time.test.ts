@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { formatBytes, relative } from '../lib/time'
+import { formatBytes, relative, scaled } from '../lib/time'
 
 const NOW = new Date('2026-07-29T12:00:00Z').getTime()
 
@@ -42,6 +42,49 @@ describe('relative', () => {
     // Clock skew between a write and a read should read as "just now", not
     // "-1m ago".
     expect(relative(NOW + 10 * SECOND)).toBe('just now')
+  })
+})
+
+describe('scaled', () => {
+  // The formats themselves belong to the reader's locale, so these compare
+  // against the same Intl call rather than against a spelling of our own — the
+  // choice of *which* format is what this file is responsible for.
+  const stamp = new Date(2026, 6, 29, 14, 5, 0).getTime()
+
+  it('gives the hour under a heading that already said the day', () => {
+    expect(scaled(stamp, 'clock')).toBe(
+      new Date(stamp).toLocaleTimeString(undefined, {
+        hour: 'numeric',
+        minute: '2-digit',
+      }),
+    )
+  })
+
+  it('gives the weekday inside the last seven days', () => {
+    expect(scaled(stamp, 'weekday')).toBe(
+      new Date(stamp).toLocaleDateString(undefined, { weekday: 'short' }),
+    )
+  })
+
+  it('gives a day and month for anything older', () => {
+    expect(scaled(stamp, 'date', stamp)).toBe(
+      new Date(stamp).toLocaleDateString(undefined, {
+        day: 'numeric',
+        month: 'short',
+      }),
+    )
+  })
+
+  it('reaches for the year only when it is not this one', () => {
+    const lastYear = new Date(2025, 2, 4, 9, 0, 0).getTime()
+
+    // The year is only worth its width when its absence would be ambiguous.
+    expect(scaled(lastYear, 'date', stamp)).toBe(
+      new Date(lastYear).toLocaleDateString(undefined, {
+        month: 'short',
+        year: 'numeric',
+      }),
+    )
   })
 })
 

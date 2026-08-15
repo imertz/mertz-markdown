@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import type { LabelCount } from '../../lib/library'
-import { relative } from '../../lib/time'
+import type { TimeScale } from '../../lib/time'
+import { relative, scaled } from '../../lib/time'
 import type { DocumentRecord } from '../../types'
 import { FolderIcon, PencilIcon, TagIcon, TrashIcon } from '../icons'
 import { ProjectPicker } from './ProjectPicker'
@@ -9,6 +10,11 @@ import { TagEditor } from './TagEditor'
 interface DocumentRowProps {
   document: DocumentRecord
   active: boolean
+  /**
+   * How to say when, when a dated heading has already said roughly when.
+   * Absent — a list standing on its own — and the row says how long ago.
+   */
+  scale?: TimeScale
   /** Every project in use, for the filing submenu. */
   projects: readonly LabelCount[]
   onSelect: (id: string) => void
@@ -33,6 +39,7 @@ type Editing = 'rename' | 'tags' | 'project' | null
 export function DocumentRow({
   document: record,
   active,
+  scale,
   projects,
   onSelect,
   onRename,
@@ -106,7 +113,7 @@ export function DocumentRow({
         >
           <span className="doc-picker__item-title">{record.title}</span>
           <span className="doc-picker__item-time">
-            {relative(record.updatedAt)}
+            {scale ? scaled(record.updatedAt, scale) : relative(record.updatedAt)}
           </span>
         </button>
 

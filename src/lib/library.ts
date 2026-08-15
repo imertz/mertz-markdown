@@ -1,6 +1,7 @@
 import type { DocumentRecord } from '../types'
 import { fuzzyMatch } from './fuzzy'
 import { foldLabel, hasTag } from './labels'
+import { UNTITLED } from './title'
 
 /**
  * Deriving the shape of the library from the documents themselves.
@@ -23,6 +24,13 @@ export interface LabelCount {
 export interface ProjectGroup {
   /** `null` is the unfiled group, and always sorts last. */
   project: string | null
+  documents: DocumentRecord[]
+}
+
+export interface RecencyBucket {
+  /** Stable across renders and locales; `label` is the part that is shown. */
+  key: 'today' | 'yesterday' | 'week' | 'earlier'
+  label: string
   documents: DocumentRecord[]
 }
 
@@ -101,6 +109,82 @@ export function groupByProject(
   // The unfiled group is omitted entirely when empty, so a library where
   // everything is filed does not carry a permanent empty heading.
   return unfiled.length ? [...filed, { project: null, documents: unfiled }] : filed
+}
+
+/** Midnight at the start of the day `time` falls in, in the reader's zone. */
+function startOfDay(time: number): number {
+  const date = new Date(time)
+  date.setHours(0, 0, 0, 0)
+  return date.getTime()
+}
+
+const DAY_MS = 86_400_000
+
+/**
+ * Cut a group into "today", "yesterday", "last 7 days" and "earlier".
+ *
+ * A partition, not a sort: the caller's list is already newest-first, so each
+ * bucket keeps that order and the buckets themselves come out in it too. What
+ * this buys is landmarks — eighteen rows that all say "just now" are a wall,
+ * and the same eighteen under four dated headings are four short lists.
+ *
+ * Calendar days rather than rolling 24-hour windows, because "Today" has to
+ * mean today: something written at 23:50 belongs to yesterday by breakfast, not
+ * ten hours later. That makes these boundaries local to the reader, which is
+ * also why `now` is injectable — a test that cannot say when "now" is cannot
+ * say what "yesterday" means either.
+ *
+ * Empty buckets are dropped, so a library touched only this morning gets one
+ * heading rather than four, three of them saying nothing.
+ */
+export function bucketByRecency(
+  documents: readonly DocumentRecord[],
+  now: number = Date.now(),
+): RecencyBucket[] {
+  const today = startOfDay(now)
+  const buckets: RecencyBucket[] = [
+    { key: 'today', label: 'Today', documents: [] },
+    { key: 'yesterday', label: 'Yesterday', documents: [] },
+    { key: 'week', label: 'Last 7 days', documents: [] },
+    { key: 'earlier', label: 'Earlier', documents: [] },
+  ]
+
+  for (const record of documents) {
+    const index =
+      record.updatedAt >= today
+        ? 0
+        : record.updatedAt >= today - DAY_MS
+          ? 1
+          : record.updatedAt >= today - 6 * DAY_MS
+            ? 2
+            : 3
+    buckets[index]!.documents.push(record)
+  }
+
+  return buckets.filter(bucket => bucket.documents.length > 0)
+}
+
+/**
+ * A document with nothing in it and no name of its own.
+ *
+ * The three clauses are one question asked three ways, and all three are
+ * needed. `title` is re-derived from the content on every save, so the
+ * placeholder is itself the evidence that there is no first line to derive
+ * from — but an image-only document derives the placeholder too and is not
+ * blank, which is what `markdown` catches. And a document the user has
+ * deliberately named "Untitled document" carries an override, which is a name
+ * like any other.
+ *
+ * These are the rows the library cannot tell apart, because there is genuinely
+ * nothing to tell apart: identical title, identical time. Counting them is
+ * more honest than listing them.
+ */
+export function isBlankDraft(record: DocumentRecord): boolean {
+  return (
+    record.title === UNTITLED &&
+    !record.titleOverride?.trim() &&
+    record.markdown.trim() === ''
+  )
 }
 
 /**

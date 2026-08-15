@@ -34,6 +34,11 @@ const setup = (trashed = [gone]) => {
   return { ...handlers, user: userEvent.setup() }
 }
 
+/** The trash is a shut footer; everything in it is one click behind the bar. */
+const open = async (user: ReturnType<typeof userEvent.setup>) => {
+  await user.click(screen.getByRole('button', { name: /Trash \(\d+\)/ }))
+}
+
 describe('trash in the document picker', () => {
   it('is absent entirely when the trash is empty', () => {
     setup([])
@@ -41,12 +46,23 @@ describe('trash in the document picker', () => {
     expect(screen.queryByText(/^Trash/)).toBeNull()
   })
 
-  it('lists trashed documents under a heading that says when they go', () => {
+  it('is a shut bar until asked, and says what it holds and for how long', () => {
     setup()
 
-    expect(screen.getByText('Trash (1)')).toBeDefined()
+    const bar = screen.getByRole('button', { name: /Trash \(1\)/ })
+    expect(bar.getAttribute('aria-expanded')).toBe('false')
     expect(screen.getByText('cleared after 30 days')).toBeDefined()
+    // The rows are in the document but not exposed — the bar is the way in.
+    expect(screen.queryByRole('button', { name: 'Restore' })).toBeNull()
+  })
+
+  it('opens on a click', async () => {
+    const { user } = setup()
+
+    await open(user)
+
     expect(screen.getByText('Old draft')).toBeDefined()
+    expect(screen.getByRole('button', { name: 'Restore' })).toBeDefined()
   })
 
   it('restores on request and stays put, because a sidebar is a fixture', async () => {
@@ -54,6 +70,7 @@ describe('trash in the document picker', () => {
     // on the next render because `trashed` no longer holds it, not because the
     // panel got out of the way.
     const { user, onRestore } = setup()
+    await open(user)
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
@@ -63,6 +80,7 @@ describe('trash in the document picker', () => {
 
   it('takes two clicks to delete a document for good', async () => {
     const { user, onDestroy } = setup()
+    await open(user)
 
     await user.click(screen.getByLabelText('Delete Old draft for good'))
     // Nothing yet — the button has only changed what it says.

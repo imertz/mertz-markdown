@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  bucketByRecency,
   collectProjects,
   collectTags,
   filterDocuments,
   groupByProject,
+  isBlankDraft,
 } from '../lib/library'
+import { UNTITLED } from '../lib/title'
 import { makeDocument } from './dbHarness'
 
 /**
@@ -76,6 +79,84 @@ describe('groupByProject', () => {
       'Notes on X',
       'Reading list',
     ])
+  })
+})
+
+describe('bucketByRecency', () => {
+  // Mid-afternoon, so "an hour ago" and "ten hours ago" fall on the same
+  // calendar day and the day boundary is the only thing being tested.
+  const now = new Date(2026, 7, 15, 15, 0, 0).getTime()
+  const HOUR = 3_600_000
+  const DAY = 86_400_000
+
+  const at = (updatedAt: number, title: string) =>
+    makeDocument({ title, updatedAt })
+
+  it('cuts a group into dated runs, newest first', () => {
+    const buckets = bucketByRecency(
+      [
+        at(now - HOUR, 'this afternoon'),
+        at(now - 14 * HOUR, 'this morning'),
+        at(now - 20 * HOUR, 'last night'),
+        at(now - 3 * DAY, 'midweek'),
+        at(now - 30 * DAY, 'last month'),
+      ],
+      now,
+    )
+
+    expect(buckets.map(bucket => bucket.label)).toEqual([
+      'Today',
+      'Yesterday',
+      'Last 7 days',
+      'Earlier',
+    ])
+    expect(buckets[0]?.documents.map(record => record.title)).toEqual([
+      'this afternoon',
+      'this morning',
+    ])
+  })
+
+  it('measures calendar days, not the last 24 hours', () => {
+    // 23:50 the previous evening is ten hours old and still yesterday.
+    const lastNight = new Date(2026, 7, 14, 23, 50, 0).getTime()
+    const [bucket] = bucketByRecency([at(lastNight, 'late edit')], now)
+
+    expect(bucket?.key).toBe('yesterday')
+  })
+
+  it('drops the buckets nothing lands in', () => {
+    // A library touched only this morning gets one heading, not four with
+    // three of them saying nothing.
+    const buckets = bucketByRecency([at(now - HOUR, 'a'), at(now, 'b')], now)
+
+    expect(buckets).toHaveLength(1)
+    expect(buckets[0]?.key).toBe('today')
+  })
+})
+
+describe('isBlankDraft', () => {
+  it('is true for a document with no content and no name of its own', () => {
+    expect(isBlankDraft(makeDocument({ title: UNTITLED }))).toBe(true)
+  })
+
+  it('is false once there is something to tell it apart by', () => {
+    // An image-only document derives the placeholder title too — the markdown
+    // is what says it is not blank.
+    expect(
+      isBlankDraft(makeDocument({ title: UNTITLED, markdown: '![](a.png)' })),
+    ).toBe(false)
+  })
+
+  it('is false for a document deliberately named "Untitled document"', () => {
+    expect(
+      isBlankDraft(
+        makeDocument({ title: UNTITLED, titleOverride: UNTITLED }),
+      ),
+    ).toBe(false)
+  })
+
+  it('is false for anything carrying a derived title', () => {
+    expect(isBlankDraft(notes)).toBe(false)
   })
 })
 

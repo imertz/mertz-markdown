@@ -230,7 +230,7 @@ describe('creating inside a section', () => {
   it('leaves one started from the top of the menu unfiled', async () => {
     const { user, onCreate } = setup()
 
-    await user.click(screen.getByRole('button', { name: '+ New document' }))
+    await user.click(screen.getByRole('button', { name: 'New document' }))
     expect(onCreate).toHaveBeenCalledWith()
   })
 })

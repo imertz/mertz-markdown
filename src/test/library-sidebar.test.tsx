@@ -96,7 +96,7 @@ describe('as a drawer', () => {
   it('closes after starting a new document', async () => {
     const { user, onCreate, onClose } = setup(true)
 
-    await user.click(screen.getByRole('button', { name: '+ New document' }))
+    await user.click(screen.getByRole('button', { name: 'New document' }))
 
     expect(onCreate).toHaveBeenCalled()
     expect(onClose).toHaveBeenCalled()

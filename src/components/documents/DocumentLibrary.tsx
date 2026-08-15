@@ -1,11 +1,15 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
 import { foldLabel, normalizeProject } from '../../lib/labels'
+import type { RecencyBucket } from '../../lib/library'
 import {
+  bucketByRecency,
   collectProjects,
   collectTags,
   filterDocuments,
   groupByProject,
+  isBlankDraft,
 } from '../../lib/library'
+import type { TimeScale } from '../../lib/time'
 import { relative } from '../../lib/time'
 import type { DocumentRecord } from '../../types'
 import { ChevronDownIcon } from '../icons'
@@ -41,6 +45,34 @@ interface DocumentLibraryProps {
 const FILTER_THRESHOLD = 8
 
 /**
+ * Below this a group reads as one list and dating it would be ceremony. Set to
+ * the filter box's threshold on purpose: the same count is what makes a group
+ * too long to take in at a glance, whichever tool is answering it.
+ */
+const BUCKET_THRESHOLD = 8
+
+/**
+ * One blank draft is the document you just made. Two or more are clutter, and
+ * only then is a count worth more than the rows.
+ */
+const FOLD_THRESHOLD = 2
+
+/**
+ * What each dated heading leaves for the row underneath it to say.
+ *
+ * Under TODAY the heading has already said the day, so the row says the hour —
+ * nine rows reading "20m ago" are a column of noise, and the same nine reading
+ * 09:14, 11:02, 14:30 are a morning's work. Under EARLIER the heading has said
+ * almost nothing, so the row says the date and earns its width back.
+ */
+const SCALES: Record<RecencyBucket['key'], TimeScale> = {
+  today: 'clock',
+  yesterday: 'clock',
+  week: 'weekday',
+  earlier: 'date',
+}
+
+/**
  * Collapse-state key for the unfiled group.
  *
  * Real projects are keyed `project:<folded name>`, so no project — including
@@ -74,9 +106,16 @@ export function DocumentLibrary({
 }: DocumentLibraryProps) {
   // Which trashed document is one more click away from being gone for good.
   const [confirming, setConfirming] = useState<string | null>(null)
+  // Shut by default. The trash is somewhere you go on purpose, and a panel
+  // that opens holding what you threw away is answering a question nobody
+  // asked.
+  const [trashOpen, setTrashOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set())
+  // Which sections have had their blank drafts unfolded. Keyed the same way as
+  // `collapsed`, and empty by default: the fold exists to be left alone.
+  const [revealed, setRevealed] = useState<ReadonlySet<string>>(new Set())
   // Which project heading is being renamed, and the name so far.
   const [renamingProject, setRenamingProject] = useState<string | null>(null)
   const [projectDraft, setProjectDraft] = useState('')
@@ -108,6 +147,39 @@ export function DocumentLibrary({
     })
   }
 
+  const toggleDrafts = (key: string) => {
+    setRevealed(current => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  /*
+   * The row, once. Three lists render it — the dated buckets, the unbucketed
+   * fallback and the unfolded drafts — and a row that reads differently in one
+   * of them would be a different row.
+   */
+  const rows = (records: readonly DocumentRecord[], scale?: TimeScale) =>
+    records.map(record => (
+      <DocumentRow
+        key={record.id}
+        document={record}
+        active={record.id === activeId}
+        scale={scale}
+        projects={projects}
+        onSelect={id => {
+          onSelect(id)
+          onOpened?.()
+        }}
+        onRename={onRename}
+        onSetProject={onSetProject}
+        onSetTags={onSetTags}
+        onDelete={onDelete}
+      />
+    ))
+
   const commitProjectRename = (from: string) => {
     const next = normalizeProject(projectDraft)
     if (next && foldLabel(next) !== foldLabel(from)) onRenameProject(from, next)
@@ -117,176 +189,265 @@ export function DocumentLibrary({
 
   const filtering = query.trim() !== '' || selectedTags.length > 0
 
+  const filterable = documents.length >= FILTER_THRESHOLD
+
   return (
-    <div className="library__body">
-      <button
-        type="button"
-        className="doc-picker__new"
-        onClick={() => {
-          onCreate()
-          onOpened?.()
-        }}
+    <>
+      {/*
+        The two standing tools, out of the scroll. Both used to ride at the top
+        of the list, which meant that the moment the library was long enough to
+        need filtering, filtering was the first thing to scroll away.
+      */}
+      <div
+        className={
+          filterable ? 'library__tools library__tools--split' : 'library__tools'
+        }
       >
-        + New document
-      </button>
+        {filterable ? (
+          <input
+            type="text"
+            className="doc-picker__filter"
+            value={query}
+            placeholder="Filter documents…"
+            aria-label="Filter documents"
+            autoComplete="off"
+            spellCheck={false}
+            onChange={event => setQuery(event.target.value)}
+            onKeyDown={event => {
+              if (event.key !== 'Escape' || !query) return
+              // Clearing the filter, not closing the sidebar: the user who
+              // typed into this box means the box.
+              event.stopPropagation()
+              setQuery('')
+            }}
+          />
+        ) : null}
 
-      {documents.length >= FILTER_THRESHOLD ? (
-        <input
-          type="text"
-          className="doc-picker__filter"
-          value={query}
-          placeholder="Filter documents…"
-          aria-label="Filter documents"
-          autoComplete="off"
-          spellCheck={false}
-          onChange={event => setQuery(event.target.value)}
-          onKeyDown={event => {
-            if (event.key !== 'Escape' || !query) return
-            // Clearing the filter, not closing the sidebar: the user who typed
-            // into this box means the box.
-            event.stopPropagation()
-            setQuery('')
+        {/*
+          Labelled rather than read off its text, because the text is the part
+          that gives way: beside a filter box it shortens to "+ New" and the
+          name of the thing it makes should not shorten with it.
+        */}
+        <button
+          type="button"
+          className="doc-picker__new"
+          aria-label="New document"
+          onClick={() => {
+            onCreate()
+            onOpened?.()
           }}
+        >
+          {filterable ? '+ New' : '+ New document'}
+        </button>
+      </div>
+
+      <div className="library__body">
+        <TagFilterBar
+          tags={tags}
+          selected={selectedTags}
+          onToggle={toggleTag}
+          onClearSelection={() => setSelectedTags([])}
+          onRename={onRenameTag}
         />
-      ) : null}
 
-      <TagFilterBar
-        tags={tags}
-        selected={selectedTags}
-        onToggle={toggleTag}
-        onClearSelection={() => setSelectedTags([])}
-        onRename={onRenameTag}
-      />
+        {sections.length === 0 ? (
+          <p className="doc-picker__empty">No documents match this filter.</p>
+        ) : null}
 
-      {sections.length === 0 ? (
-        <p className="doc-picker__empty">No documents match this filter.</p>
-      ) : null}
+        {sections.map(section => {
+          const key = section.project
+            ? `project:${foldLabel(section.project)}`
+            : UNFILED_KEY
+          // A filtered list is a search result: hiding part of it behind a
+          // collapsed heading would hide the very thing being looked for. Same
+          // reasoning stands the fold and the buckets down below — a result set
+          // is ranked by match, so dating it would be describing the wrong order.
+          const isCollapsed = !filtering && collapsed.has(key)
 
-      {sections.map(section => {
-        const key = section.project
-          ? `project:${foldLabel(section.project)}`
-          : UNFILED_KEY
-        // A filtered list is a search result: hiding part of it behind a
-        // collapsed heading would hide the very thing being looked for.
-        const isCollapsed = !filtering && collapsed.has(key)
+          /*
+           * The open document is never folded away, blank or not. It is the one
+           * row whose state the user can see the effect of, and a library that
+           * hides the document you are looking at is answering the wrong question.
+           */
+          const blank = filtering
+            ? []
+            : section.documents.filter(
+                record => record.id !== activeId && isBlankDraft(record),
+              )
+          const folded = blank.length >= FOLD_THRESHOLD ? blank : []
+          const listed = folded.length
+            ? section.documents.filter(record => !folded.includes(record))
+            : section.documents
 
-        return (
-          <section className="doc-picker__section" key={key}>
-            <h3 className="doc-picker__section-heading">
-              {renamingProject === section.project && section.project ? (
-                <form
-                  className="doc-picker__section-form"
-                  onSubmit={event => {
-                    event.preventDefault()
-                    commitProjectRename(section.project as string)
-                  }}
-                >
-                  <input
-                    autoFocus
-                    className="doc-picker__section-input"
-                    aria-label={`Rename project ${section.project}`}
-                    value={projectDraft}
-                    onChange={event => setProjectDraft(event.target.value)}
-                    onKeyDown={event => {
-                      if (event.key !== 'Escape') return
-                      event.stopPropagation()
-                      setRenamingProject(null)
-                      setProjectDraft('')
+          // A partition of one is not a partition: a group where everything was
+          // touched today gets its rows, not a heading saying so.
+          const dated =
+            !filtering && listed.length > BUCKET_THRESHOLD
+              ? bucketByRecency(listed)
+              : []
+          const buckets = dated.length > 1 ? dated : null
+
+          return (
+            <section className="doc-picker__section" key={key}>
+              <h3 className="doc-picker__section-heading">
+                {renamingProject === section.project && section.project ? (
+                  <form
+                    className="doc-picker__section-form"
+                    onSubmit={event => {
+                      event.preventDefault()
+                      commitProjectRename(section.project as string)
                     }}
-                    onBlur={() => commitProjectRename(section.project as string)}
-                  />
-                </form>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    className="doc-picker__section-toggle"
-                    aria-expanded={!isCollapsed}
-                    disabled={filtering}
-                    onClick={() => toggleSection(key)}
                   >
-                    {/* One drawn shape rotated, rather than two typed
-                        triangles that resolve through different fallback
-                        fonts and never sit on the same baseline. */}
-                    <ChevronDownIcon className="doc-picker__section-mark" />
-                    <span className="doc-picker__section-name">
-                      {section.project ?? 'No project'}
-                    </span>
-                    <span className="doc-picker__section-count">
-                      {section.documents.length}
-                    </span>
-                  </button>
+                    <input
+                      autoFocus
+                      className="doc-picker__section-input"
+                      aria-label={`Rename project ${section.project}`}
+                      value={projectDraft}
+                      onChange={event => setProjectDraft(event.target.value)}
+                      onKeyDown={event => {
+                        if (event.key !== 'Escape') return
+                        event.stopPropagation()
+                        setRenamingProject(null)
+                        setProjectDraft('')
+                      }}
+                      onBlur={() => commitProjectRename(section.project as string)}
+                    />
+                  </form>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      className="doc-picker__section-toggle"
+                      aria-expanded={!isCollapsed}
+                      disabled={filtering}
+                      onClick={() => toggleSection(key)}
+                    >
+                      {/* One drawn shape rotated, rather than two typed
+                          triangles that resolve through different fallback
+                          fonts and never sit on the same baseline. */}
+                      <ChevronDownIcon className="doc-picker__section-mark" />
+                      <span className="doc-picker__section-name">
+                        {section.project ?? 'No project'}
+                      </span>
+                      <span className="doc-picker__section-count">
+                        {section.documents.length}
+                      </span>
+                    </button>
 
-                  {section.project ? (
+                    {section.project ? (
+                      <button
+                        type="button"
+                        className="doc-picker__section-action"
+                        aria-label={`Rename project ${section.project}`}
+                        title="Rename project"
+                        onClick={() => {
+                          setProjectDraft(section.project as string)
+                          setRenamingProject(section.project)
+                        }}
+                      >
+                        Rename
+                      </button>
+                    ) : null}
+
+                    {/* Creating from inside a section is the only way a document
+                        arrives already filed, and the only reason `create` takes
+                        a project at all. */}
                     <button
                       type="button"
                       className="doc-picker__section-action"
-                      aria-label={`Rename project ${section.project}`}
-                      title="Rename project"
+                      aria-label={
+                        section.project
+                          ? `New document in ${section.project}`
+                          : 'New document with no project'
+                      }
+                      title="New document here"
                       onClick={() => {
-                        setProjectDraft(section.project as string)
-                        setRenamingProject(section.project)
+                        onCreate(section.project)
+                        onOpened?.()
                       }}
                     >
-                      Rename
+                      + New
                     </button>
-                  ) : null}
+                  </>
+                )}
+              </h3>
 
-                  {/* Creating from inside a section is the only way a document
-                      arrives already filed, and the only reason `create` takes
-                      a project at all. */}
-                  <button
-                    type="button"
-                    className="doc-picker__section-action"
-                    aria-label={
-                      section.project
-                        ? `New document in ${section.project}`
-                        : 'New document with no project'
-                    }
-                    title="New document here"
-                    onClick={() => {
-                      onCreate(section.project)
-                      onOpened?.()
-                    }}
-                  >
-                    + New
-                  </button>
+              {isCollapsed ? null : (
+                <>
+                  {buckets ? (
+                    buckets.map(bucket => (
+                      <Fragment key={bucket.key}>
+                        <h4 className="doc-picker__bucket">{bucket.label}</h4>
+                        <ul className="doc-picker__list">
+                          {rows(bucket.documents, SCALES[bucket.key])}
+                        </ul>
+                      </Fragment>
+                    ))
+                  ) : listed.length ? (
+                    <ul className="doc-picker__list">{rows(listed)}</ul>
+                  ) : (
+                    // A section that is nothing but blank drafts folds away
+                    // whole; an empty list here would leave its rule behind.
+                    null
+                  )}
+
+                  {/*
+                    Not hidden — counted. These rows are identical to each other
+                    by construction, so the count says everything the list would
+                    have, in one line instead of six, and one click still opens
+                    it if what you left in one of them was a title you never
+                    typed.
+                  */}
+                  {folded.length ? (
+                    <>
+                      <button
+                        type="button"
+                        className="doc-picker__drafts"
+                        aria-expanded={revealed.has(key)}
+                        onClick={() => toggleDrafts(key)}
+                      >
+                        <ChevronDownIcon className="doc-picker__section-mark" />
+                        {folded.length} empty drafts
+                      </button>
+
+                      {revealed.has(key) ? (
+                        <ul className="doc-picker__list">{rows(folded)}</ul>
+                      ) : null}
+                    </>
+                  ) : null}
                 </>
               )}
-            </h3>
+            </section>
+          )
+        })}
 
-            {isCollapsed ? null : (
-              <ul className="doc-picker__list">
-                {section.documents.map(record => (
-                  <DocumentRow
-                    key={record.id}
-                    document={record}
-                    active={record.id === activeId}
-                    projects={projects}
-                    onSelect={id => {
-                      onSelect(id)
-                      onOpened?.()
-                    }}
-                    onRename={onRename}
-                    onSetProject={onSetProject}
-                    onSetTags={onSetTags}
-                    onDelete={onDelete}
-                  />
-                ))}
-              </ul>
-            )}
-          </section>
-        )
-      })}
+      </div>
 
+      {/*
+        The trash, pinned rather than listed.
+        It used to be the last section of the same scroll, which put the one
+        thing nobody is looking for at the end of everything they are — and on
+        a full panel it was cut in half by the bottom edge. As a footer it is a
+        line until asked, opens downward into the space it is already sitting
+        in, and never moves.
+      */}
       {trashed.length ? (
-        <section className="doc-picker__trash">
-          <h3 className="doc-picker__trash-heading">
+        <section className="library__trash">
+          <button
+            type="button"
+            className="library__trash-bar"
+            aria-expanded={trashOpen}
+            onClick={() => setTrashOpen(current => !current)}
+          >
+            <ChevronDownIcon className="doc-picker__section-mark" />
             <span>Trash ({trashed.length})</span>
             <span className="doc-picker__trash-note">cleared after 30 days</span>
-          </h3>
+          </button>
 
-          <ul className="doc-picker__list">
+          <ul
+            className="doc-picker__list library__trash-list"
+            hidden={!trashOpen}
+          >
             {trashed.map(document_ => (
               <li key={document_.id} className="doc-picker__item">
                 <span className="doc-picker__trashed">
@@ -340,6 +501,6 @@ export function DocumentLibrary({
           </ul>
         </section>
       ) : null}
-    </div>
+    </>
   )
 }

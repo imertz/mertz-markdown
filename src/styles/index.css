@@ -1617,8 +1617,21 @@ body {
 }
 
 /* --- Document picker --- */
-/* The list and everything under it. The header above it does not scroll with
-   the list, which is why the two are separate. */
+/*
+ * The panel is three bands: the tools, the list, and the trash. Only the
+ * middle one scrolls, which is the whole reason they are separate elements —
+ * the two things you reach for while reading a long library are the filter and
+ * the new-document button, and both used to be the first casualties of
+ * scrolling it.
+ */
+.library__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--s1);
+  padding-bottom: var(--s1);
+  border-bottom: 1px solid var(--border);
+}
+
 .library__body {
   flex: 1;
   min-height: 0;
@@ -1631,6 +1644,13 @@ body {
   font-size: 13px;
   color: var(--accent);
   padding: 7px 8px;
+}
+
+/* Beside a filter box the button gives up the row and takes what it needs. */
+.library__tools--split .doc-picker__new {
+  width: auto;
+  flex: 0 0 auto;
+  padding-inline: var(--s1);
 }
 
 .doc-picker__list {
@@ -1868,10 +1888,11 @@ body {
  */
 
 .doc-picker__filter {
-  width: 100%;
+  /* Takes the row and leaves the button what it needs. */
+  flex: 1;
+  min-width: 0;
   font-size: 13px;
   padding: var(--s1) var(--s2);
-  margin-top: var(--s1);
   color: var(--text-h);
   background: var(--bg);
   border: 1px solid var(--border);
@@ -2040,6 +2061,21 @@ body {
 
 /* Engraving on the housing, exactly as the trash heading below is. */
 .doc-picker__section-heading {
+  /*
+   * Pinned to the top of the list while its own rows scroll past, and pushed
+   * out by the next project rather than stacking with it — sticky is bounded
+   * by .doc-picker__section, which is exactly the run of rows this names. The
+   * background is what makes it opaque enough to be a header at all, and it is
+   * a token because the drawer sits on --bg-raised while the docked column
+   * sits on --bg.
+   *
+   * This became possible when the library got a fixed height: before that the
+   * whole panel scrolled with nothing to stick to.
+   */
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  background: var(--panel-bg);
   display: flex;
   align-items: center;
   gap: var(--s1);
@@ -2160,6 +2196,59 @@ body {
   padding-inline-start: calc(var(--s2) + var(--mark));
 }
 
+/* --- Dated buckets inside a long section --- */
+/*
+ * A second, quieter engraving: same letterforms as the project heading above
+ * it, dimmed and set on the section's indent rule, so the two never compete
+ * over which one names the rows underneath. It carries the hairline that the
+ * list itself carries when there are no buckets — one rule per run of rows,
+ * whichever element happens to be drawing it.
+ *
+ * Not sticky. One header pinned at a time is a landmark; two stacked is a
+ * lid, and the project is the one worth keeping on screen.
+ */
+.doc-picker__bucket {
+  margin: var(--s1) 0 0;
+  padding: 4px var(--s1) 2px calc(var(--s2) + var(--mark));
+  border-top: 1px solid var(--border);
+  font-family: var(--heading);
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-track);
+  text-transform: uppercase;
+  color: var(--text);
+  opacity: 0.6;
+}
+
+.doc-picker__bucket + .doc-picker__list {
+  margin-top: 0;
+  border-top: 0;
+}
+
+/*
+ * The blank-draft fold. Set as a row rather than as a heading: it is a control
+ * that stands in for the rows it replaces, and it sits on their indent so the
+ * count lands where their titles would have.
+ */
+.doc-picker__drafts {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  text-align: start;
+  /* Set off the run above it, or the count reads as one more row in it. */
+  margin-top: var(--s1);
+  padding: 6px var(--s1) 6px var(--s2);
+  font-size: 12px;
+  color: var(--text);
+  opacity: 0.7;
+
+  &:hover {
+    opacity: 1;
+    color: var(--text-h);
+    background: transparent;
+  }
+}
+
 .doc-picker__empty {
   margin: var(--s2) 0;
   padding: 0 var(--s2);
@@ -2172,25 +2261,29 @@ body {
  * No housing: a tag you cannot press is a label, and a label is set, not
  * boxed. Four outlined plates under every row was furniture standing in for
  * structure — the indent already says which document they belong to.
+ *
+ * Set in the tag's own case rather than engraved like a heading. Engraving is
+ * what this panel uses to name a band of itself — LIBRARY, HELP, TODAY — and
+ * once dated headings arrived, an uppercase "GUIDE" hanging under a row was
+ * indistinguishable from one of them. The hash is what a tag is called
+ * everywhere else, and it does the separating the interpunct used to.
  */
 .doc-picker__tags {
   list-style: none;
   display: flex;
   flex-wrap: wrap;
+  gap: 0 var(--s2);
   margin: 0;
   padding: 0 var(--s2) var(--s1) calc(var(--s2) + var(--mark));
   border: 0;
   font-size: var(--label-size);
-  font-weight: var(--label-weight);
-  letter-spacing: var(--label-track);
-  text-transform: uppercase;
   color: var(--text);
   opacity: 0.8;
 }
 
-.doc-picker__tag + .doc-picker__tag::before {
-  content: '·';
-  padding: 0 var(--s1);
+.doc-picker__tag::before {
+  content: '#';
+  padding-inline-end: 1px;
   opacity: 0.5;
 }
 
@@ -2356,19 +2449,35 @@ body {
  * its own: it is a holding area, and it earns its space only while something
  * is in it — the whole section is absent when the trash is empty.
  */
-.doc-picker__trash {
-  margin-top: 8px;
+/*
+ * The trash, as the panel's bottom edge. A footer band rather than the tail of
+ * the list: it holds nothing anyone is looking for, and on a full panel being
+ * last in the scroll meant being cut in half by the frame.
+ */
+.library__trash {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  margin-top: var(--s1);
   border-top: 1px solid var(--border);
-  padding-top: 6px;
+  padding-top: var(--s1);
 }
 
-.doc-picker__trash-heading {
+/* The bar itself is the heading — one line, engraved like every other label
+   that names a band of this panel, and pressable because it is also the way
+   in. */
+.library__trash-bar {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 0;
-  padding: 2px 8px;
+  /* Centred, not baseline: a 10px glyph sitting *on* the baseline hangs below
+     the middle of the label beside it, which is what every other chevron in
+     this panel avoids by centring. */
+  align-items: center;
+  gap: var(--s2);
+  width: 100%;
+  text-align: start;
+  /* Its mark lands in the same column as every section chevron above it. */
+  padding: 4px var(--s1) 4px var(--s2);
   font-family: var(--heading);
   font-size: var(--label-size);
   font-weight: var(--label-weight);
@@ -2376,6 +2485,26 @@ body {
   text-transform: uppercase;
   color: var(--text);
   opacity: 0.7;
+
+  &:hover {
+    opacity: 1;
+    background: transparent;
+  }
+
+  /* The note is the last thing on the line and the first thing to give way. */
+  & > .doc-picker__trash-note {
+    margin-inline-start: auto;
+  }
+}
+
+/*
+ * Opened, it takes what it needs and no more: a long trash scrolls inside the
+ * footer rather than squeezing the library it is pinned under.
+ */
+.library__trash-list {
+  min-height: 0;
+  max-height: 30svh;
+  overflow-y: auto;
 }
 
 .doc-picker__trash-note {
@@ -2457,6 +2586,10 @@ body {
 /* --- The library --- */
 
 .library {
+  /* What anything sticky inside the panel has to paint over itself to stay
+     opaque. A token because the drawer changes it — see below. */
+  --panel-bg: var(--bg);
+
   position: sticky;
   top: 0;
   align-self: start;
@@ -2547,7 +2680,8 @@ body {
   align-self: stretch;
   height: auto;
   padding-inline-start: calc(var(--s2) + var(--safe-l));
-  background: var(--bg-raised);
+  --panel-bg: var(--bg-raised);
+  background: var(--panel-bg);
   box-shadow: var(--shadow);
 }
 

@@ -15,6 +15,47 @@ export function relative(timestamp: number): string {
   return `${Math.round(hours / 24)}d ago`
 }
 
+/**
+ * How precisely to say when, given that something else has already said
+ * roughly when.
+ *
+ * `relative` above answers "how long ago" for a row standing on its own. These
+ * are for rows standing under a dated heading, where "how long ago" is what the
+ * heading already said: nine rows reading "20m ago" under TODAY are a column of
+ * noise, and the same nine reading 09:14, 11:02, 14:30 are a morning's work.
+ */
+export type TimeScale = 'clock' | 'weekday' | 'date'
+
+/**
+ * The reader's own formats, not ours: a 24-hour clock, whether the day or the
+ * month comes first, and the names of the months are all things the browser
+ * knows about them and we do not.
+ */
+export function scaled(
+  timestamp: number,
+  scale: TimeScale,
+  now: number = Date.now(),
+): string {
+  const date = new Date(timestamp)
+
+  if (scale === 'clock') {
+    return date.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  }
+
+  if (scale === 'weekday') {
+    return date.toLocaleDateString(undefined, { weekday: 'short' })
+  }
+
+  // The year is only worth its width when it is not the current one — which is
+  // also the only time its absence would be ambiguous.
+  return date.getFullYear() === new Date(now).getFullYear()
+    ? date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+    : date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+}
+
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const
 
 /**
