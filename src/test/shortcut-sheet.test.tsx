@@ -25,6 +25,7 @@ function realCommands() {
     } as never,
     threads: { resolveAll: noop } as never,
     rail: { hidden: false, toggle: noop, show: noop },
+    library: { hidden: false, toggle: noop, hide: noop },
     theme: { theme: 'light', toggle: noop },
     focus: { on: false, toggle: noop },
     ui: new Proxy({}, { get: () => noop }) as never,

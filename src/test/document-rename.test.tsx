@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DocumentList } from '../components/documents/DocumentList'
+import { DocumentLibrary } from '../components/documents/DocumentLibrary'
 import { makeDocument } from './dbHarness'
 
 /**
@@ -30,11 +30,10 @@ const setup = (
   }
 
   render(
-    <DocumentList
+    <DocumentLibrary
       documents={[document_]}
       trashed={trashed}
       activeId={document_.id}
-      activeTitle={document_.title}
       {...handlers}
     />,
   )
@@ -42,15 +41,10 @@ const setup = (
   return { ...handlers, document_, user: userEvent.setup() }
 }
 
-const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(screen.getByRole('button', { expanded: false }))
-}
-
 const startRename = async (
   user: ReturnType<typeof userEvent.setup>,
   title = 'Working notes',
 ) => {
-  await openMenu(user)
   await user.click(screen.getByRole('button', { name: `Rename ${title}` }))
   return screen.getByRole('textbox', { name: `Name for ${title}` })
 }
@@ -114,13 +108,12 @@ describe('renaming from the document picker', () => {
     expect(onRename).toHaveBeenCalledWith(document_.id, '')
   })
 
-  it('leaves trashed documents unrenameable', async () => {
+  it('leaves trashed documents unrenameable', () => {
     // Naming something on its way out is busywork; the trash row offers
     // Restore and Delete and nothing else.
-    const { user } = setup(makeDocument({ title: 'Working notes' }), [
+    setup(makeDocument({ title: 'Working notes' }), [
       makeDocument({ title: 'Old draft', deletedAt: Date.now() }),
     ])
-    await openMenu(user)
 
     expect(screen.getByText('Old draft')).toBeDefined()
     expect(screen.getAllByRole('button', { name: /^Rename / })).toHaveLength(1)

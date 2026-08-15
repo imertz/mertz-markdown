@@ -1,5 +1,6 @@
 import type { Editor } from '@tiptap/core'
 import type { DocumentsApi } from '../hooks/useDocuments'
+import type { LibraryVisibility } from '../hooks/useLibraryHidden'
 import type { RailVisibility } from '../hooks/useRailHidden'
 import type { Theme } from '../hooks/useTheme'
 import type { ThreadsApi } from '../hooks/useThreads'
@@ -35,6 +36,7 @@ export interface CommandDeps {
   documents: DocumentsApi
   threads: ThreadsApi
   rail: RailVisibility
+  library: LibraryVisibility
   theme: { theme: Theme; toggle: () => void }
   focus: { on: boolean; toggle: () => void }
   ui: {
@@ -84,7 +86,7 @@ const hasEditor = (context: CommandContext) =>
  * happened to assemble.
  */
 export function buildCommands(deps: CommandDeps): Command[] {
-  const { documents, focus, rail, theme, threads, ui } = deps
+  const { documents, focus, library, rail, theme, threads, ui } = deps
   const editorCommand = (action: (editor: Editor) => void) =>
     withEditor(deps, action)
 
@@ -98,6 +100,7 @@ export function buildCommands(deps: CommandDeps): Command[] {
     define('app.exportDocxComments', ui.exportDocxAnnotated, hasEditor),
     define('app.exportHtml', ui.exportAnnotated, hasEditor),
     define('app.toggleRail', rail.toggle),
+    define('app.toggleLibrary', library.toggle),
     define('app.toggleTheme', theme.toggle),
     define('app.toggleFocus', focus.toggle),
 

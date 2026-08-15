@@ -2,7 +2,7 @@ import { act, cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { UndoToast } from '../components/UndoToast'
-import { DocumentList } from '../components/documents/DocumentList'
+import { DocumentLibrary } from '../components/documents/DocumentLibrary'
 import { makeDocument } from './dbHarness'
 
 afterEach(cleanup)
@@ -24,51 +24,45 @@ const setup = (trashed = [gone]) => {
     onRenameTag: vi.fn(),
   }
   render(
-    <DocumentList
+    <DocumentLibrary
       documents={[live]}
       trashed={trashed}
       activeId={live.id}
-      activeTitle={live.title}
       {...handlers}
     />,
   )
   return { ...handlers, user: userEvent.setup() }
 }
 
-const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(screen.getByRole('button', { expanded: false }))
-}
-
 describe('trash in the document picker', () => {
-  it('is absent entirely when the trash is empty', async () => {
-    const { user } = setup([])
-    await openMenu(user)
+  it('is absent entirely when the trash is empty', () => {
+    setup([])
 
     expect(screen.queryByText(/^Trash/)).toBeNull()
   })
 
-  it('lists trashed documents under a heading that says when they go', async () => {
-    const { user } = setup()
-    await openMenu(user)
+  it('lists trashed documents under a heading that says when they go', () => {
+    setup()
 
     expect(screen.getByText('Trash (1)')).toBeDefined()
     expect(screen.getByText('cleared after 30 days')).toBeDefined()
     expect(screen.getByText('Old draft')).toBeDefined()
   })
 
-  it('restores on request and closes the menu, since the document opens', async () => {
+  it('restores on request and stays put, because a sidebar is a fixture', async () => {
+    // It used to assert the menu closed. The sidebar does not: the row leaves
+    // on the next render because `trashed` no longer holds it, not because the
+    // panel got out of the way.
     const { user, onRestore } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Restore' }))
 
     expect(onRestore).toHaveBeenCalledWith(gone.id)
-    expect(screen.queryByText('Old draft')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Restore' })).toBeDefined()
   })
 
   it('takes two clicks to delete a document for good', async () => {
     const { user, onDestroy } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByLabelText('Delete Old draft for good'))
     // Nothing yet — the button has only changed what it says.
@@ -82,7 +76,6 @@ describe('trash in the document picker', () => {
 
   it('sends a live document to the trash rather than deleting it', async () => {
     const { user, onDelete } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByLabelText('Move Working notes to trash'))
     expect(onDelete).toHaveBeenCalledWith(live.id)

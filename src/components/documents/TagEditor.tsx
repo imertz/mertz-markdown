@@ -97,9 +97,8 @@ export function TagEditor({ title, tags, onCommit, onClose }: TagEditorProps) {
         }}
         onKeyDown={event => {
           if (event.key === 'Escape') {
-            // The menu's own Escape handler sits on the document and would
-            // close the whole picker; leaving the field is the smaller thing
-            // the user meant.
+            // The drawer listens for Escape on the document and would close
+            // itself over this; leaving the field is the smaller thing meant.
             event.stopPropagation()
             abandoned.current = true
             onClose()

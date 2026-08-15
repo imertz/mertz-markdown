@@ -93,8 +93,8 @@ export function ProjectPicker({
             onChange={event => setDraft(event.target.value)}
             onKeyDown={event => {
               if (event.key !== 'Escape') return
-              // As in the rename field: the picker's Escape handler would close
-              // the whole menu, and backing out of this field is smaller.
+              // As in the rename field: the drawer's Escape would close the
+              // whole sidebar, and backing out of this field is smaller.
               event.stopPropagation()
               abandoned.current = true
               onClose()

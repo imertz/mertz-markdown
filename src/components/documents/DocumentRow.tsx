@@ -23,7 +23,7 @@ interface DocumentRowProps {
 type Editing = 'rename' | 'tags' | 'project' | null
 
 /**
- * One document in the picker: what it is called, when it was last touched, the
+ * One document in the library: what it is called, when it was last touched, the
  * tags it carries, and the four things you can do to it.
  *
  * Extracted from `DocumentList` when filing arrived. The row now hosts three
@@ -80,9 +80,10 @@ export function DocumentRow({
             onChange={event => setDraft(event.target.value)}
             onKeyDown={event => {
               if (event.key !== 'Escape') return
-              // The menu's own Escape handler sits on the document and would
-              // close the whole picker; cancelling the rename is the smaller
-              // thing the user meant.
+              // As a drawer the sidebar listens for Escape on the document,
+              // and would close itself over this; cancelling the rename is the
+              // smaller thing the user meant. Harmless when docked, where
+              // nothing is listening.
               event.stopPropagation()
               abandoned.current = true
               stopEditing()
@@ -110,59 +111,68 @@ export function DocumentRow({
         </button>
 
         {/*
-          Seeded with the override rather than the shown title, so opening the
-          field on a document that never had a name of its own offers an empty
-          box instead of the derived text — submitting that text unchanged
-          would silently pin it.
+          Grouped so they can be lifted out of the row's flow on a pointer
+          device: in a 340px column the four of them holding width even while
+          invisible was coming straight out of the title. See the stylesheet.
         */}
-        <button
-          type="button"
-          className="doc-picker__rename"
-          aria-label={`Rename ${record.title}`}
-          title="Rename"
-          onClick={() => {
-            abandoned.current = false
-            setDraft(record.titleOverride ?? '')
-            setEditing('rename')
-          }}
-        >
-          <PencilIcon />
-        </button>
-        <button
-          type="button"
-          className="doc-picker__file"
-          aria-label={`Project for ${record.title}`}
-          title={record.project ? `Project: ${record.project}` : 'File in a project'}
-          aria-expanded={editing === 'project'}
-          onClick={() => {
-            abandoned.current = false
-            setEditing(current => (current === 'project' ? null : 'project'))
-          }}
-        >
-          <FolderIcon />
-        </button>
-        <button
-          type="button"
-          className="doc-picker__tag-edit"
-          aria-label={`Tags for ${record.title}`}
-          title="Tags"
-          aria-expanded={editing === 'tags'}
-          onClick={() => {
-            abandoned.current = false
-            setEditing(current => (current === 'tags' ? null : 'tags'))
-          }}
-        >
-          <TagIcon />
-        </button>
-        <button
-          type="button"
-          className="doc-picker__delete"
-          aria-label={`Move ${record.title} to trash`}
-          title="Move to trash"
-          onClick={() => onDelete(record.id)}
-        >
-          <TrashIcon />
-        </button>
+        <div className="doc-picker__actions">
+          {/*
+            Rename is seeded with the override rather than the shown title, so
+            opening the field on a document that never had a name of its own
+            offers an empty box instead of the derived text — submitting that
+            text unchanged would silently pin it.
+          */}
+          <button
+            type="button"
+            className="doc-picker__rename"
+            aria-label={`Rename ${record.title}`}
+            title="Rename"
+            onClick={() => {
+              abandoned.current = false
+              setDraft(record.titleOverride ?? '')
+              setEditing('rename')
+            }}
+          >
+            <PencilIcon />
+          </button>
+          <button
+            type="button"
+            className="doc-picker__file"
+            aria-label={`Project for ${record.title}`}
+            title={
+              record.project ? `Project: ${record.project}` : 'File in a project'
+            }
+            aria-expanded={editing === 'project'}
+            onClick={() => {
+              abandoned.current = false
+              setEditing(current => (current === 'project' ? null : 'project'))
+            }}
+          >
+            <FolderIcon />
+          </button>
+          <button
+            type="button"
+            className="doc-picker__tag-edit"
+            aria-label={`Tags for ${record.title}`}
+            title="Tags"
+            aria-expanded={editing === 'tags'}
+            onClick={() => {
+              abandoned.current = false
+              setEditing(current => (current === 'tags' ? null : 'tags'))
+            }}
+          >
+            <TagIcon />
+          </button>
+          <button
+            type="button"
+            className="doc-picker__delete"
+            aria-label={`Move ${record.title} to trash`}
+            title="Move to trash"
+            onClick={() => onDelete(record.id)}
+          >
+            <TrashIcon />
+          </button>
+        </div>
       </div>
 
       {/*

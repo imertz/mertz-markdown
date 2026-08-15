@@ -72,8 +72,8 @@ export function TagFilterBar({
                 onChange={event => setDraft(event.target.value)}
                 onKeyDown={event => {
                   if (event.key !== 'Escape') return
-                  // The picker's Escape closes the whole menu; leaving this
-                  // field is the smaller thing meant.
+                  // The drawer's Escape would close the whole sidebar;
+                  // leaving this field is the smaller thing meant.
                   event.stopPropagation()
                   setEditing(null)
                   setDraft('')

@@ -127,7 +127,14 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   chord — and the table commands are only listed with the caret in a table,
   which is the sole pointer-free route to them, since the table extension owns
   Tab.
-- **Projects and tags** organise the picker: a document lives in one project
+- **The library** (`⌘⇧\`) is a docked column on the left, the mirror of the
+  comment rail on the right and collapsible on the same terms — unmounted, not
+  hidden, with the choice remembered across reloads. It starts collapsed: the
+  comments belong to the document you are reading, whereas the library is how
+  you got to it. Below 900px a third column would leave the text a few
+  characters wide, so it becomes a slide-over drawer that closes once you have
+  opened something.
+- **Projects and tags** organise the library: a document lives in one project
   (or none) and carries any number of tags. Neither has a store of its own —
   the project is a name on the document and the catalogue is derived from
   whatever names the documents are carrying, which is what lets both ride

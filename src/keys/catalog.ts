@@ -156,6 +156,13 @@ export const CATALOG = {
     category: 'app',
     keys: 'mod+\\',
   },
+  /* The other panel, on the other side, one modifier along. The pair is the
+     only reason this chord is worth remembering. */
+  'app.toggleLibrary': {
+    label: 'Show or hide the library',
+    category: 'app',
+    keys: 'mod+shift+\\',
+  },
   'app.toggleTheme': {
     label: 'Switch light and dark theme',
     category: 'app',

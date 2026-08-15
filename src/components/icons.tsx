@@ -198,6 +198,17 @@ export function PanelRightIcon(props: IconProps) {
   )
 }
 
+/** The library, as the same panel docked to the left. Mirrored deliberately:
+ *  the pair reads as one control for each side of the workspace. */
+export function PanelLeftIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <path d="M9 3v18" />
+    </svg>
+  )
+}
+
 export function SunIcon(props: IconProps) {
   return (
     <svg {...base} {...props}>

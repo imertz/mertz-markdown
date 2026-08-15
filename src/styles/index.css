@@ -120,6 +120,10 @@
   --mono: ui-monospace, Consolas, monospace;
 
   --sidebar-w: 340px;
+  /* The library column. The same width as the comment rail on the other side,
+     so the workspace is symmetric and a title indented under its project still
+     has room to be read. */
+  --library-w: 340px;
   --measure: 72ch;
 
   /* The only layout height that needs to be a token: the mobile comment sheet
@@ -141,6 +145,16 @@
 
   /* What everything pinned above the status bar has to clear. */
   --statusbar-total: calc(var(--statusbar-h) + var(--safe-b));
+
+  /*
+   * What a fixed panel below the header has to clear — the library drawer is
+   * the only one so far, and before it nothing offset the header at all.
+   *
+   * Derived rather than measured, and it has to agree with .app-header: 52px is
+   * that rule's min-height, and the second term is what the row actually
+   * becomes once a notch pushes its top padding past the 10px it otherwise has.
+   */
+  --header-h: max(52px, calc(var(--safe-t) + 42px));
 
   /* Inter is drawn on a wider fitting than system-ui and does not want the
      extra tracking system-ui needed here. Set flush. */
@@ -338,13 +352,40 @@ body {
   overflow: hidden;
 }
 
+/*
+ * Which document, and filed where. A label rather than a control since the
+ * library became a panel of its own — there is nothing left for it to open.
+ */
 .app-header__title {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  max-width: 320px;
+  margin: 0;
   font-family: var(--heading);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--text-h);
-  margin: 0;
   letter-spacing: -0.1px;
+}
+
+/*
+ * Never shrinks: the document title is what gives way when the two cannot both
+ * fit. A truncated project reads as a different project — "Resear…" is not a
+ * name — whereas a shortened title is still recognisably the open document,
+ * with its full name one row into the library.
+ */
+.app-header__title-project {
+  flex: 0 0 auto;
+  white-space: nowrap;
+  font-weight: 400;
+  color: var(--text);
+}
+
+.app-header__title-name {
+  flex: 1;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -417,21 +458,6 @@ body {
 
   .save-indicator {
     font-size: 11px;
-  }
-
-  .doc-picker__trigger {
-    max-width: 42vw;
-  }
-
-  /* At 42vw there is only room for one of the two, and the document's own name
-     is the one you are looking at. The project is a tap away inside the menu,
-     where it is a heading rather than a prefix. */
-  .doc-picker__trigger-project {
-    display: none;
-  }
-
-  .doc-picker__menu {
-    width: min(344px, calc(100vw - 24px));
   }
 
   /* The status bar's own narrow-screen rules are NOT here. Every one of its
@@ -1591,47 +1617,10 @@ body {
 }
 
 /* --- Document picker --- */
-.doc-picker {
-  position: relative;
-  flex: 0 0 auto;
-}
-
-.doc-picker__trigger {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text-h);
-  /* Carries two things now — the project and the document — so it is allowed
-     more room than when it carried one. */
-  max-width: 320px;
-}
-
-.doc-picker__title {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.doc-picker__menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 40;
-  /* Wide enough to pay for the indent the project sections introduced: titles
-     hang off their section's rule, and at 320 that came straight out of the
-     space the title had to be read in. */
-  width: 344px;
-  max-height: 60svh;
-  overflow-y: auto;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 4px;
+/* The list and everything under it. The header above it does not scroll with
+   the list, which is why the two are separate. */
+.library__body {
+  min-height: 0;
 }
 
 .doc-picker__new {
@@ -1740,9 +1729,41 @@ body {
 }
 
 .doc-picker__row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 2px;
+}
+
+/*
+ * On a pointer device the actions leave the row's flow and sit over its right
+ * end, so the title gets the whole width until you reach for them. In a 340px
+ * column four buttons reserving space they were not using cost more than the
+ * time and the title together — and letting the row reflow as the pointer
+ * arrived would have been worse than either.
+ *
+ * They stay in flow on touch, which has no hover to bring them back with.
+ */
+.doc-picker__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+
+  @media (hover: hover) {
+    position: absolute;
+    inset-inline-end: 0;
+    opacity: 0;
+    pointer-events: none;
+    border-radius: var(--radius-sm);
+    /* The row's own lit surface, so the title does not show through them. */
+    background: var(--bg-inset);
+
+    .doc-picker__item--stacked:hover &,
+    &:focus-within {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
 }
 
 /*
@@ -1779,21 +1800,10 @@ body {
     background: transparent;
   }
 
-  @media (hover: hover) {
-    opacity: 0;
-
-    .doc-picker__item--stacked:hover &,
-    &:focus-visible,
-    /* An open editor keeps its own button on screen, or the panel below it
-       would have no visible source once the pointer moved away. */
-    &[aria-expanded='true'] {
-      opacity: 0.6;
-    }
-
-    .doc-picker__item--stacked:hover &:hover,
-    &[aria-expanded='true'] {
-      opacity: 1;
-    }
+  /* An open editor keeps its own button lit, or the panel below it would have
+     no visible source. The group's own reveal is handled above. */
+  &[aria-expanded='true'] {
+    opacity: 1;
   }
 }
 
@@ -1854,19 +1864,6 @@ body {
  * under a document row, a squared plate in the filter row and the editor.
  * Nothing here is a pill; a housing gets a relief radius, not a soft corner.
  */
-
-/*
- * Never shrinks: the document title is what gives way when the two of them
- * cannot both fit. A truncated project reads as a different project — "Resear…"
- * is not a name — whereas a truncated document title is still recognisably the
- * document you have open, with its full name one row down in the menu.
- */
-.doc-picker__trigger-project {
-  flex: 0 0 auto;
-  white-space: nowrap;
-  font-weight: 400;
-  color: var(--text);
-}
 
 .doc-picker__filter {
   width: 100%;
@@ -2420,22 +2417,130 @@ body {
   }
 }
 
+/*
+ * Library, document, comments — left to right. The two panels are the same kind
+ * of thing: a docked column that can be sent away, remembered across reloads,
+ * on its own chord. All four combinations are spelled out rather than
+ * generated, because each is a fact about the layout and reads as one.
+ */
 .workspace {
   overflow-y: auto;
   overflow-x: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--sidebar-w);
+  grid-template-columns: var(--library-w) minmax(0, 1fr) var(--sidebar-w);
   align-items: start;
 
+  /* One column below this: the rail is already gone here, and the library
+     becomes a drawer, which takes itself out of flow. */
   @media (max-width: 900px) {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
-/* Equal specificity to .workspace, so it has to stay after it. The rail is
-   unmounted, not hidden — this just reclaims the column it occupied. */
+/* Equal specificity to .workspace, so these have to stay after it. Neither
+   panel is hidden when off — both are unmounted, and this reclaims the column
+   each one occupied. */
 .workspace--no-rail {
+  grid-template-columns: var(--library-w) minmax(0, 1fr);
+}
+
+.workspace--no-library {
+  grid-template-columns: minmax(0, 1fr) var(--sidebar-w);
+}
+
+.workspace--no-library.workspace--no-rail {
   grid-template-columns: minmax(0, 1fr);
+}
+
+/* --- The library --- */
+
+.library {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  /* Scrolls inside itself rather than with the document, so the list stays
+     reachable however long the text is. */
+  max-height: calc(100svh - var(--statusbar-total));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s2);
+  border-inline-end: 1px solid var(--border);
+  background: var(--bg);
+
+  /* Focusable so the drawer can take focus on open; a ring around a whole
+     docked column would be nonsense. */
+  &:focus {
+    outline: none;
+  }
+}
+
+.library__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s2);
+  padding: 0 var(--s1) var(--s2);
+}
+
+/* Engraved, like every other label that names a panel in this app. */
+.library__heading {
+  margin: 0;
+  font-family: var(--heading);
+  font-size: var(--label-size);
+  font-weight: var(--label-weight);
+  letter-spacing: var(--label-track);
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.library__close {
+  flex: 0 0 auto;
+  padding: 3px;
+  color: var(--text);
+  opacity: 0.6;
+
+  & > svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+/* --- The drawer --- */
+/*
+ * The same panel, off the grid and over the editor. Only below 900px, where a
+ * third column would leave the text a few characters wide.
+ */
+.library--drawer {
+  position: fixed;
+  z-index: 50;
+  /* Below the header and above the status bar, so both stay usable — the
+     toggle that opened this is up there, and covering it would leave the
+     drawer's own close button as the only way out. */
+  inset-block-start: var(--header-h);
+  inset-block-end: var(--statusbar-total);
+  inset-inline-start: 0;
+  width: min(var(--library-w), calc(100vw - 48px));
+  max-height: none;
+  padding-inline-start: calc(var(--s2) + var(--safe-l));
+  background: var(--bg-raised);
+  box-shadow: var(--shadow);
+}
+
+.library__scrim {
+  position: fixed;
+  inset-block-start: var(--header-h);
+  inset-block-end: var(--statusbar-total);
+  inset-inline: 0;
+  z-index: 49;
+  /* Dark enough to say the editor is not the thing in use, light enough that
+     the document behind the panel is still recognisable. */
+  background: rgba(23, 23, 22, 0.32);
 }
 
 .editor-pane {

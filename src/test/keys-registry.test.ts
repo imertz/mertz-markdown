@@ -67,6 +67,7 @@ function makeDeps(overrides: { documents?: DocumentsApi } = {}) {
     documents,
     threads: { resolveAll: vi.fn() } as never,
     rail: { hidden: false, toggle: vi.fn(), show: vi.fn() },
+    library: { hidden: false, toggle: vi.fn(), hide: vi.fn() },
     theme: { theme: 'light', toggle: vi.fn() },
     focus: { on: false, toggle: vi.fn() },
     ui,

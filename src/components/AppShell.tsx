@@ -32,6 +32,7 @@ import { useFileLaunch } from '../hooks/useFileLaunch'
 import { useOnline } from '../hooks/useOnline'
 import { usePersistentStorage } from '../hooks/usePersistentStorage'
 import { usePwaUpdate } from '../hooks/usePwaUpdate'
+import { useLibraryHidden } from '../hooks/useLibraryHidden'
 import { useRailHidden } from '../hooks/useRailHidden'
 import { useStorageEstimate } from '../hooks/useStorageEstimate'
 import { CommentEndnotes } from './CommentEndnotes'
@@ -83,8 +84,14 @@ import { CommentSidebar } from './comments/CommentSidebar'
 import { HistoryPanel } from './history/HistoryPanel'
 import type { SearchHit } from './search/SearchPanel'
 import { SearchPanel } from './search/SearchPanel'
-import { BrandMark, ExtensionsIcon, HistoryIcon, SearchIcon } from './icons'
-import { DocumentList } from './documents/DocumentList'
+import {
+  BrandMark,
+  ExtensionsIcon,
+  HistoryIcon,
+  PanelLeftIcon,
+  SearchIcon,
+} from './icons'
+import { LibrarySidebar } from './documents/LibrarySidebar'
 import { DocumentFontMenu } from './DocumentFontMenu'
 import { DocumentTextSizeMenu } from './DocumentTextSizeMenu'
 import { ExportMenu } from './documents/ExportMenu'
@@ -157,6 +164,7 @@ export function AppShell() {
   const documentTextSize = useDocumentTextSize()
   const online = useOnline()
   const rail = useRailHidden()
+  const library = useLibraryHidden()
   const extensionHost = useExtensionHost()
 
   // Keeps the shell the size of what is actually on screen when the phone
@@ -467,11 +475,16 @@ export function AppShell() {
     return { open, resolved, orphaned }
   }, [threads.threads])
 
+  const activeRecord = documents.documents.find(
+    record => record.id === documents.activeId,
+  )
+
   // `save` writes the fresh record back into list state, so this tracks the
   // last successful write rather than when the document was opened.
-  const savedAt =
-    documents.documents.find(record => record.id === documents.activeId)
-      ?.updatedAt ?? null
+  const savedAt = activeRecord?.updatedAt ?? null
+
+  /** Shown beside the title in the header — where you are, not just what. */
+  const activeProject = activeRecord?.project ?? null
 
   // A hidden tab may be frozen or discarded without further events, so commit
   // whatever is queued at that point rather than betting on the timer.
@@ -952,6 +965,7 @@ export function AppShell() {
       documents,
       threads,
       rail,
+      library,
       theme,
       focus,
       ui: {
@@ -1029,22 +1043,28 @@ export function AppShell() {
           <BrandMark className="app-header__brand" />
         </a>
 
-        <DocumentList
-          documents={documents.documents}
-          trashed={documents.trashed}
-          activeId={documents.activeId}
-          activeTitle={documents.activeTitle}
-          onSelect={documents.select}
-          onCreate={project => void documents.create(project)}
-          onDelete={id => void deleteDocument(id)}
-          onRestore={id => void documents.restore(id)}
-          onDestroy={id => void documents.destroy(id)}
-          onRename={(id, name) => void documents.rename(id, name)}
-          onSetProject={(id, project) => void documents.setProject(id, project)}
-          onSetTags={(id, tags) => void documents.setTags(id, tags)}
-          onRenameProject={(from, to) => void documents.renameProject(from, to)}
-          onRenameTag={(from, to) => void documents.renameTag(from, to)}
-        />
+        <button
+          type="button"
+          className="app-header__icon"
+          aria-label={titleFor('app.toggleLibrary')}
+          aria-expanded={!library.hidden}
+          title={titleFor('app.toggleLibrary')}
+          onClick={library.toggle}
+        >
+          <PanelLeftIcon />
+        </button>
+
+        {/*
+          A label, not a control. The list it used to open is a panel of its
+          own now, so all this has left to do is answer "which document, and
+          filed where" — which it can do without being clickable.
+        */}
+        <p className="app-header__title">
+          {activeProject ? (
+            <span className="app-header__title-project">{activeProject} /</span>
+          ) : null}
+          <span className="app-header__title-name">{documents.activeTitle}</span>
+        </p>
 
         {editor ? (
           <Toolbar
@@ -1165,8 +1185,40 @@ export function AppShell() {
       </header>
 
       <div
-        className={rail.hidden ? 'workspace workspace--no-rail' : 'workspace'}
+        className={[
+          'workspace',
+          library.hidden ? 'workspace--no-library' : '',
+          rail.hidden ? 'workspace--no-rail' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
       >
+        {/*
+          First in the DOM as well as first on screen: it is the navigation for
+          everything else here, and a screen reader should reach it before the
+          document it navigates to. As a drawer it takes itself out of flow in
+          CSS, so the grid below is unaffected either way.
+        */}
+        {library.hidden ? null : (
+          <LibrarySidebar
+            drawer={phone}
+            onClose={library.hide}
+            documents={documents.documents}
+            trashed={documents.trashed}
+            activeId={documents.activeId}
+            onSelect={documents.select}
+            onCreate={project => void documents.create(project)}
+            onDelete={id => void deleteDocument(id)}
+            onRestore={id => void documents.restore(id)}
+            onDestroy={id => void documents.destroy(id)}
+            onRename={(id, name) => void documents.rename(id, name)}
+            onSetProject={(id, project) => void documents.setProject(id, project)}
+            onSetTags={(id, tags) => void documents.setTags(id, tags)}
+            onRenameProject={(from, to) => void documents.renameProject(from, to)}
+            onRenameTag={(from, to) => void documents.renameTag(from, to)}
+          />
+        )}
+
         <EditorSurface editor={editor}>
           {editor && findOpen ? (
             <FindBar

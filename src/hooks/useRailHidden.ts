@@ -1,4 +1,5 @@
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
+import { usePersistedToggle } from './usePersistedToggle'
 
 const RAIL_KEY = 'mertz-md:rail-hidden'
 
@@ -7,23 +8,6 @@ export interface RailVisibility {
   toggle: () => void
   /** Force the rail back — the comment chips need it before they can jump. */
   show: () => void
-}
-
-function stored(): boolean {
-  try {
-    return localStorage.getItem(RAIL_KEY) === 'true'
-  } catch {
-    // Private-mode Safari throws on access rather than returning null.
-    return false
-  }
-}
-
-function persist(hidden: boolean): void {
-  try {
-    localStorage.setItem(RAIL_KEY, String(hidden))
-  } catch {
-    // A preference that cannot be saved is not worth failing a click over.
-  }
 }
 
 /**
@@ -35,22 +19,8 @@ function persist(hidden: boolean): void {
  * a view of them.
  */
 export function useRailHidden(): RailVisibility {
-  const [hidden, setHidden] = useState(stored)
-
-  const toggle = useCallback(() => {
-    setHidden(current => {
-      persist(!current)
-      return !current
-    })
-  }, [])
-
-  const show = useCallback(() => {
-    setHidden(current => {
-      if (!current) return current
-      persist(false)
-      return false
-    })
-  }, [])
+  const { value: hidden, toggle, set } = usePersistedToggle(RAIL_KEY)
+  const show = useCallback(() => set(false), [set])
 
   return { hidden, toggle, show }
 }

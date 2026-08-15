@@ -1,15 +1,15 @@
 import { cleanup, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { DocumentList } from '../components/documents/DocumentList'
+import { DocumentLibrary } from '../components/documents/DocumentLibrary'
 import { makeDocument } from './dbHarness'
 
 /**
- * Projects and tags in the document picker.
+ * Projects and tags in the library.
  *
  * This is the only surface either one has — there is no project store to open
- * and no tag manager elsewhere — so the menu is where the whole feature either
- * works or does not.
+ * and no tag manager elsewhere — so the sidebar is where the whole feature
+ * either works or does not.
  */
 
 afterEach(cleanup)
@@ -41,11 +41,10 @@ const setup = (documents = [notes, reading, scratch]) => {
   }
 
   render(
-    <DocumentList
+    <DocumentLibrary
       documents={documents}
       trashed={[]}
       activeId={documents[0]?.id ?? null}
-      activeTitle={documents[0]?.title ?? ''}
       {...handlers}
     />,
   )
@@ -53,21 +52,9 @@ const setup = (documents = [notes, reading, scratch]) => {
   return { ...handlers, user: userEvent.setup() }
 }
 
-const openMenu = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(screen.getByRole('button', { expanded: false }))
-}
-
-/**
- * The active document's title is on the trigger as well as in the list, so an
- * unscoped `getByText` for it matches twice. Everything about the list itself
- * is asked of the menu.
- */
-const menu = () => within(screen.getByRole('menu'))
-
 describe('grouping by project', () => {
-  it('sections the list, with the unfiled group last', async () => {
-    const { user } = setup()
-    await openMenu(user)
+  it('sections the list, with the unfiled group last', () => {
+    setup()
 
     const headings = screen
       .getAllByRole('heading', { level: 3 })
@@ -77,41 +64,30 @@ describe('grouping by project', () => {
     expect(headings[1]).toContain('No project')
   })
 
-  it('shows the active document’s project on the trigger', () => {
-    setup()
-    // The one place "where am I" is answered while the menu is shut.
-    expect(
-      screen.getByRole('button', { expanded: false }).textContent,
-    ).toContain('Research /')
-  })
-
   it('collapses a section without touching the documents in it', async () => {
     const { user } = setup()
-    await openMenu(user)
 
-    expect(menu().getByRole('button', { name: /Rename Notes on X/ })).toBeTruthy()
-    await user.click(menu().getByRole('button', { name: /^Research/ }))
-    expect(menu().queryByRole('button', { name: /Rename Notes on X/ })).toBeNull()
+    expect(screen.getByRole('button', { name: /Rename Notes on X/ })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: /^Research/ }))
+    expect(screen.queryByRole('button', { name: /Rename Notes on X/ })).toBeNull()
   })
 })
 
 describe('filtering', () => {
   it('narrows to documents carrying every selected tag', async () => {
     const { user } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Filter by draft (2)' }))
-    expect(menu().queryByText('Scratch')).toBeNull()
-    expect(menu().getByText('Reading list')).toBeTruthy()
+    expect(screen.queryByText('Scratch')).toBeNull()
+    expect(screen.getByText('Reading list')).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: 'Filter by urgent (1)' }))
-    expect(menu().queryByText('Reading list')).toBeNull()
-    expect(menu().getByText('Notes on X')).toBeTruthy()
+    expect(screen.queryByText('Reading list')).toBeNull()
+    expect(screen.getByText('Notes on X')).toBeTruthy()
   })
 
   it('keeps every chip on screen while filtering, so the filter can be widened', async () => {
     const { user } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Filter by urgent (1)' }))
     // Counts come from the whole library, not the filtered view — a chip that
@@ -121,12 +97,11 @@ describe('filtering', () => {
 
   it('cannot collapse a section while a filter is on', async () => {
     const { user } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Filter by draft (2)' }))
     // A filtered list is a search result; hiding part of it behind a collapsed
     // heading would hide the very thing being looked for.
-    expect(menu().getByRole('button', { name: /^Research/ })).toHaveProperty(
+    expect(screen.getByRole('button', { name: /^Research/ })).toHaveProperty(
       'disabled',
       true,
     )
@@ -136,18 +111,16 @@ describe('filtering', () => {
     const one = makeDocument({ title: 'One', tags: ['draft'] })
     const two = makeDocument({ title: 'Two', tags: ['urgent'] })
     const { user } = setup([one, two])
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Filter by draft (1)' }))
     await user.click(screen.getByRole('button', { name: 'Filter by urgent (1)' }))
 
-    expect(menu().getByText(/No documents match/)).toBeTruthy()
+    expect(screen.getByText(/No documents match/)).toBeTruthy()
   })
 
   it('offers a filter box only once the list is long enough to need one', async () => {
-    const { user } = setup()
-    await openMenu(user)
-    expect(menu().queryByRole('textbox', { name: 'Filter documents' })).toBeNull()
+    setup()
+    expect(screen.queryByRole('textbox', { name: 'Filter documents' })).toBeNull()
 
     cleanup()
     const many = setup(
@@ -155,19 +128,17 @@ describe('filtering', () => {
         makeDocument({ title: `Document ${index}` }),
       ),
     )
-    await openMenu(many.user)
 
-    const box = menu().getByRole('textbox', { name: 'Filter documents' })
+    const box = screen.getByRole('textbox', { name: 'Filter documents' })
     await many.user.type(box, 'doc7')
-    expect(menu().getByText('Document 7')).toBeTruthy()
-    expect(menu().queryByText('Document 3')).toBeNull()
+    expect(screen.getByText('Document 7')).toBeTruthy()
+    expect(screen.queryByText('Document 3')).toBeNull()
   })
 })
 
 describe('tagging a document', () => {
   it('commits a comma-separated run as separate tags', async () => {
     const { user, onSetTags } = setup([scratch])
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Tags for Scratch' }))
     await user.type(screen.getByRole('textbox', { name: 'Tags for Scratch' }), 'idea,')
@@ -181,7 +152,6 @@ describe('tagging a document', () => {
     // would merge the second tag into the list as it was before the first —
     // dropping it. This asserts the editor owns the list while it is open.
     const { user, onSetTags } = setup([scratch])
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Tags for Scratch' }))
     await user.type(
@@ -194,7 +164,6 @@ describe('tagging a document', () => {
 
   it('abandons on Escape without saving', async () => {
     const { user, onSetTags } = setup([scratch])
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Tags for Scratch' }))
     const field = screen.getByRole('textbox', { name: 'Tags for Scratch' })
@@ -202,12 +171,11 @@ describe('tagging a document', () => {
 
     expect(onSetTags).not.toHaveBeenCalled()
     // Escape leaves the field, not the whole picker.
-    expect(menu().getByText('Scratch')).toBeTruthy()
+    expect(screen.getByText('Scratch')).toBeTruthy()
   })
 
   it('removes a tag from the row it belongs to', async () => {
     const { user, onSetTags } = setup([notes])
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Tags for Notes on X' }))
     await user.click(screen.getByRole('button', { name: 'Remove tag draft' }))
@@ -219,7 +187,6 @@ describe('tagging a document', () => {
 describe('filing a document', () => {
   it('offers the projects already in use', async () => {
     const { user, onSetProject } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Project for Scratch' }))
     const submenu = screen.getByRole('group', { name: 'Project for Scratch' })
@@ -230,7 +197,6 @@ describe('filing a document', () => {
 
   it('creates a project by naming one, since there is nowhere else to', async () => {
     const { user, onSetProject } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Project for Scratch' }))
     await user.click(screen.getByRole('button', { name: '+ New project…' }))
@@ -244,7 +210,6 @@ describe('filing a document', () => {
 
   it('unfiles a document that has a project', async () => {
     const { user, onSetProject } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Project for Notes on X' }))
     const submenu = screen.getByRole('group', { name: 'Project for Notes on X' })
@@ -257,7 +222,6 @@ describe('filing a document', () => {
 describe('creating inside a section', () => {
   it('files the new document into the project it was started from', async () => {
     const { user, onCreate } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'New document in Research' }))
     expect(onCreate).toHaveBeenCalledWith('Research')
@@ -265,7 +229,6 @@ describe('creating inside a section', () => {
 
   it('leaves one started from the top of the menu unfiled', async () => {
     const { user, onCreate } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: '+ New document' }))
     expect(onCreate).toHaveBeenCalledWith()
@@ -275,7 +238,6 @@ describe('creating inside a section', () => {
 describe('editing the labels themselves', () => {
   it('renames a project from its heading', async () => {
     const { user, onRenameProject } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Rename project Research' }))
     const field = screen.getByRole('textbox', { name: 'Rename project Research' })
@@ -287,7 +249,6 @@ describe('editing the labels themselves', () => {
 
   it('renames a tag everywhere, behind the manage toggle', async () => {
     const { user, onRenameTag } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Edit tags' }))
     await user.click(screen.getByRole('button', { name: 'Rename tag draft' }))
@@ -300,7 +261,6 @@ describe('editing the labels themselves', () => {
 
   it('deletes a tag everywhere from the same mode', async () => {
     const { user, onRenameTag } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Edit tags' }))
     await user.click(screen.getByRole('button', { name: 'Delete tag draft everywhere' }))
@@ -310,23 +270,21 @@ describe('editing the labels themselves', () => {
 
   it('does not filter while the chips are in manage mode', async () => {
     const { user } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Edit tags' }))
     // The chip is a rename target now, not a filter, so nothing should narrow.
-    expect(menu().getByText('Scratch')).toBeTruthy()
+    expect(screen.getByText('Scratch')).toBeTruthy()
   })
 
   it('drops an active filter on the way into manage mode', async () => {
     const { user } = setup()
-    await openMenu(user)
 
     await user.click(screen.getByRole('button', { name: 'Filter by draft (2)' }))
-    expect(menu().queryByText('Scratch')).toBeNull()
+    expect(screen.queryByText('Scratch')).toBeNull()
 
     // A chip stops showing itself as pressed in here, so a list left narrowed
     // would have nothing lit to explain why.
     await user.click(screen.getByRole('button', { name: 'Edit tags' }))
-    expect(menu().getByText('Scratch')).toBeTruthy()
+    expect(screen.getByText('Scratch')).toBeTruthy()
   })
 })
