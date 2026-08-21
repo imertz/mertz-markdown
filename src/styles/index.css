@@ -444,8 +444,17 @@ body {
    * are. Typing needs the formatting toolbar and nothing else in this row, so
    * the rest of it stands down and the document gets the height back. The
    * attribute is set by useVisualViewport.
+   *
+   * NOT while a panel anchored in this row is open. Those panels have fields of
+   * their own — the pairing link in the vault menu — and the keyboard they open
+   * is what sets the attribute: the row would vanish in the same frame as the
+   * tap that focused the field, taking the field with it, which drops the focus,
+   * which closes the keyboard, which brings the row back. On iOS the whole cycle
+   * is invisible and the field simply cannot be focused, which is exactly how it
+   * was reported.
    */
-  :root[data-keyboard='open'] .app-header__tools {
+  :root[data-keyboard='open']
+    .app-header__tools:not(:has([role='dialog'], [role='menu'])) {
     display: none;
   }
 
@@ -1258,8 +1267,16 @@ body {
   top: calc(100% + 8px);
   right: 0;
   width: min(380px, calc(100vw - 24px));
-  max-height: min(680px, calc(100vh - 76px));
+  /*
+   * Capped against --app-height, NOT 100vh. The two are the same until a phone
+   * keyboard opens, and then vh is still the whole screen while half of it is
+   * covered: the panel kept its full height, and the pairing field at the
+   * bottom of it sat under the keyboard that the tap on that field had opened.
+   * useVisualViewport keeps --app-height equal to what is actually visible.
+   */
+  max-height: min(680px, calc(var(--app-height, 100svh) - 76px));
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 14px;
   box-sizing: border-box;
   background: var(--bg-raised);
@@ -1480,6 +1497,99 @@ body {
 /* Not every message is a failure — copying a pairing link lands here too. */
 .vault-menu__message[data-tone='ok'] {
   color: var(--ok);
+}
+
+/* The join field, on the browser that is trying to get in rather than the one
+   handing out the invitation. Full width because a pairing link is long and a
+   half-width field would show a dozen characters of it. */
+.vault-menu__join input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+/* Paste beside Join. Paste is the one that matters on a phone — see the
+   component — so it takes the width it needs and Join takes the rest. */
+.vault-menu__join-actions {
+  display: flex;
+  gap: 8px;
+
+  & > button {
+    flex: 1;
+  }
+}
+
+/*
+ * A 30px row is what every other field in the chrome is, and on a desktop that
+ * is a mouse target. This one is tapped with a thumb, once, in a popover a few
+ * millimetres below the top of a phone screen — Apple's 44pt is the floor for
+ * that, and missing it is what makes a field feel like it cannot be focused.
+ */
+@media (max-width: 900px) {
+  .vault-menu__join input,
+  .vault-menu__join-actions > button {
+    min-height: 44px;
+  }
+}
+
+/* --- Pairing handoff --- */
+/*
+ * The iOS interstitial: a scanned link that landed in Safari when it was meant
+ * for the installed app. Sits on the palette backdrop like the other overlays,
+ * but centred — it is a decision, not a list that grows.
+ */
+.pairing-handoff {
+  align-self: center;
+  width: min(420px, 100%);
+  padding: 18px;
+  box-sizing: border-box;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.pairing-handoff__title {
+  margin: 0 0 8px;
+  font-family: var(--heading);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.pairing-handoff__body {
+  margin: 0 0 10px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.pairing-handoff__steps {
+  margin: 0 0 12px;
+  padding-inline-start: 20px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* Monospaced and selectable: this is the fallback for a refused clipboard, so
+   it has to be readable character by character. */
+.pairing-handoff__link {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 12px;
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.pairing-handoff__actions {
+  display: grid;
+  gap: 8px;
+}
+
+.pairing-handoff__dismiss {
+  color: var(--text);
 }
 
 /* --- Save indicator --- */
@@ -2560,12 +2670,6 @@ body {
   display: grid;
   grid-template-columns: var(--library-w) minmax(0, 1fr) var(--sidebar-w);
   align-items: start;
-
-  /* One column below this: the rail is already gone here, and the library
-     becomes a drawer, which takes itself out of flow. */
-  @media (max-width: 900px) {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* Equal specificity to .workspace, so these have to stay after it. Neither
@@ -2581,6 +2685,28 @@ body {
 
 .workspace--no-library.workspace--no-rail {
   grid-template-columns: minmax(0, 1fr);
+}
+
+/*
+ * One column below this, whichever panels are on. Neither panel occupies a
+ * track here — the library is a drawer and the rail is a bottom sheet, both
+ * position: fixed — so any track reserved for them is dead width taken off the
+ * measure.
+ *
+ * MUST stay after the four rules above and MUST name every variant. This lived
+ * nested inside .workspace, where it lost the cascade to .workspace--no-library
+ * on source order at equal specificity: on a 390px phone the editor column
+ * resolved to 50px and the document set one word per line. Chromium and Safari
+ * both did it — it only looked engine-specific because which panels are on is
+ * remembered per browser.
+ */
+@media (max-width: 900px) {
+  .workspace,
+  .workspace--no-library,
+  .workspace--no-rail,
+  .workspace--no-library.workspace--no-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* --- The library --- */
@@ -3600,7 +3726,9 @@ button {
   :root .image-bar__label input,
   :root .image-bar__size input,
   :root .image-insert-popover > label:not(.image-insert-popover__check) input,
-  :root .crop-dialog__zoom input {
+  :root .crop-dialog__zoom input,
+  :root .vault-menu__join input,
+  :root .pairing-handoff__link {
     font-size: 16px;
   }
 }

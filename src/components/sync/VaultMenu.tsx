@@ -11,6 +11,10 @@ const STATUS_LABEL = {
   error: 'Sync problem',
 } as const
 
+/* Safari can refuse a clipboard read outright — in a private window, or when the
+   user declines its Paste confirmation. The field is still there. */
+const MANUAL_PASTE = 'Paste was blocked. Touch and hold the field, then choose Paste.'
+
 /** Past this fraction the meter turns amber: the ceiling is close enough to hit. */
 const METER_FULL = 0.9
 
@@ -30,6 +34,7 @@ export function VaultMenu({ sync }: VaultMenuProps) {
   const [notice, setNotice] = useState<Notice | null>(null)
   const [pairingLink, setPairingLink] = useState<string | null>(null)
   const [qr, setQr] = useState<string | null>(null)
+  const [joinLink, setJoinLink] = useState('')
   const container = useDismissable<HTMLDivElement>(open, () => setOpen(false))
   const syncEnabled = sync.enabled
   const loadDevices = sync.loadDevices
@@ -60,6 +65,63 @@ export function VaultMenu({ sync }: VaultMenuProps) {
       setPairingLink(link)
       setQr(await QRCode.toDataURL(link, { width: 220, margin: 1 }))
     })
+
+  /*
+   * The paste-in half of pairing. On iOS this is the ONLY way in: a scanned
+   * link opens Safari, and a home-screen app there has its own storage, so the
+   * clipboard is the only thing that crosses. Everywhere else it is the fallback
+   * for a link that arrived by mail or message rather than by camera.
+   */
+  const joinVault = () =>
+    void run(async () => {
+      const claimed = await sync.claimPairingLink(joinLink)
+      if (!claimed) return
+      setJoinLink('')
+      setNotice({ text: 'Paired. The vault is syncing to this browser.', tone: 'ok' })
+    })
+
+  /*
+   * Reads the clipboard rather than asking for a paste into the field.
+   *
+   * Called straight out of the click handler, NOT through `run`: iOS grants
+   * clipboard reads only inside a user gesture, and it shows its own Paste
+   * confirmation on top of that. Anything awaited first spends the gesture.
+   *
+   * This is also the accessible path when the field itself is awkward to hit —
+   * on a phone the panel is a popover a few millimetres from the top of the
+   * screen, and a caret is not what the user came for.
+   */
+  const pasteLink = () => {
+    const clipboard = navigator.clipboard
+    if (!clipboard?.readText) {
+      setNotice({ text: MANUAL_PASTE, tone: 'error' })
+      return
+    }
+    void clipboard
+      .readText()
+      .then(text => {
+        if (text.trim()) setJoinLink(text.trim())
+        else setNotice({ text: 'The clipboard is empty.', tone: 'error' })
+      })
+      .catch(() => setNotice({ text: MANUAL_PASTE, tone: 'error' }))
+  }
+
+  /*
+   * Brings the field back into the panel once the keyboard has taken the bottom
+   * half of the screen. The panel is capped against --app-height, so it shrinks
+   * a frame or two AFTER the focus that opened the keyboard — scrolling now
+   * would measure the old height. Whichever lands first wins; the timer is the
+   * one that always runs, so it is what clears the listener.
+   */
+  const revealField = (field: HTMLInputElement) => {
+    const bring = () => field.scrollIntoView({ block: 'center' })
+    const viewport = window.visualViewport
+    viewport?.addEventListener('resize', bring, { once: true })
+    window.setTimeout(() => {
+      viewport?.removeEventListener('resize', bring)
+      bring()
+    }, 350)
+  }
 
   const copyPairing = () =>
     void run(async () => {
@@ -167,6 +229,50 @@ export function VaultMenu({ sync }: VaultMenuProps) {
                 {busy ? 'Creating vault…' : 'Create encrypted vault'}
               </button>
             </form>
+          ) : null}
+
+          {!sync.enabled ? (
+            <form
+              className="vault-menu__section vault-menu__join"
+              onSubmit={event => {
+                event.preventDefault()
+                joinVault()
+              }}
+            >
+              <div className="vault-menu__section-heading">
+                <strong>Join a vault</strong>
+              </div>
+              <p className="vault-menu__muted">
+                Paste a one-time pairing link from a browser that already has the
+                vault. On iPhone and iPad this is how the installed app joins —
+                scanning the code opens Safari, which cannot pass it on.
+              </p>
+              <input
+                type="text"
+                inputMode="url"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                placeholder="Pairing link"
+                aria-label="Pairing link"
+                value={joinLink}
+                onChange={event => setJoinLink(event.target.value)}
+                onFocus={event => revealField(event.currentTarget)}
+              />
+              <div className="vault-menu__join-actions">
+                <button type="button" onClick={pasteLink}>
+                  Paste link
+                </button>
+                <button
+                  type="submit"
+                  className="btn--primary"
+                  disabled={busy || !joinLink.trim()}
+                >
+                  {busy ? 'Pairing…' : 'Join vault'}
+                </button>
+              </div>
+            </form>
           ) : (
             <>
               <div className="vault-menu__setup">{allocation}</div>
@@ -210,7 +316,11 @@ export function VaultMenu({ sync }: VaultMenuProps) {
                   <strong>Scan on the new computer</strong>
                   {qr ? <img src={qr} alt="One-time vault pairing QR code" /> : null}
                   <button type="button" onClick={copyPairing}>Copy one-time link</button>
-                  <small>Expires in 10 minutes and works once.</small>
+                  <small>
+                    Expires in 10 minutes and works once. To pair an installed app
+                    on iPhone or iPad, copy the link and paste it there under Join a
+                    vault — a scan opens Safari instead.
+                  </small>
                 </section>
               ) : null}
 

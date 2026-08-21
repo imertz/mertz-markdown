@@ -106,6 +106,8 @@ import { SlashCommandMenu } from './editor/SlashCommandMenu'
 import { TableBubbleMenu } from './editor/TableBubbleMenu'
 import { Toolbar } from './editor/Toolbar'
 import { VaultMenu } from './sync/VaultMenu'
+import { PairingHandoff } from './sync/PairingHandoff'
+import { pairingNeedsHandoff } from '../sync/pairingLocation'
 
 const AUTOSAVE_DELAY_MS = 800
 
@@ -215,6 +217,9 @@ export function AppShell() {
   // this tab writes from here on will land.
   const [dbOutdated, setDbOutdated] = useState(false)
   const pairingAttempted = useRef(false)
+  /* A pairing link this browser is holding rather than spending — see
+     pairingNeedsHandoff. */
+  const [pairingHandoff, setPairingHandoff] = useState<string | null>(null)
   const editorRef = useRef<Editor | null>(null)
   const remoteEditorState = useRef<{ editor: Editor; editable: boolean } | null>(
     null,
@@ -318,18 +323,37 @@ export function AppShell() {
     },
   })
 
+  const claimPairing = useCallback(
+    (claim: () => Promise<boolean>) => {
+      void claim()
+        .then(claimed => {
+          if (claimed) setNotice('This browser is now paired with the encrypted vault')
+        })
+        .catch(error => {
+          setNotice(
+            error instanceof Error ? error.message : 'The pairing link could not be used',
+          )
+        })
+    },
+    [],
+  )
+
   useEffect(() => {
     if (pairingAttempted.current || !vaultSync.hasPendingPairingClaim) return
     pairingAttempted.current = true
-    void vaultSync
-      .claimPairingFromLocation()
-      .then(claimed => {
-        if (claimed) setNotice('This computer is now paired with the encrypted vault')
-      })
-      .catch(error => {
-        setNotice(error instanceof Error ? error.message : 'The pairing link could not be used')
-      })
-  }, [vaultSync])
+    /*
+     * On iOS the link is in the wrong browser more often than not, and a
+     * pairing spent is a pairing gone — so take it out of the pending slot and
+     * hand it back to the user rather than claiming it. Everywhere else the
+     * browser that opened the link is the browser that meant to pair.
+     */
+    if (pairingNeedsHandoff()) {
+      const link = vaultSync.takePairingHandoffLink()
+      if (link) setPairingHandoff(link)
+      return
+    }
+    claimPairing(vaultSync.claimPairingFromLocation)
+  }, [vaultSync, claimPairing])
 
   const onDocChanged = useCallback(
     (editor: Editor) => {
@@ -1452,6 +1476,18 @@ export function AppShell() {
             Dismiss
           </button>
         </div>
+      ) : null}
+
+      {pairingHandoff ? (
+        <PairingHandoff
+          link={pairingHandoff}
+          onPairHere={() => {
+            const link = pairingHandoff
+            setPairingHandoff(null)
+            claimPairing(() => vaultSync.claimPairingLink(link))
+          }}
+          onDismiss={() => setPairingHandoff(null)}
+        />
       ) : null}
 
       <PwaPrompt

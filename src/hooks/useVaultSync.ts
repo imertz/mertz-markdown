@@ -25,7 +25,10 @@ import {
   type VaultUsage,
 } from '../sync/types'
 import {
+  formatPairingLink,
   hasPendingPairingLocation,
+  parsePairingLink,
+  type PendingPairingLocation,
   takePendingPairingLocation,
 } from '../sync/pairingLocation'
 
@@ -104,6 +107,8 @@ export interface VaultSyncApi {
   enable: (apiUrl?: string) => Promise<void>
   createPairingLink: () => Promise<string>
   claimPairingFromLocation: () => Promise<boolean>
+  claimPairingLink: (link: string) => Promise<boolean>
+  takePairingHandoffLink: () => string | null
   loadDevices: () => Promise<void>
   revokeDevice: (id: string) => Promise<void>
   disableOnDevice: () => Promise<void>
@@ -221,16 +226,14 @@ export function useVaultSync(lifecycle: VaultSyncLifecycle = {}): VaultSyncApi {
       wrappedKey: toBase64Url(wrappedKey),
       expiresAt: Date.now() + PAIRING_TTL_MS,
     })
-    const fragment = new URLSearchParams({
-      p: `${pairingId}.${toBase64Url(authSecret)}`,
-      w: toBase64Url(wrapSecret),
+    return formatPairingLink({
+      vaultId: current.vaultId,
+      pair: `${pairingId}.${toBase64Url(authSecret)}`,
+      wrap: toBase64Url(wrapSecret),
     })
-    return `${window.location.origin}/v/${current.vaultId}#${fragment}`
   }, [config])
 
-  const claimPairingFromLocation = useCallback(async () => {
-    const location = takePendingPairingLocation()
-    if (!location) return false
+  const claimPairing = useCallback(async (location: PendingPairingLocation) => {
     const { vaultId, pair, wrap } = location
     if (await getVaultConfig()) throw new Error('This browser is already paired with a vault')
     const separator = pair.indexOf('.')
@@ -272,6 +275,33 @@ export function useVaultSync(lifecycle: VaultSyncLifecycle = {}): VaultSyncApi {
       setPendingPairing(false)
     }
   }, [syncNow])
+
+  const claimPairingFromLocation = useCallback(async () => {
+    const location = takePendingPairingLocation()
+    if (!location) return false
+    return claimPairing(location)
+  }, [claimPairing])
+
+  /*
+   * The same claim, from a link the user pasted rather than one they navigated
+   * to. This is the only way into a vault from an iOS home-screen app: the
+   * scan lands in Safari, and nothing but the clipboard crosses between them.
+   */
+  const claimPairingLink = useCallback(
+    async (link: string) => {
+      const location = parsePairingLink(link)
+      if (!location) throw new Error('That is not a pairing link')
+      return claimPairing(location)
+    },
+    [claimPairing],
+  )
+
+  /* Consumes the pending pairing without spending it, so the one-shot secret
+     can be shown to the user instead — see pairingNeedsHandoff. */
+  const takePairingHandoffLink = useCallback(() => {
+    const location = takePendingPairingLocation()
+    return location ? formatPairingLink(location) : null
+  }, [])
 
   const loadDevices = useCallback(async () => {
     const current = (await getVaultConfig()) ?? config
@@ -322,6 +352,8 @@ export function useVaultSync(lifecycle: VaultSyncLifecycle = {}): VaultSyncApi {
     enable,
     createPairingLink,
     claimPairingFromLocation,
+    claimPairingLink,
+    takePairingHandoffLink,
     loadDevices,
     revokeDevice,
     disableOnDevice,

@@ -6,6 +6,15 @@ export interface PendingPairingLocation {
   wrap: string
 }
 
+function readPairingUrl(url: URL): PendingPairingLocation | null {
+  const match = VAULT_ROUTE.exec(url.pathname)
+  if (!match?.[1] || !url.hash) return null
+  const fragment = new URLSearchParams(url.hash.slice(1))
+  const pair = fragment.get('p')
+  const wrap = fragment.get('w')
+  return pair && wrap ? { vaultId: match[1], pair, wrap } : null
+}
+
 function capturePairingLocation(): PendingPairingLocation | null {
   if (typeof window === 'undefined') return null
   const match = VAULT_ROUTE.exec(window.location.pathname)
@@ -31,4 +40,61 @@ export function takePendingPairingLocation(): PendingPairingLocation | null {
   const pairing = pendingPairing
   pendingPairing = null
   return pairing
+}
+
+/**
+ * The same link the QR encodes, from parts. Used to mint one on the vault that
+ * is inviting, and to hand a captured one back to the user when this browser
+ * is not where it can be spent — see pairingNeedsHandoff.
+ */
+export function formatPairingLink(
+  location: PendingPairingLocation,
+  origin: string = window.location.origin,
+): string {
+  const fragment = new URLSearchParams({ p: location.pair, w: location.wrap })
+  return `${origin}/v/${location.vaultId}#${fragment}`
+}
+
+/**
+ * A pairing link typed or pasted in rather than navigated to. Relative and
+ * absolute forms both parse; a link minted by another origin keeps that
+ * origin's vault id, which is all this needs — the API url comes from this
+ * build's own configuration, never from the link.
+ */
+export function parsePairingLink(raw: string): PendingPairingLocation | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  try {
+    return readPairingUrl(new URL(trimmed, window.location.origin))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Whether a pairing link that arrived in THIS browser has to be handed to
+ * something else to be spent.
+ *
+ * iOS is the whole of it. A home-screen web app there is a separate browser as
+ * far as storage goes — its own IndexedDB, its own vault config — and iOS has
+ * no link capturing: a QR scanned with the camera, or a link tapped anywhere,
+ * always opens Safari. So the pairing that the user meant for the installed app
+ * lands in a tab that cannot pass it on, and claiming it there would burn it:
+ * pairings are one-shot, and the app would have nothing left to claim.
+ *
+ * Rather than guess whether the app is installed — nothing on iOS will say —
+ * this asks the user, and the answer is a tap either way.
+ */
+export function pairingNeedsHandoff(): boolean {
+  if (typeof window === 'undefined' || typeof navigator === 'undefined') return false
+  const ios =
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    // iPadOS reports itself as a Mac; touch points are what separates them.
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  if (!ios) return false
+  const installed =
+    window.matchMedia?.('(display-mode: standalone)').matches === true ||
+    // The iOS-only property, and the only reliable signal in older versions.
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  return !installed
 }
