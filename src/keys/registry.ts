@@ -39,6 +39,7 @@ export interface CommandDeps {
   library: LibraryVisibility
   theme: { theme: Theme; toggle: () => void }
   focus: { on: boolean; toggle: () => void }
+  reading: { on: boolean; toggle: () => void }
   ui: {
     openPalette: () => void
     openSearch: () => void
@@ -86,7 +87,8 @@ const hasEditor = (context: CommandContext) =>
  * happened to assemble.
  */
 export function buildCommands(deps: CommandDeps): Command[] {
-  const { documents, focus, library, rail, theme, threads, ui } = deps
+  const { documents, focus, library, rail, reading, theme, threads, ui } =
+    deps
   const editorCommand = (action: (editor: Editor) => void) =>
     withEditor(deps, action)
 
@@ -103,6 +105,7 @@ export function buildCommands(deps: CommandDeps): Command[] {
     define('app.toggleLibrary', library.toggle),
     define('app.toggleTheme', theme.toggle),
     define('app.toggleFocus', focus.toggle),
+    define('app.toggleReading', reading.toggle),
 
     // --- Documents -------------------------------------------------------
     define('doc.new', () => void documents.create()),

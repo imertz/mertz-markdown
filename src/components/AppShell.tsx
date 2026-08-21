@@ -37,6 +37,7 @@ import { useRailHidden } from '../hooks/useRailHidden'
 import { useStorageEstimate } from '../hooks/useStorageEstimate'
 import { CommentEndnotes } from './CommentEndnotes'
 import { useFocusMode } from '../hooks/useFocusMode'
+import { useReadingMode } from '../hooks/useReadingMode'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import { useTheme } from '../hooks/useTheme'
 import { useVisualViewport } from '../hooks/useVisualViewport'
@@ -77,6 +78,7 @@ import type { PaletteAction } from './CommandPalette'
 import { CommandPalette } from './CommandPalette'
 import { DropOverlay } from './DropOverlay'
 import { PwaPrompt } from './PwaPrompt'
+import { ReadingModeControls } from './ReadingMode'
 import { StatusBar } from './StatusBar'
 import { ThemeToggle } from './ThemeToggle'
 import { UndoToast } from './UndoToast'
@@ -85,6 +87,7 @@ import { HistoryPanel } from './history/HistoryPanel'
 import type { SearchHit } from './search/SearchPanel'
 import { SearchPanel } from './search/SearchPanel'
 import {
+  BookOpenIcon,
   BrandMark,
   ExtensionsIcon,
   HistoryIcon,
@@ -162,6 +165,7 @@ export function AppShell() {
   const pwa = usePwaUpdate()
   const theme = useTheme()
   const focus = useFocusMode()
+  const reading = useReadingMode()
   const documentFont = useDocumentFont()
   const documentTextSize = useDocumentTextSize()
   const online = useOnline()
@@ -992,6 +996,7 @@ export function AppShell() {
       library,
       theme,
       focus,
+      reading,
       ui: {
         openPalette: () => setPaletteOpen(true),
         openSearch: () => setSearchOpen(true),
@@ -1046,6 +1051,15 @@ export function AppShell() {
     },
     [editor, draftRange, threads],
   )
+
+  /*
+   * Reading mode takes both panels off the screen without touching either
+   * preference, so leaving it puts the library and the rail back exactly as
+   * the reader had them. Folded in here rather than in CSS because both are
+   * unmounted when off rather than hidden — see the notes on each below.
+   */
+  const libraryHidden = library.hidden || reading.on
+  const railHidden = rail.hidden || reading.on
 
   return (
     <>
@@ -1149,6 +1163,7 @@ export function AppShell() {
               theme={theme.theme}
               onToggleTheme={theme.toggle}
               onOpenShortcuts={() => setSheetOpen(true)}
+              onEnterReading={reading.toggle}
             />
           ) : (
             <>
@@ -1188,6 +1203,19 @@ export function AppShell() {
                 onSelect={documentTextSize.selectSize}
               />
 
+              {/* Beside the font and the size: the three controls that are
+                  about reading the document rather than about editing it. */}
+              <button
+                type="button"
+                className="app-header__icon"
+                aria-label={titleFor('app.toggleReading')}
+                aria-pressed={reading.on}
+                title={titleFor('app.toggleReading')}
+                onClick={reading.toggle}
+              >
+                <BookOpenIcon />
+              </button>
+
               <button
                 type="button"
                 className="app-header__icon"
@@ -1211,8 +1239,8 @@ export function AppShell() {
       <div
         className={[
           'workspace',
-          library.hidden ? 'workspace--no-library' : '',
-          rail.hidden ? 'workspace--no-rail' : '',
+          libraryHidden ? 'workspace--no-library' : '',
+          railHidden ? 'workspace--no-rail' : '',
         ]
           .filter(Boolean)
           .join(' ')}
@@ -1223,7 +1251,7 @@ export function AppShell() {
           document it navigates to. As a drawer it takes itself out of flow in
           CSS, so the grid below is unaffected either way.
         */}
-        {library.hidden ? null : (
+        {libraryHidden ? null : (
           <LibrarySidebar
             drawer={phone}
             onClose={library.hide}
@@ -1257,7 +1285,7 @@ export function AppShell() {
           Unmounted, not merely hidden. The anchors live in the document, so
           nothing about the comments is lost — this is only the view of them.
         */}
-        {rail.hidden ? null : (
+        {railHidden ? null : (
           <CommentSidebar
             editor={editor}
             threads={threads.threads}
@@ -1318,6 +1346,11 @@ export function AppShell() {
         onToggleRail={toggleRail}
         onOpenShortcuts={() => setSheetOpen(true)}
       />
+
+      {/* The chrome's stand-in while the chrome is away: a progress line and
+          the way out. Mounted only for the mode, so nothing measures the
+          scroller on every frame the rest of the time. */}
+      {reading.on ? <ReadingModeControls onExit={reading.exit} /> : null}
 
       {editor ? (
         <SelectionBubbleMenu

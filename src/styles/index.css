@@ -2885,6 +2885,121 @@ body {
   }
 }
 
+/* --- Immersive reading --- */
+/*
+ * The document, and nothing else on the screen with it.
+ *
+ * The attribute is set by useReadingMode on the documentElement because these
+ * rules have to reach the header, the status bar and the editor pane at once,
+ * and there is no closer common ancestor — the same reason the theme and focus
+ * mode are addressed from up there.
+ *
+ * The two panels are deliberately absent from this block: AppShell unmounts
+ * them for the duration, exactly as it does when either is toggled off, so the
+ * grid needs no reading-mode variant and both preferences come back untouched.
+ */
+:root[data-reading-mode='on'] {
+  .app-header,
+  .status-bar {
+    display: none;
+  }
+
+  /*
+   * One row, and it has to be said out loud. #root's three rows are
+   * `auto minmax(0, 1fr) auto`; with both chrome rows gone the workspace
+   * inherits the FIRST track, which is content-sized — and #root is
+   * `overflow: hidden`, so a document taller than the screen would be clipped
+   * with nothing to scroll.
+   */
+  #root {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  /*
+   * The measure, the face and the text size are all left alone: they are the
+   * reader's settings, and a mode that quietly overrode them would be
+   * answering a question nobody asked. What this buys back is the space the
+   * chrome was holding — the column opens below a margin rather than under an
+   * edge that is no longer there.
+   */
+  .editor-pane {
+    padding-top: min(11vh, 88px);
+  }
+
+  /* The § is the last piece of chrome standing inside the text column, and a
+     margin affordance that only appears under a pointer has nothing to say to
+     someone who is reading. */
+  .section-mark {
+    display: none;
+  }
+}
+
+/*
+ * How far through you are, as one hairline along the top edge.
+ *
+ * The status bar's reading scale reduced to its single most useful reading —
+ * no graduations, no stations. Those tell you where you are in a document you
+ * are working on; this only has to answer "how much is left", which is the one
+ * thing a reader wants and the only thing worth spending screen on here.
+ */
+.reading-progress {
+  position: fixed;
+  inset-block-start: 0;
+  inset-inline: 0;
+  /* Above the bubble menus, below anything that owns the screen. */
+  z-index: 35;
+  height: 2px;
+  /* The line only exists where it has been read: no track behind it, so an
+     unread document shows nothing at all rather than a waiting gauge. */
+  pointer-events: none;
+}
+
+.reading-progress__fill {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  /* Scroll already moves the width every frame; the transition is only here to
+     smooth the jump when the document reflows underneath it. */
+  transition: width 90ms linear;
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+  }
+}
+
+/*
+ * The way out, in the corner the chrome used to occupy.
+ *
+ * Quiet rather than hidden. A control that has to be discovered by waving the
+ * pointer around is a trap — Escape is the second way out, not the only one —
+ * so this sits at low ink and comes up to full on hover or focus.
+ */
+.reading-exit {
+  position: fixed;
+  z-index: 35;
+  inset-block-start: calc(var(--s3) + var(--safe-t));
+  inset-inline-end: calc(var(--s3) + var(--safe-r));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  /* Painted, not transparent: the button sits over the text column on a narrow
+     screen, and a bare glyph on top of a line of prose reads as a typo. */
+  background: var(--bg);
+  opacity: 0.35;
+
+  &:hover:not(:disabled),
+  &:focus-visible {
+    opacity: 1;
+    background: var(--code-bg);
+    color: var(--text-h);
+  }
+}
+
 /*
  * Generic controls shared by the toolbar, sidebar and dialogs.
  *

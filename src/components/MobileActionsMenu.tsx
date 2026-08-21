@@ -14,7 +14,14 @@ import { MARKDOWN_ACCEPT } from '../markdown/import'
 import type { Theme } from '../hooks/useTheme'
 import { FORMATS, type ExportActions } from './documents/exportFormats'
 import { REPO_URL } from '../lib/repo'
-import { CheckIcon, ExternalLinkIcon, MoonIcon, MoreIcon, SunIcon } from './icons'
+import {
+  BookOpenIcon,
+  CheckIcon,
+  ExternalLinkIcon,
+  MoonIcon,
+  MoreIcon,
+  SunIcon,
+} from './icons'
 
 export interface MobileActionsMenuProps {
   exports: ExportActions
@@ -29,6 +36,7 @@ export interface MobileActionsMenuProps {
   theme: Theme
   onToggleTheme: () => void
   onOpenShortcuts: () => void
+  onEnterReading: () => void
   disabled?: boolean
 }
 
@@ -59,6 +67,7 @@ export function MobileActionsMenu(props: MobileActionsMenuProps) {
     theme,
     onToggleTheme,
     onOpenShortcuts,
+    onEnterReading,
     disabled,
   } = props
 
@@ -178,6 +187,24 @@ export function MobileActionsMenu(props: MobileActionsMenuProps) {
           ))}
 
           <p className="actions-menu__heading">Appearance</p>
+          {/*
+            First in the section, and the one item here that changes what is on
+            screen rather than how it is drawn — on a phone it is also the only
+            way in, since the header button it stands for lives in the row this
+            sheet replaces.
+          */}
+          <button
+            type="button"
+            role="menuitem"
+            className="actions-menu__option"
+            onClick={() => {
+              close()
+              onEnterReading()
+            }}
+          >
+            Immersive reading
+            <BookOpenIcon className="actions-menu__check" />
+          </button>
           <button
             type="button"
             role="menuitem"

@@ -299,6 +299,21 @@ export function ExternalLinkIcon(props: IconProps) {
   )
 }
 
+/*
+ * An open book, for immersive reading. Two leaves meeting at a spine that is
+ * drawn as a single vertical rather than as a gutter — at 16px a gutter closes
+ * up into a smudge, and the one line reads as the fold it stands for.
+ */
+export function BookOpenIcon(props: IconProps) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 6.5v13" />
+      <path d="M12 6.5C10.7 5.2 8.9 4.5 6.5 4.5H3v13h3.5c2.4 0 4.2.7 5.5 2" />
+      <path d="M12 6.5c1.3-1.3 3.1-2 5.5-2H21v13h-3.5c-2.4 0-4.2.7-5.5 2" />
+    </svg>
+  )
+}
+
 /* --- Documents --- */
 
 /* A clock face with the arrow running anticlockwise: this is "back through

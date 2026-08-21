@@ -183,6 +183,15 @@ export const CATALOG = {
     keys: 'mod+alt+f',
     keysOther: 'alt+f',
   },
+  /* Same row as toggleFocus above, and for the same reasons — including the
+     AltGr rule that drops the mod off Apple hardware. R for reading. */
+  'app.toggleReading': {
+    label: 'Immersive reading mode',
+    category: 'app',
+    keys: 'mod+alt+r',
+    keysOther: 'alt+r',
+    note: 'Escape leaves it',
+  },
 
   // --- Documents ---------------------------------------------------------
   'doc.new': {

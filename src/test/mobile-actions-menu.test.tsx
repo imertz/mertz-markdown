@@ -26,6 +26,7 @@ function renderMenu(overrides: Record<string, unknown> = {}) {
     theme: 'light' as const,
     onToggleTheme: vi.fn(),
     onOpenShortcuts: vi.fn(),
+    onEnterReading: vi.fn(),
     ...overrides,
   }
   render(<MobileActionsMenu {...props} />)

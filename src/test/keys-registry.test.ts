@@ -70,6 +70,7 @@ function makeDeps(overrides: { documents?: DocumentsApi } = {}) {
     library: { hidden: false, toggle: vi.fn(), hide: vi.fn() },
     theme: { theme: 'light', toggle: vi.fn() },
     focus: { on: false, toggle: vi.fn() },
+    reading: { on: false, toggle: vi.fn() },
     ui,
   }
   return { deps, ui, documents }

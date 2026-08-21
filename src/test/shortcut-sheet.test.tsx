@@ -28,6 +28,7 @@ function realCommands() {
     library: { hidden: false, toggle: noop, hide: noop },
     theme: { theme: 'light', toggle: noop },
     focus: { on: false, toggle: noop },
+    reading: { on: false, toggle: noop },
     ui: new Proxy({}, { get: () => noop }) as never,
   }
   return buildCommands(deps)
