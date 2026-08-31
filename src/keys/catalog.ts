@@ -411,6 +411,18 @@ export const CATALOG = {
     category: 'insert',
     menuKeywords: ['image', 'photo', 'picture', 'illustration'],
   },
+  'insert.diagram': {
+    label: 'Insert diagram',
+    category: 'insert',
+    menuKeywords: [
+      'diagram',
+      'mermaid',
+      'flowchart',
+      'sequence',
+      'graph',
+      'chart',
+    ],
+  },
   // --- Comments ----------------------------------------------------------
   'comment.add': {
     label: 'Comment on selection',

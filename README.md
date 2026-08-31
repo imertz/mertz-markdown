@@ -19,7 +19,7 @@
 ```bash
 bun install
 bun run dev        # http://localhost:5173
-bun run test       # 873 tests
+bun run test       # 1,004 tests
 bun run build      # tsc -b && vite build (emits the service worker)
 bun run preview    # serve the production build, service worker active
 ```
@@ -169,6 +169,31 @@ Everything below is built on the same rule: nothing reaches the `.md`.
 - **Syntax highlighting** in code blocks, via lowlight's `common` grammar set.
   Decorations again, over the same `codeBlock` node — the ` ```lang ` fence
   round-trips exactly as before.
+- **Mermaid diagrams** (`src/editor/extensions/mermaid.ts`) draw from the
+  ` ```mermaid ` fence that already holds them. Nothing was added to the
+  dialect: that info string is how GitHub, GitLab and every other renderer
+  that draws these has agreed to spell it, so the feature needs no node, no
+  mark and no entry in `markdown/config.ts` — the document already *is* the
+  diagram. The picture is a widget decoration and the collapse is a class, so
+  ⌘Z never undoes a *render* and a render can never trigger an autosave.
+
+  The fence gives way to the diagram and comes back the instant the caret is
+  inside it, which makes reading and editing the same mode rather than two.
+  Only a diagram that actually drew earns that: a fence still rendering, blank
+  or broken keeps its source on screen with the error under it, because the
+  alternative is a block that disappears when you make a typo in it. A
+  collapsed block has no height and the browser's caret motion steps over it,
+  so the plugin catches the arrow key that was already leaving the neighbouring
+  block — and a click on the picture is the other way in.
+
+  Mermaid is imported dynamically and **never at startup**. It is by a wide
+  margin the largest thing this app could depend on — 3.5 MB across thirty-odd
+  chunks, against a 400 KB app — and most documents contain no diagram at all,
+  so precaching it would change what installing this costs for everyone.
+  `vite.config.ts` gives it a directory of its own, keeps that directory out of
+  the service worker's precache, and picks it up with a runtime `CacheFirst`
+  rule instead: the install is the size it always was, and a reader who has
+  opened one diagram has them offline from then on.
 - **Opening files.** The manifest always declared `file_handlers` for
   `text/markdown`; `launchQueue` now actually consumes them, and `.md` files can
   be dropped anywhere on the window.
@@ -194,7 +219,9 @@ Everything below is built on the same rule: nothing reaches the `.md`.
   (`src/markdown/exportHtml.ts`), never an option on the `.md` export. The body
   comes from the schema's own DOM serializer, so the anchors highlight for free,
   and the threads follow as a numbered annex. It shares no code with the
-  markdown path — which is the point.
+  markdown path — which is the point. Mermaid fences are drawn into this file
+  as SVG, since it is the export that already trades portability for
+  completeness; one that will not draw stays the fence it was.
 - **Word export** (`src/docx/`) writes OOXML directly and zips it with the
   `fflate` already carrying the images bundle: **+6.6 KB gzipped**, no new
   dependency. The `docx` package would have added 115 KB gzipped to a 352 KB
@@ -299,6 +326,11 @@ Everything below is built on the same rule: nothing reaches the `.md`.
 - **A remote image becomes a link in a `.docx`.** Its bytes are not in browser
   storage, and fetching them at export time would need the image host's CORS
   permission and a network no other part of this path requires.
+- **A diagram is a picture only in the app and in the annotated HTML.** The
+  `.md` carries the fence, which is the whole point — every renderer worth
+  handing a file to draws it, and the ones that do not show the source, which
+  is what mermaid syntax *is*. A `.docx` shows the source for the same reason
+  it shows any code block.
 - **A `.docx` drops a code block's language and a task item's interactivity.**
   Word has no fenced-language concept, and its real checkbox is a content
   control; the box is a printed glyph, so it survives every reader but does not

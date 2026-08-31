@@ -13,6 +13,7 @@ import {
   dismissSlashCommand,
   slashCommandKey,
 } from '../../editor/extensions/slashCommands'
+import { insertMermaidBlock } from '../../editor/extensions/mermaid'
 import { IMAGE_ACCEPT } from '../../images/files'
 import {
   metaFor,
@@ -184,6 +185,9 @@ export function SlashCommandMenu({
         setCursor(0)
       }),
       toMenuItem('insert.image', 'Choose a local image file', chooseImage),
+      toMenuItem('insert.diagram', 'A mermaid flowchart to edit', () =>
+        runAtInsertionPoint(position => insertMermaidBlock(editor, position)),
+      ),
       toMenuItem('comment.add', 'Annotate a selected placeholder', () =>
         runPlaceholderAction('comment'),
       ),

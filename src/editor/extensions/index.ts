@@ -19,6 +19,7 @@ import { CommentSanitizer } from './commentSanitizer'
 import { CommentSync } from './commentSync'
 import { FocusBlock } from './focusBlock'
 import { LocalImage } from './image'
+import { Mermaid } from './mermaid'
 import { Search } from './search'
 import { SectionMarks } from './sectionMarks'
 import { SlashCommands } from './slashCommands'
@@ -126,6 +127,14 @@ export function buildExtensions(
         }
       },
     }),
+
+    /*
+     * Diagrams from the ` ```mermaid ` fences the block above already parses.
+     * Decorations over the same codeBlock node — no schema entry, no
+     * serializer, and mermaid itself is imported only once a document turns
+     * out to contain one. See mermaid.ts.
+     */
+    Mermaid,
 
     LocalImage.configure({
       resolveAsset: options.resolveImageAsset ?? (async () => undefined),

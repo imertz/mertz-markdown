@@ -1,6 +1,7 @@
 import type { Editor } from '@tiptap/core'
 import { DOMSerializer } from '@tiptap/pm/model'
 import { COMMENT_MARK_NAME } from '../editor/extensions/comment'
+import { MERMAID_LANGUAGE, renderMermaid } from '../editor/extensions/mermaid'
 import { withExtension } from '../lib/filename'
 import type { ThreadWithComments } from '../types'
 import { slugsFor } from './slug'
@@ -33,6 +34,13 @@ pre code { background: none; }
 table { border-collapse: collapse; width: 100%; }
 td, th { border: 1px solid #dedcd8; padding: 6px 10px; text-align: start; }
 img { display: block; max-width: 100%; height: auto; margin: 1em 0; }
+/* Drawn once, into the file. The diagram carries its own fills, so it is given
+   a light ground in both themes rather than being redrawn for each. */
+.mermaid-figure {
+  margin: 1em 0; padding: 12px; text-align: center;
+  background: #eeedea; border: 1px solid #dedcd8; border-radius: 3px;
+}
+.mermaid-figure svg { max-width: 100%; height: auto; }
 /* A table box shrinks to the picture, so the caption is measured against the
    image rather than against the page. */
 .image-figure { display: table; margin: 1em 0; max-width: 100%; }
@@ -54,6 +62,7 @@ img { display: block; max-width: 100%; height: auto; margin: 1em 0; }
   body { color: #f4f3f1; background: #171716; }
   blockquote, .annex__head, .annex__comment time, .image-figure figcaption { color: #a3a29e; }
   pre { background: #212120; border-color: #333331; }
+  .mermaid-figure { background: #eeedea; border-color: #dedcd8; }
   td, th, .annex { border-color: #333331; }
   .comment-anchor { background: rgba(227, 112, 63, 0.2); border-bottom-color: rgba(227, 112, 63, 0.5); }
   .annex-ref { color: #e3703f; }
@@ -151,6 +160,38 @@ function renderImageCaptions(body: HTMLElement): void {
   }
 }
 
+/**
+ * Draw every mermaid fence into the file.
+ *
+ * The `.md` export cannot do this and must not try — a fence is what mermaid
+ * syntax *is*, and every renderer worth handing a file to draws it. This
+ * export is the one that already trades portability for completeness, so here
+ * the picture is worth more than the source that made it.
+ *
+ * A diagram that will not draw stays the fence it already was. The source is
+ * the content; losing it to a failed render would be strictly worse than an
+ * export that shows the code, which is what every other markdown reader shows
+ * anyway.
+ */
+async function renderMermaidFigures(body: HTMLElement): Promise<void> {
+  const blocks = body.querySelectorAll<HTMLElement>(
+    `pre[data-language="${MERMAID_LANGUAGE}"]`,
+  )
+
+  for (const block of blocks) {
+    try {
+      const svg = await renderMermaid(block.textContent ?? '', 'light')
+      const figure = document.createElement('figure')
+      figure.className = 'mermaid-figure'
+      // Mermaid rendered this under securityLevel 'strict'; see renderMermaid.
+      figure.innerHTML = svg
+      block.replaceWith(figure)
+    } catch {
+      // Deliberately nothing: the fence stays exactly as it was serialized.
+    }
+  }
+}
+
 export async function toAnnotatedHtml(
   editor: Editor,
   { title, threads, resolveAsset }: AnnexOptions,
@@ -182,6 +223,7 @@ export async function toAnnotatedHtml(
     image.removeAttribute('data-local-asset-id')
   }
 
+  await renderMermaidFigures(body)
   renderImageCaptions(body)
   addHeadingIds(body)
 

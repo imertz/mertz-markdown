@@ -1400,6 +1400,76 @@
   line-height: 14px;
 }
 
+/* --- Mermaid diagrams --- */
+
+/*
+ * A ```mermaid fence is an ordinary code block that happens to be a picture.
+ * The picture is a widget decoration in front of the block and the source is
+ * the block itself; the only thing this stylesheet decides is which of the two
+ * is on screen.
+ *
+ * The rule: the fence gives way to the diagram, and comes back the moment the
+ * caret is inside it. So reading a document shows diagrams, editing one shows
+ * what you are editing, and neither is a mode anyone has to switch.
+ */
+.mermaid-diagram {
+  margin: 1em 0;
+  padding: var(--s3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--code-bg);
+  text-align: center;
+  /* A diagram is a figure, not a paragraph: it should survive a page break in
+     one piece the way pre and table already do. */
+  break-inside: avoid;
+
+  & svg {
+    max-width: 100%;
+    height: auto;
+    /* Kills the inline-block descender gap under the picture, which otherwise
+       makes the padding look uneven top to bottom. */
+    vertical-align: middle;
+  }
+}
+
+/*
+ * Failure is loud but not fatal: the message says what mermaid said, and the
+ * source stays on screen above it because a fence that cannot be drawn never
+ * earns the class that would hide it.
+ */
+.mermaid-diagram--error {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+  text-align: start;
+}
+
+.mermaid-diagram__message {
+  margin: 0;
+  color: var(--warn);
+  font-family: var(--sans);
+  font-size: 0.9em;
+}
+
+/*
+ * `display: none` rather than a collapse: a fence with height but no content
+ * is a strip of dead space under every diagram, and the caret can land in it
+ * from either side.
+ *
+ * That the browser's own vertical caret motion steps straight over a hidden
+ * block is the cost, and it is paid in mermaid.ts — the plugin catches the
+ * arrow key that was already leaving the neighbouring block and puts the caret
+ * inside this one, which brings it straight back.
+ */
+.ProseMirror pre.is-mermaid-rendered:not(.is-mermaid-editing) {
+  display: none;
+}
+
+/* Being edited: the source sits under its own diagram, close enough to read as
+   one object, and the label says which fence it belongs to. */
+.ProseMirror pre.is-mermaid-editing {
+  margin-top: calc(-1 * var(--s2));
+}
+
 /* --- Syntax highlighting --- */
 
 /*

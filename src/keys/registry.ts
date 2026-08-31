@@ -5,6 +5,7 @@ import type { RailVisibility } from '../hooks/useRailHidden'
 import type { Theme } from '../hooks/useTheme'
 import type { ThreadsApi } from '../hooks/useThreads'
 import type { PaletteAction } from '../components/CommandPalette'
+import { insertMermaidBlock } from '../editor/extensions/mermaid'
 import { formatShortcut, isApplePlatform } from '../lib/shortcuts'
 import type { CommandId } from './catalog'
 import { CATALOG, chordFor } from './catalog'
@@ -226,6 +227,11 @@ export function buildCommands(deps: CommandDeps): Command[] {
           .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
           .run(),
       ),
+      hasEditor,
+    ),
+    define(
+      'insert.diagram',
+      editorCommand(e => insertMermaidBlock(e)),
       hasEditor,
     ),
 

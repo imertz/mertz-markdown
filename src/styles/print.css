@@ -121,6 +121,16 @@
     opacity: 1;
   }
 
+  /*
+   * On paper a diagram is only ever the picture. The caret happens to be
+   * somewhere when the print dialog opens, and that one fence is expanded —
+   * printing its source next to the drawing of it would be an artefact of
+   * where someone had clicked.
+   */
+  .ProseMirror pre.is-mermaid-rendered {
+    display: none;
+  }
+
   /* --- Breaks --- */
 
   .ProseMirror :is(h1, h2, h3, h4, h5, h6) {
