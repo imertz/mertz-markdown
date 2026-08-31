@@ -136,6 +136,8 @@ export function collectPassages(record: DocumentRecord): PassageDoc[] {
     title: record.title,
     // Nothing to quote — a title hit just opens the document.
     anchor: { exact: '', prefix: '', suffix: '' },
+    project: record.project ?? null,
+    tags: record.tags ?? [],
   })
 
   kept.forEach((entry, index) => {
@@ -162,6 +164,8 @@ export function collectPassages(record: DocumentRecord): PassageDoc[] {
       updatedAt: record.updatedAt,
       title: record.title,
       anchor,
+      project: record.project ?? null,
+      tags: record.tags ?? [],
     })
 
     // After building its own passage, so a heading is not its own ancestor.
@@ -200,5 +204,7 @@ export function collectCommentPassages(
       title: record.title,
       anchor: { exact: '', prefix: '', suffix: '' },
       threadId: comment.threadId,
+      project: record.project ?? null,
+      tags: record.tags ?? [],
     }))
 }

@@ -3,10 +3,13 @@ import { useDismissable } from '../../hooks/useDismissable'
 import type { SearchScope } from '../../hooks/useSearchPanel'
 import { useSearchPanel } from '../../hooks/useSearchPanel'
 import { segments } from '../../lib/highlight'
+import { foldLabel } from '../../lib/labels'
+import { collectProjects, collectTags } from '../../lib/library'
 import { relative } from '../../lib/time'
 import { buildSnippet } from '../../search/snippet'
 import type { PassageDoc } from '../../search/types'
-import { CloseIcon } from '../icons'
+import type { DocumentRecord } from '../../types'
+import { CloseIcon, FolderIcon, TagIcon } from '../icons'
 
 export interface SearchHit {
   passage: PassageDoc
@@ -23,6 +26,8 @@ interface SearchPanelProps {
   storageRevision: number
   /** Live documents, so the panel can say how much "every document" is. */
   corpusCount: number
+  /** Live documents to derive available projects and tags for filtering. */
+  documents?: readonly DocumentRecord[]
 }
 
 const SCOPES: { value: SearchScope; label: string }[] = [
@@ -70,13 +75,28 @@ export function SearchPanel({
   flushPendingWrites,
   storageRevision,
   corpusCount,
+  documents = [],
 }: SearchPanelProps) {
   const panel = useSearchPanel(flushPendingWrites, storageRevision)
-  const { query, scope, results, searching } = panel
+  const {
+    query,
+    scope,
+    results,
+    searching,
+    effectiveProject,
+    effectiveTags,
+    cleanTerm,
+  } = panel
   const [cursor, setCursor] = useState(0)
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set())
   const container = useDismissable<HTMLDivElement>(true, onClose)
   const list = useRef<HTMLDivElement>(null)
+
+  const projects = useMemo(() => collectProjects(documents), [documents])
+  const tags = useMemo(() => collectTags(documents), [documents])
+
+  const hasActiveFilters =
+    effectiveProject !== undefined || effectiveTags.length > 0
 
   /*
    * Groups are for display; the keyboard walks one flat list across them, so
@@ -98,7 +118,7 @@ export function SearchPanel({
         return {
           index,
           passage: hit.passage,
-          snippet: buildSnippet(hit.passage.text, query, SNIPPET_RADIUS),
+          snippet: buildSnippet(hit.passage.text, cleanTerm || query, SNIPPET_RADIUS),
           hint: hintFor(hit.passage, group.title),
         }
       })
@@ -110,14 +130,14 @@ export function SearchPanel({
       return { group, items, hidden, more }
     })
     return { sections, rows }
-  }, [results, query, expanded])
+  }, [results, cleanTerm, query, expanded])
 
   const active = Math.min(cursor, Math.max(rows.length - 1, 0))
 
   useEffect(() => {
     setCursor(0)
     setExpanded(new Set())
-  }, [query, scope])
+  }, [query, scope, effectiveProject, effectiveTags])
 
   useEffect(() => {
     list.current
@@ -132,7 +152,7 @@ export function SearchPanel({
       setExpanded(current => new Set(current).add(row.docId))
       return
     }
-    onOpenHit({ passage: row.passage, term: query })
+    onOpenHit({ passage: row.passage, term: cleanTerm || query })
     onClose()
   }
 
@@ -165,7 +185,7 @@ export function SearchPanel({
             type="text"
             className="search-panel__input"
             value={query}
-            placeholder="Search across every document…"
+            placeholder="Search across every document… (use project:name or #tag)"
             // Distinct from the dialog's own label, or both match by name.
             aria-label="Search query"
             autoComplete="off"
@@ -195,29 +215,138 @@ export function SearchPanel({
           </button>
         </header>
 
-        <div className="search-panel__scopes" role="tablist" aria-label="Filter results">
-          {SCOPES.map(option => {
-            const count = countFor(option.value)
-            return (
+        <div className="search-panel__controls">
+          <div className="search-panel__scopes" role="tablist" aria-label="Filter results">
+            {SCOPES.map(option => {
+              const count = countFor(option.value)
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="tab"
+                  className="search-panel__scope"
+                  aria-selected={scope === option.value}
+                  onClick={() => panel.setScope(option.value)}
+                >
+                  {option.label}
+                  {count === null ? null : (
+                    <span className="search-panel__count">{count}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {(projects.length > 0 || tags.length > 0) && (
+            <div className="search-panel__filter-bar" aria-label="Filters">
+              {projects.length > 0 && (
+                <div className="search-panel__filter-group">
+                  <label htmlFor="search-project-select" className="search-panel__filter-icon" title="Filter by project">
+                    <FolderIcon />
+                  </label>
+                  <select
+                    id="search-project-select"
+                    className="search-panel__project-select"
+                    aria-label="Filter by project"
+                    value={
+                      effectiveProject === undefined
+                        ? ''
+                        : effectiveProject === null
+                          ? '__unfiled__'
+                          : effectiveProject
+                    }
+                    onChange={event => {
+                      const val = event.target.value
+                      if (!val) panel.setProjectFilter(undefined)
+                      else if (val === '__unfiled__') panel.setProjectFilter(null)
+                      else panel.setProjectFilter(val)
+                    }}
+                  >
+                    <option value="">All projects</option>
+                    {projects.map(p => (
+                      <option key={p.name} value={p.name}>
+                        {p.name} ({p.count})
+                      </option>
+                    ))}
+                    <option value="__unfiled__">Unfiled</option>
+                  </select>
+                </div>
+              )}
+
+              {tags.length > 0 && (
+                <div className="search-panel__tag-bar" role="group" aria-label="Filter by tag">
+                  <span className="search-panel__filter-icon" title="Filter by tag">
+                    <TagIcon />
+                  </span>
+                  <div className="search-panel__tag-chips">
+                    {tags.map(tag => {
+                      const isSelected = effectiveTags.some(
+                        t => foldLabel(t) === foldLabel(tag.name),
+                      )
+                      return (
+                        <button
+                          key={tag.name}
+                          type="button"
+                          className="search-panel__tag-chip"
+                          aria-pressed={isSelected}
+                          aria-label={`Filter by #${tag.name} (${tag.count})`}
+                          onClick={() => panel.toggleTagFilter(tag.name)}
+                        >
+                          #{tag.name}
+                          <span className="search-panel__tag-count">{tag.count}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {hasActiveFilters && (
+            <div className="search-panel__active-filters">
+              <span className="search-panel__active-label">Active filters:</span>
+              {effectiveProject !== undefined && (
+                <span className="search-panel__active-pill">
+                  <FolderIcon />
+                  <span>{effectiveProject === null ? 'Unfiled' : effectiveProject}</span>
+                  <button
+                    type="button"
+                    className="search-panel__pill-remove"
+                    aria-label="Remove project filter"
+                    onClick={() => panel.setProjectFilter(undefined)}
+                  >
+                    <CloseIcon />
+                  </button>
+                </span>
+              )}
+              {effectiveTags.map(tag => (
+                <span key={tag} className="search-panel__active-pill">
+                  <TagIcon />
+                  <span>#{tag}</span>
+                  <button
+                    type="button"
+                    className="search-panel__pill-remove"
+                    aria-label={`Remove tag filter #${tag}`}
+                    onClick={() => panel.toggleTagFilter(tag)}
+                  >
+                    <CloseIcon />
+                  </button>
+                </span>
+              ))}
               <button
-                key={option.value}
                 type="button"
-                role="tab"
-                className="search-panel__scope"
-                aria-selected={scope === option.value}
-                onClick={() => panel.setScope(option.value)}
+                className="search-panel__clear-btn"
+                onClick={panel.clearFilters}
               >
-                {option.label}
-                {count === null ? null : (
-                  <span className="search-panel__count">{count}</span>
-                )}
+                Clear filters
               </button>
-            )
-          })}
+            </div>
+          )}
         </div>
 
         <div className="search-panel__body" ref={list}>
-          {!query.trim() ? (
+          {!query.trim() && !hasActiveFilters ? (
             <p className="search-panel__empty">
               Search the text of every document, its comments and its trash.
               {/*
@@ -233,12 +362,38 @@ export function SearchPanel({
           ) : searching && !results ? (
             <p className="search-panel__empty">Searching…</p>
           ) : rows.length === 0 ? (
-            <p className="search-panel__empty">No matches for “{query.trim()}”</p>
+            <p className="search-panel__empty">
+              {query.trim()
+                ? `No matches for “${query.trim()}”`
+                : 'No documents matching the selected filters'}
+            </p>
           ) : (
             sections.map(section => (
               <section className="search-panel__group" key={section.group.docId}>
                 <h3 className="search-panel__doc">
                   <span className="search-panel__doc-title">{section.group.title}</span>
+                  {section.group.project ? (
+                    <button
+                      type="button"
+                      className="search-panel__doc-project"
+                      title={`Filter by project: ${section.group.project}`}
+                      onClick={() => panel.setProjectFilter(section.group.project)}
+                    >
+                      <FolderIcon />
+                      <span>{section.group.project}</span>
+                    </button>
+                  ) : null}
+                  {section.group.tags?.map(tag => (
+                    <button
+                      key={tag}
+                      type="button"
+                      className="search-panel__doc-tag"
+                      title={`Filter by tag: #${tag}`}
+                      onClick={() => panel.toggleTagFilter(tag)}
+                    >
+                      #{tag}
+                    </button>
+                  ))}
                   {section.group.trashed ? (
                     <span className="search-panel__badge">In trash</span>
                   ) : null}

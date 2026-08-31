@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { parseSearchQuery } from '../search/query'
 import { searchPassages } from '../search/store'
 import type { PassageSource, SearchResults } from '../search/types'
+import { foldLabel, normalizeTags } from '../lib/labels'
 import { useDebouncedCallback } from './useDebouncedCallback'
 
 /**
@@ -19,6 +21,15 @@ export interface SearchPanelApi {
   setQuery: (value: string) => void
   scope: SearchScope
   setScope: (value: SearchScope) => void
+  projectFilter: string | null | undefined
+  setProjectFilter: (value: string | null | undefined) => void
+  tagFilters: string[]
+  setTagFilters: (value: string[]) => void
+  toggleTagFilter: (tag: string) => void
+  clearFilters: () => void
+  effectiveProject: string | null | undefined
+  effectiveTags: string[]
+  cleanTerm: string
   results: SearchResults | null
   /** True until the first results for the current query land. */
   searching: boolean
@@ -43,6 +54,8 @@ export function useSearchPanel(
 ): SearchPanelApi {
   const [query, setQuery] = useState('')
   const [scope, setScope] = useState<SearchScope>('all')
+  const [projectFilter, setProjectFilter] = useState<string | null | undefined>(undefined)
+  const [tagFilters, setTagFilters] = useState<string[]>([])
   const [results, setResults] = useState<SearchResults | null>(null)
   const [searching, setSearching] = useState(false)
 
@@ -51,11 +64,44 @@ export function useSearchPanel(
   // afterwards would show answers to a question the user has moved on from.
   const generation = useRef(0)
 
-  const run = useCallback(
-    async (term: string, current: SearchScope) => {
-      const ticket = (generation.current += 1)
+  const parsedQuery = useMemo(() => parseSearchQuery(query), [query])
 
-      if (!term.trim()) {
+  const effectiveProject = projectFilter !== undefined ? projectFilter : parsedQuery.project
+  const effectiveTags = useMemo(
+    () => normalizeTags([...tagFilters, ...parsedQuery.tags]),
+    [tagFilters, parsedQuery.tags],
+  )
+  const cleanTerm = parsedQuery.term
+
+  const toggleTagFilter = useCallback((tag: string) => {
+    const key = foldLabel(tag)
+    setTagFilters(current =>
+      current.some(c => foldLabel(c) === key)
+        ? current.filter(c => foldLabel(c) !== key)
+        : [...current, tag],
+    )
+  }, [])
+
+  const clearFilters = useCallback(() => {
+    setProjectFilter(undefined)
+    setTagFilters([])
+    // If the query text had inline directives like project:foo or #tag, clean them out
+    if (parsedQuery.project !== undefined || parsedQuery.tags.length > 0) {
+      setQuery(cleanTerm)
+    }
+  }, [parsedQuery, cleanTerm])
+
+  const run = useCallback(
+    async (
+      term: string,
+      currentScope: SearchScope,
+      project: string | null | undefined,
+      tags: string[],
+    ) => {
+      const ticket = (generation.current += 1)
+      const hasFilter = project !== undefined || tags.length > 0
+
+      if (!term.trim() && !hasFilter) {
         setResults(null)
         setSearching(false)
         return
@@ -67,7 +113,11 @@ export function useSearchPanel(
       }
 
       try {
-        const next = await searchPassages(term, scopeOptions(current))
+        const next = await searchPassages(term, {
+          ...scopeOptions(currentScope),
+          project,
+          tags: tags.length ? tags : undefined,
+        })
         if (ticket === generation.current) setResults(next)
       } catch (error) {
         console.error('[search] query failed', error)
@@ -82,9 +132,10 @@ export function useSearchPanel(
   const { schedule, cancel } = useDebouncedCallback(run, QUERY_DELAY_MS)
 
   useEffect(() => {
-    if (!query.trim()) {
-      // An emptied field must not leave the previous answer on screen, and the
-      // in-flight query for it must not be allowed to land either.
+    const hasFilter = effectiveProject !== undefined || effectiveTags.length > 0
+    if (!cleanTerm.trim() && !hasFilter) {
+      // An emptied field with no filters must not leave the previous answer on screen,
+      // and the in-flight query for it must not be allowed to land either.
       cancel()
       generation.current += 1
       setResults(null)
@@ -94,8 +145,32 @@ export function useSearchPanel(
     // Invalidate a query already in flight during the debounce window.
     generation.current += 1
     setSearching(true)
-    schedule(query, scope)
-  }, [query, scope, storageRevision, schedule, cancel])
+    schedule(cleanTerm, scope, effectiveProject, effectiveTags)
+  }, [
+    cleanTerm,
+    scope,
+    effectiveProject,
+    effectiveTags,
+    storageRevision,
+    schedule,
+    cancel,
+  ])
 
-  return { query, setQuery, scope, setScope, results, searching }
+  return {
+    query,
+    setQuery,
+    scope,
+    setScope,
+    projectFilter,
+    setProjectFilter,
+    tagFilters,
+    setTagFilters,
+    toggleTagFilter,
+    clearFilters,
+    effectiveProject,
+    effectiveTags,
+    cleanTerm,
+    results,
+    searching,
+  }
 }

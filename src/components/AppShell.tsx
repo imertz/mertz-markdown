@@ -1416,6 +1416,7 @@ export function AppShell() {
           flushPendingWrites={flush}
           storageRevision={documents.contentRevision}
           corpusCount={documents.documents.length}
+          documents={documents.documents}
         />
       ) : null}
 

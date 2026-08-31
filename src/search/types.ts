@@ -49,6 +49,8 @@ export interface PassageDoc {
   /** Rebuilt into an editor range by `resolveSelector` when a hit is clicked. */
   anchor: TextQuoteSelector
   threadId?: string
+  project?: string | null
+  tags?: string[]
 }
 
 /** A passage plus its BM25 score, as the panel consumes it. */
@@ -63,6 +65,8 @@ export interface SearchGroup {
   title: string
   updatedAt: number
   trashed: boolean
+  project?: string | null
+  tags?: string[]
   hits: PassageHit[]
 }
 

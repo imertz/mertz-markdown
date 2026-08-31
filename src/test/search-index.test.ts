@@ -266,4 +266,113 @@ describe('search index', () => {
 
     expect((await searchPassages('   ')).groups).toHaveLength(0)
   })
+
+  it('filters search results by project', async () => {
+    await putDocument(
+      makeDocument({
+        title: 'Work Document',
+        project: 'Work',
+        doc: paragraphs('Specific architectural guidelines here.'),
+      }),
+    )
+    await putDocument(
+      makeDocument({
+        title: 'Personal Document',
+        project: 'Personal',
+        doc: paragraphs('Specific personal thoughts here.'),
+      }),
+    )
+    await putDocument(
+      makeDocument({
+        title: 'Unfiled Document',
+        project: null,
+        doc: paragraphs('Specific unfiled notes here.'),
+      }),
+    )
+    await ensureIndex()
+
+    const all = await searchPassages('Specific')
+    expect(all.total).toBe(3)
+
+    const workOnly = await searchPassages('Specific', { project: 'Work' })
+    expect(workOnly.total).toBe(1)
+    expect(workOnly.groups[0].title).toBe('Work Document')
+    expect(workOnly.groups[0].project).toBe('Work')
+
+    // Case-insensitive project matching
+    const workLower = await searchPassages('Specific', { project: 'work' })
+    expect(workLower.total).toBe(1)
+
+    // Unfiled filter (null)
+    const unfiledOnly = await searchPassages('Specific', { project: null })
+    expect(unfiledOnly.total).toBe(1)
+    expect(unfiledOnly.groups[0].title).toBe('Unfiled Document')
+  })
+
+  it('filters search results by tags with AND semantics', async () => {
+    await putDocument(
+      makeDocument({
+        title: 'Doc A',
+        tags: ['guide', 'gfm'],
+        doc: paragraphs('Common topic discussion.'),
+      }),
+    )
+    await putDocument(
+      makeDocument({
+        title: 'Doc B',
+        tags: ['guide'],
+        doc: paragraphs('Common topic discussion.'),
+      }),
+    )
+    await putDocument(
+      makeDocument({
+        title: 'Doc C',
+        tags: ['notes'],
+        doc: paragraphs('Common topic discussion.'),
+      }),
+    )
+    await ensureIndex()
+
+    const all = await searchPassages('Common')
+    expect(all.total).toBe(3)
+
+    const guideOnly = await searchPassages('Common', { tags: ['guide'] })
+    expect(guideOnly.total).toBe(2)
+
+    // AND semantics: must have both guide AND gfm
+    const bothTags = await searchPassages('Common', { tags: ['guide', 'gfm'] })
+    expect(bothTags.total).toBe(1)
+    expect(bothTags.groups[0].title).toBe('Doc A')
+
+    // Non-existent tag
+    const none = await searchPassages('Common', { tags: ['nonexistent'] })
+    expect(none.total).toBe(0)
+  })
+
+  it('returns documents matching project or tags when term is empty', async () => {
+    await putDocument(
+      makeDocument({
+        title: 'Work Project Doc',
+        project: 'Work',
+        tags: ['urgent'],
+        doc: paragraphs('Content here.'),
+      }),
+    )
+    await putDocument(
+      makeDocument({
+        title: 'Personal Doc',
+        project: 'Personal',
+        doc: paragraphs('Other content.'),
+      }),
+    )
+    await ensureIndex()
+
+    const projectMatches = await searchPassages('', { project: 'Work' })
+    expect(projectMatches.groups.length).toBeGreaterThan(0)
+    expect(projectMatches.groups.every(g => g.project === 'Work')).toBe(true)
+
+    const tagMatches = await searchPassages('', { tags: ['urgent'] })
+    expect(tagMatches.groups.length).toBe(1)
+    expect(tagMatches.groups[0].title).toBe('Work Project Doc')
+  })
 })

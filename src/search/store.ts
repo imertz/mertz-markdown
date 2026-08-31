@@ -1,6 +1,7 @@
 import { create, insertMultiple, removeMultiple, search } from 'zbsearch'
 import { getDocument, listDocuments, listTrashedDocuments } from '../db/documents'
 import { listAllComments, listCommentsForDoc } from '../db/threads'
+import { hasTag, sameProject } from '../lib/labels'
 import type { DocumentRecord } from '../types'
 import { collectCommentPassages, collectPassages } from './passages'
 import { SEARCH_SCHEMA, searchProperties } from './schema'
@@ -192,11 +193,15 @@ export async function dropDocument(docId: string): Promise<void> {
   registry.delete(docId)
 }
 
-interface QueryOptions {
+export interface QueryOptions {
   /** Include trashed documents. Off by default. */
   includeTrashed?: boolean
   /** Restrict to one corpus. */
   source?: 'document' | 'comment'
+  /** Filter by project name (case-insensitive), or null for unfiled. */
+  project?: string | null
+  /** Filter by tags (AND semantics: document must have all specified tags). */
+  tags?: readonly string[]
 }
 
 const emptyResults = (): SearchResults => ({
@@ -210,38 +215,71 @@ export async function searchPassages(
   options: QueryOptions = {},
 ): Promise<SearchResults> {
   const trimmed = term.trim()
-  if (!trimmed) return emptyResults()
+  const hasFilter =
+    options.project !== undefined || (options.tags && options.tags.length > 0)
+
+  if (!trimmed && !hasFilter) return emptyResults()
 
   const target = await ensureIndex()
-  const terms = trimmed.split(/\s+/)
+  const terms = trimmed ? trimmed.split(/\s+/) : []
 
   const where: Record<string, unknown> = {}
   if (!options.includeTrashed) where.trashed = false
   if (options.source) where.source = { eq: options.source }
 
-  const results = await search(target, {
-    term: trimmed,
-    properties: searchProperties(),
-    limit: RESULT_LIMIT,
+  const searchParams: Record<string, unknown> = {
     where,
-    /*
-     * Require every term. Without this, "quarterly review" returns everything
-     * containing just "review" — the failure the threshold docs describe, and
-     * the single biggest relevance lever available here.
-     */
-    threshold: 0,
-    // Typo tolerance only where it cannot swamp the result: on a three-letter
-    // term, edit distance 1 matches most of the dictionary.
-    ...(terms.length === 1 && trimmed.length >= TOLERANCE_MIN_LENGTH
-      ? { tolerance: 1 }
-      : {}),
-    // Counted over the whole match set rather than the returned page, which is
-    // the entire reason to use facets instead of counting hits.
+    limit: RESULT_LIMIT,
     facets: { source: {}, trashed: { true: true, false: true } },
-  })
+  }
+
+  if (trimmed) {
+    searchParams.term = trimmed
+    searchParams.properties = searchProperties()
+    searchParams.threshold = 0
+    if (terms.length === 1 && trimmed.length >= TOLERANCE_MIN_LENGTH) {
+      searchParams.tolerance = 1
+    }
+  }
+
+  const results = await search(target, searchParams as any)
+
+  let hits = results.hits
+  if (hasFilter) {
+    hits = hits.filter(hit => {
+      const passage = hit.document as PassageDoc
+      if (
+        options.project !== undefined &&
+        !sameProject(passage.project, options.project)
+      ) {
+        return false
+      }
+      if (
+        options.tags &&
+        options.tags.length > 0 &&
+        !options.tags.every(t => hasTag(passage.tags, t))
+      ) {
+        return false
+      }
+      return true
+    })
+  }
+
+  const groups = groupByDocument(hits)
+
+  if (hasFilter) {
+    const docHits = hits.filter(h => (h.document as PassageDoc).source === 'document').length
+    const commentHits = hits.filter(h => (h.document as PassageDoc).source === 'comment').length
+    const trashedHits = hits.filter(h => (h.document as PassageDoc).trashed).length
+    return {
+      groups,
+      facets: { documents: docHits, comments: commentHits, trashed: trashedHits },
+      total: hits.length,
+    }
+  }
 
   return {
-    groups: groupByDocument(results.hits),
+    groups,
     facets: readFacets(results.facets),
     total: results.count,
   }
@@ -270,6 +308,8 @@ function groupByDocument(hits: readonly { document: unknown; score: number }[]):
         title: passage.title,
         updatedAt: passage.updatedAt,
         trashed: passage.trashed,
+        project: passage.project,
+        tags: passage.tags,
         hits: [entry],
       })
     }

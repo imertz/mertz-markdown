@@ -24,41 +24,46 @@ const paragraphs = (...lines: string[]) => ({
 const seed = async () => {
   const searchable = makeDocument({
     title: 'Table editing notes',
+    project: 'Work',
+    tags: ['gfm', 'spec'],
     doc: paragraphs(
       'GFM tables store alignment in the delimiter row.',
       'A literal pipe breaks the file.',
     ),
   })
   await putDocument(searchable)
-  await putDocument(
-    makeDocument({
-      title: 'Unrelated',
-      doc: paragraphs('Nothing to see about penguins.'),
-    }),
-  )
-  return searchable
+  const unrelated = makeDocument({
+    title: 'Unrelated',
+    project: 'Personal',
+    tags: ['hobby'],
+    doc: paragraphs('Nothing to see about penguins.'),
+  })
+  await putDocument(unrelated)
+  return { searchable, unrelated }
 }
 
 const setup = async () => {
-  const searchable = await seed()
+  const { searchable, unrelated } = await seed()
   const onClose = vi.fn()
   const onOpenHit = vi.fn()
   const flushPendingWrites = vi.fn().mockResolvedValue(undefined)
+  const allDocs = [searchable, unrelated]
 
-  const panel = (storageRevision: number) => (
+  const panel = (storageRevision: number, docList = allDocs) => (
     <SearchPanel
       onClose={onClose}
       onOpenHit={onOpenHit}
       flushPendingWrites={flushPendingWrites}
       storageRevision={storageRevision}
-      /* Both documents `seed` writes. */
-      corpusCount={2}
+      corpusCount={docList.length}
+      documents={docList}
     />
   )
   const view = render(panel(0))
 
   return {
     searchable,
+    unrelated,
     onClose,
     onOpenHit,
     flushPendingWrites,
@@ -235,5 +240,92 @@ describe('SearchPanel', () => {
     refresh(1)
 
     await waitFor(() => expect(screen.getByText(/No matches for/)).toBeTruthy())
+  })
+
+  it('filters results by project dropdown', async () => {
+    const { user, input } = await setup()
+    await user.type(input, 'alignment')
+    await waitFor(() => expect(hits().length).toBeGreaterThan(0))
+
+    const projectSelect = screen.getByLabelText('Filter by project')
+    await user.selectOptions(projectSelect, 'Work')
+
+    await waitFor(() => expect(hits().length).toBeGreaterThan(0))
+    expect(screen.getByText('Table editing notes')).toBeTruthy()
+
+    // Select different project
+    await user.selectOptions(projectSelect, 'Personal')
+    await waitFor(() => expect(screen.getByText(/No matches for/)).toBeTruthy())
+
+    // Select All projects again
+    await user.selectOptions(projectSelect, '')
+    await waitFor(() => expect(hits().length).toBeGreaterThan(0))
+  })
+
+  it('filters results by tag chips', async () => {
+    const { user, input } = await setup()
+    await user.type(input, 'alignment')
+    await waitFor(() => expect(hits().length).toBeGreaterThan(0))
+
+    const gfmChip = screen.getByRole('button', { name: /Filter by #gfm/ })
+    await user.click(gfmChip)
+
+    await waitFor(() => expect(hits().length).toBeGreaterThan(0))
+    expect(gfmChip.getAttribute('aria-pressed')).toBe('true')
+
+    const hobbyChip = screen.getByRole('button', { name: /Filter by #hobby/ })
+    await user.click(hobbyChip)
+
+    // AND semantics: no doc has both gfm and hobby
+    await waitFor(() => expect(screen.getByText(/No matches for/)).toBeTruthy())
+  })
+
+  it('filters via query directives project: and #tag', async () => {
+    const { user, input } = await setup()
+    await user.type(input, 'alignment project:Work #gfm')
+
+    await waitFor(() => expect(hits().length).toBeGreaterThan(0))
+    expect(screen.getByText('Table editing notes')).toBeTruthy()
+
+    // Clear and type non-matching project
+    await user.clear(input)
+    await user.type(input, 'alignment project:Personal')
+    await waitFor(() => expect(screen.getByText(/No matches for/)).toBeTruthy())
+  })
+
+  it('displays active filter badges and clears them', async () => {
+    const { user, input } = await setup()
+    await user.type(input, 'alignment project:Work #gfm')
+
+    await waitFor(() => expect(screen.getByText('Active filters:')).toBeTruthy())
+    expect(
+      screen.getByRole('button', { name: 'Remove project filter' }),
+    ).toBeTruthy()
+    expect(
+      screen.getByRole('button', { name: 'Remove tag filter #gfm' }),
+    ).toBeTruthy()
+
+    const clearBtn = screen.getByRole('button', { name: 'Clear filters' })
+    await user.click(clearBtn)
+
+    await waitFor(() =>
+      expect(screen.queryByText('Active filters:')).toBeNull(),
+    )
+  })
+
+  it('filters by clicking project or tag badge on a result document header', async () => {
+    const { user, input } = await setup()
+    await user.type(input, 'alignment')
+    await waitFor(() => expect(hits().length).toBeGreaterThan(0))
+
+    const docProjectBadge = screen.getByTitle('Filter by project: Work')
+    await user.click(docProjectBadge)
+
+    await waitFor(() =>
+      expect(screen.getByText('Active filters:')).toBeTruthy(),
+    )
+    expect(
+      screen.getByRole('button', { name: 'Remove project filter' }),
+    ).toBeTruthy()
   })
 })
